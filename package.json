@@ -1,0 +1,37 @@
+{
+  "name": "passage-planner",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "orchestrator",
+    "agents/*",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently 'npm run dev:frontend' 'npm run dev:orchestrator' 'npm run dev:agents'",
+    "dev:frontend": "npm --workspace=frontend run dev",
+    "dev:orchestrator": "npm --workspace=orchestrator run dev",
+    "dev:agents": "concurrently 'npm --workspace=agents/weather run dev' 'npm --workspace=agents/wind run dev' 'npm --workspace=agents/tidal run dev'",
+    "build": "npm run build:shared && npm run build:all",
+    "build:shared": "npm --workspace=shared run build",
+    "build:all": "npm --workspaces run build",
+    "test": "npm --workspaces run test",
+    "lint": "npm --workspaces run lint",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "setup": "npm install && npm run setup:env && npm run docker:up",
+    "setup:env": "node scripts/setup/env-setup.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "concurrently": "^8.0.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0",
+    "jest": "^29.0.0",
+    "@jest/types": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "nodemon": "^3.0.0"
+  }
+} 
