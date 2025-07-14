@@ -1,7 +1,7 @@
-#!/usr/bin/env node
+// orchestrator/src/start.ts
+// Start script for the orchestrator service
 
-// Start the orchestrator with HTTP/WebSocket server
-import { createServer } from './server.js';
+import { startServer } from './server';
 import pino from 'pino';
 
 const logger = pino({
@@ -12,31 +12,24 @@ const logger = pino({
   }
 });
 
-async function start() {
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  logger.error({ error }, 'Uncaught exception');
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error({ reason, promise }, 'Unhandled rejection');
+  process.exit(1);
+});
+
+// Start the server
+(async () => {
   try {
-    const port = parseInt(process.env.PORT || '8080', 10);
-    const server = await createServer();
-    
-    server.listen(port, () => {
-      logger.info(`Orchestrator HTTP server listening on port ${port}`);
-      logger.info(`Health check: http://localhost:${port}/health`);
-      logger.info(`WebSocket endpoint: ws://localhost:${port}`);
-    });
+    logger.info('Starting orchestrator service...');
+    await startServer();
   } catch (error) {
-    logger.error({ error }, 'Failed to start server');
+    logger.error({ error }, 'Failed to start orchestrator');
     process.exit(1);
   }
-}
-
-// Handle graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  process.exit(0);
-});
-
-start(); 
+})(); 

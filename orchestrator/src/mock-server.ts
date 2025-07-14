@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer as createHttpServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
+import { LLMService } from './llm-service';
 
 const app = express();
 const httpServer = createHttpServer(app);
@@ -31,14 +32,78 @@ const mockAgents = [
   { id: 'safety-agent', name: 'Safety Agent', status: 'active' },
 ];
 
+// Initialize LLM service (you can switch between providers)
+const llmService = process.env.OPENAI_API_KEY 
+  ? new LLMService({ 
+      provider: 'openai', 
+      apiKey: process.env.OPENAI_API_KEY,
+      model: 'gpt-4-turbo-preview'
+    })
+  : process.env.ANTHROPIC_API_KEY
+  ? new LLMService({ 
+      provider: 'anthropic', 
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      model: 'claude-3-opus-20240229'
+    })
+  : null;
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date(),
     version: '1.0.0',
-    agents: mockAgents.length
+    agents: mockAgents.length,
+    llmEnabled: !!llmService
   });
+});
+
+// Natural language chat endpoint
+app.post('/api/chat', async (req, res) => {
+  console.log('Received chat message:', req.body);
+  
+  const { message } = req.body;
+  
+  if (!message) {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+  
+  try {
+    if (llmService) {
+      // Parse the user's message to extract passage planning details
+      const passageRequest = await llmService.parsePassageRequest(message);
+      console.log('Parsed request:', passageRequest);
+      
+      // Trigger the passage planning process
+      const response = await fetch('http://localhost:8080/api/mcp/tools/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tool: 'plan_passage',
+          arguments: passageRequest
+        })
+      });
+      
+      // The actual response will come through WebSocket
+      res.json({ 
+        status: 'processing',
+        message: 'I\'m planning your passage. Please wait while I gather information from the weather, tidal, and route agents...'
+      });
+      
+    } else {
+      // No LLM configured, use the existing mock endpoint
+      res.json({
+        status: 'processing',
+        message: 'I\'m planning your passage (using mock data as no LLM is configured). Please configure OPENAI_API_KEY or ANTHROPIC_API_KEY for intelligent responses.'
+      });
+    }
+  } catch (error) {
+    console.error('Error processing chat message:', error);
+    res.status(500).json({ 
+      error: 'Failed to process message',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // Mock MCP tool call endpoint
@@ -49,7 +114,7 @@ app.post('/api/mcp/tools/call', async (req, res) => {
   
   if (tool === 'plan_passage') {
     // Emit agent activity via WebSocket
-    io.emit('agent:status', {
+    io.emit('agents:status', {
       agents: [
         { id: 'weather-agent', name: 'Weather Agent', status: 'processing', currentOperation: 'Fetching weather data' },
         { id: 'tidal-agent', name: 'Tidal Agent', status: 'processing', currentOperation: 'Getting tide predictions' },
@@ -59,7 +124,7 @@ app.post('/api/mcp/tools/call', async (req, res) => {
     
     // Simulate processing
     setTimeout(() => {
-      io.emit('agent:status', {
+      io.emit('agents:status', {
         agents: [
           { id: 'port-agent', name: 'Port Agent', status: 'processing', currentOperation: 'Loading port information' },
           { id: 'safety-agent', name: 'Safety Agent', status: 'processing', currentOperation: 'Checking safety requirements' }
@@ -68,7 +133,7 @@ app.post('/api/mcp/tools/call', async (req, res) => {
     }, 1000);
     
     // Return mock passage plan
-    setTimeout(() => {
+    setTimeout(async () => {
       const passagePlan = {
         id: `plan-${Date.now()}`,
         departure: {
@@ -166,8 +231,18 @@ app.post('/api/mcp/tools/call', async (req, res) => {
         }
       };
       
-      io.emit('passage:complete', { plan: passagePlan });
-      io.emit('agent:status', { agents: [] }); // Clear agents
+      // Generate natural language response if LLM is available
+      if (llmService) {
+        const naturalResponse = await llmService.generatePassageResponse(passagePlan);
+        io.emit('plan:complete', {
+          ...passagePlan,
+          naturalResponse
+        });
+      } else {
+        io.emit('plan:complete', passagePlan);
+      }
+      
+      io.emit('agents:status', { agents: [] }); // Clear agents
       
       res.json({
         content: [
@@ -188,7 +263,7 @@ io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
   
   // Send initial agent status
-  socket.emit('agent:status', {
+  socket.emit('agents:status', {
     agents: mockAgents.map(a => ({ ...a, status: 'idle', lastSeen: new Date() }))
   });
   

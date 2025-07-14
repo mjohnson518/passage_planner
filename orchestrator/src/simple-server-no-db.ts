@@ -30,12 +30,12 @@ app.use(express.json());
 
 // In-memory storage (replace with database later)
 const mockAgents = [
-  { id: 'weather-agent', name: 'Weather Agent', status: 'active', lastSeen: new Date() },
-  { id: 'tidal-agent', name: 'Tidal Agent', status: 'active', lastSeen: new Date() },
-  { id: 'port-agent', name: 'Port Agent', status: 'idle', lastSeen: new Date() },
-  { id: 'route-agent', name: 'Route Agent', status: 'active', lastSeen: new Date() },
-  { id: 'safety-agent', name: 'Safety Agent', status: 'idle', lastSeen: new Date() },
-  { id: 'wind-agent', name: 'Wind Agent', status: 'active', lastSeen: new Date() }
+  { id: 'weather-agent', name: 'Weather Agent', status: 'active', lastSeen: new Date(), capabilities: ['get_current_weather', 'get_marine_forecast'] },
+  { id: 'tidal-agent', name: 'Tidal Agent', status: 'active', lastSeen: new Date(), capabilities: ['get_tide_predictions', 'get_current_predictions'] },
+  { id: 'port-agent', name: 'Port Agent', status: 'active', lastSeen: new Date(), capabilities: ['get_port_info', 'get_marina_facilities'] },
+  { id: 'route-agent', name: 'Route Agent', status: 'active', lastSeen: new Date(), capabilities: ['calculate_route', 'optimize_waypoints'] },
+  { id: 'safety-agent', name: 'Safety Agent', status: 'active', lastSeen: new Date(), capabilities: ['get_safety_warnings', 'get_emergency_contacts'] },
+  { id: 'wind-agent', name: 'Wind Agent', status: 'active', lastSeen: new Date(), capabilities: ['get_wind_forecast', 'get_gust_analysis'] }
 ];
 
 // Health check endpoint
@@ -151,11 +151,178 @@ app.post('/api/passage/plan', async (req, res) => {
   // Emit completion after delay
   setTimeout(() => {
     io.emit('plan:complete', mockPlan);
+  }, 3000);
+  
+  res.json({
+    success: true,
+    plan: mockPlan
+  });
+});
+
+// Chat endpoint for natural language processing
+app.post('/api/chat', async (req, res) => {
+  const { message } = req.body;
+  
+  logger.info({ message }, 'Processing chat message');
+  
+  // Simple pattern matching for passage planning
+  const passagePattern = /(?:plan|sail|passage|route|from|to|between)/i;
+  const locationPattern = /(?:from|departure from)\s+([^,\s]+(?:\s+[^,\s]+)*?)(?:\s+to|\s+destination|,)/i;
+  const destinationPattern = /(?:to|destination|arrival at)\s+([^,\s]+(?:\s+[^,\s]+)*?)(?:\s+on|$)/i;
+  const datePattern = /(?:on|at|departing)\s+(\w+\s+\d{1,2})/i;
+  
+  if (passagePattern.test(message)) {
+    // Extract locations
+    const departureMatch = message.match(locationPattern);
+    const destinationMatch = message.match(destinationPattern);
+    const dateMatch = message.match(datePattern);
+    
+    const departure = departureMatch ? departureMatch[1] : 'Boston';
+    const destination = destinationMatch ? destinationMatch[1] : 'Portland';
+    const departureTime = dateMatch ? new Date(dateMatch[1] + ', 2025 10:00:00') : new Date(Date.now() + 86400000);
+    
+    logger.info({ departure, destination, departureTime }, 'Extracted passage details from chat');
+    
+    // Simulate agent processing
+    io.emit('processing:update', {
+      stage: 'understanding',
+      message: 'Understanding your request...',
+      progress: 10
+    });
+    
+    setTimeout(() => {
+      io.emit('processing:update', {
+        stage: 'analyzing',
+        message: `Planning passage from ${departure} to ${destination}...`,
+        progress: 30
+      });
+    }, 500);
+    
+    setTimeout(() => {
+      io.emit('processing:update', {
+        stage: 'weather',
+        message: 'Consulting weather agents...',
+        progress: 50
+      });
+    }, 1500);
+    
+    setTimeout(() => {
+      io.emit('processing:update', {
+        stage: 'tides',
+        message: 'Checking tidal conditions...',
+        progress: 70
+      });
+    }, 2500);
+    
+    // Create a comprehensive passage plan
+    const plan = {
+      id: `plan-${Date.now()}`,
+      departure: {
+        name: departure,
+        coordinates: { latitude: 42.3601, longitude: -71.0589 },
+        country: 'US'
+      },
+      destination: {
+        name: destination,
+        coordinates: { latitude: 43.6591, longitude: -70.2568 },
+        country: 'US'
+      },
+      waypoints: [
+        {
+          id: 'wp-1',
+          name: 'Cape Ann',
+          coordinates: { latitude: 42.6197, longitude: -70.5883 },
+          estimatedArrival: new Date(departureTime.getTime() + 3600000 * 3)
+        },
+        {
+          id: 'wp-2',
+          name: 'Portsmouth Harbor',
+          coordinates: { latitude: 43.0718, longitude: -70.7626 },
+          estimatedArrival: new Date(departureTime.getTime() + 3600000 * 7)
+        }
+      ],
+      departureTime: departureTime,
+      estimatedArrivalTime: new Date(departureTime.getTime() + 3600000 * 10),
+      distance: {
+        total: 105,
+        unit: 'nm'
+      },
+      weather: {
+        conditions: [{
+          timeWindow: {
+            start: departureTime,
+            end: new Date(departureTime.getTime() + 3600000 * 12)
+          },
+          description: 'Fair weather with moderate winds',
+          windSpeed: 15,
+          windDirection: 'SW',
+          waveHeight: 3,
+          visibility: 10,
+          precipitation: 0
+        }],
+        warnings: [],
+        lastUpdated: new Date()
+      },
+      tides: [
+        {
+          location: departure,
+          predictions: [
+            { time: new Date(departureTime.getTime() + 3600000 * 2), height: 10.2, type: 'high' },
+            { time: new Date(departureTime.getTime() + 3600000 * 8), height: 0.5, type: 'low' }
+          ]
+        }
+      ],
+      safety: {
+        emergencyContacts: [
+          { type: 'coast-guard', name: 'USCG Sector Boston', phone: '+1-617-223-8555', vhfChannel: 16 }
+        ],
+        hazards: [],
+        requiredEquipment: ['Life jackets', 'Flares', 'VHF Radio', 'EPIRB'],
+        weatherWindows: [{
+          start: departureTime,
+          end: new Date(departureTime.getTime() + 3600000 * 12)
+        }]
+      },
+      naturalResponse: `I've planned your passage from ${departure} to ${destination}, departing on ${departureTime.toLocaleDateString()}.
+
+**Route Summary:**
+- Distance: 105 nautical miles
+- Estimated duration: 10 hours
+- Key waypoints: Cape Ann, Portsmouth Harbor
+
+**Weather Forecast:**
+- Fair conditions with southwest winds at 15 knots
+- Wave height: 3 feet
+- Good visibility (10 miles)
+
+**Tidal Information:**
+- High tide at ${departure}: 2 hours after departure
+- Favorable current for most of the journey
+
+**Safety Notes:**
+- Monitor VHF Channel 16
+- USCG Sector Boston: +1-617-223-8555
+- Ensure all safety equipment is aboard
+
+This looks like excellent conditions for your passage. The southwest wind will give you a nice beam reach for most of the journey.`
+    };
+    
+    // Emit the plan after processing
+    setTimeout(() => {
+      io.emit('plan:complete', plan);
+    }, 3500);
+    
     res.json({
       success: true,
-      plan: mockPlan
+      message: 'Processing your passage plan...'
     });
-  }, 3000);
+  } else {
+    // Handle non-passage planning queries
+    res.json({
+      success: true,
+      message: 'I can help you plan sailing passages. Try asking something like "Plan a passage from Boston to Portland on July 15"'
+    });
+  }
 });
 
 // Agent status endpoint
@@ -178,8 +345,23 @@ io.on('connection', (socket) => {
   // Send initial agent status
   socket.emit('agents:status', { agents: mockAgents });
   
+  // Send periodic agent status updates
+  const statusInterval = setInterval(() => {
+    // Simulate some agents changing status
+    mockAgents.forEach(agent => {
+      // Randomly update last seen time
+      agent.lastSeen = new Date();
+      // Occasionally change status
+      if (Math.random() > 0.8) {
+        agent.status = agent.status === 'active' ? 'processing' : 'active';
+      }
+    });
+    socket.emit('agents:status', { agents: mockAgents });
+  }, 5000); // Every 5 seconds
+  
   socket.on('disconnect', () => {
     logger.info({ socketId: socket.id }, 'Client disconnected');
+    clearInterval(statusInterval);
   });
   
   socket.on('request:status', () => {

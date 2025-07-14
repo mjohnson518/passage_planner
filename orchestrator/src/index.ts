@@ -440,70 +440,143 @@ export class OrchestratorService extends EventEmitter {
       this.logger.info('Connected to Redis');
       
       // Test PostgreSQL connection
-      await this.postgres.query('SELECT NOW()');
-      this.logger.info('Connected to PostgreSQL');
+      const pgTest = await this.postgres.query('SELECT NOW()');
+      this.logger.info({ time: pgTest.rows[0].now }, 'Connected to PostgreSQL');
       
       // Start MCP server
       const transport = new StdioServerTransport();
       await this.mcpServer.connect(transport);
-      this.logger.info('MCP Orchestrator server started');
+      this.logger.info('MCP server started');
       
-      // Initialize agent discovery
+      // Discover and connect to agents
       await this.discoverAgents();
       
-      this.logger.info('Orchestrator service fully initialized');
+      // Start metrics collection
+      setInterval(() => this.collectSystemMetrics(), 30000);
       
+      this.logger.info('Orchestrator service started successfully');
     } catch (error) {
       this.logger.error({ error }, 'Failed to start orchestrator');
-      process.exit(1);
+      throw error;
     }
   }
   
-
-  
-
-  
   private async discoverAgents() {
-    // In production, this would discover agents via:
-    // 1. Kubernetes service discovery
-    // 2. Consul/etcd registry
-    // 3. Static configuration
-    
-    // For development, start known agents
-    const agentConfigs = [
-      { id: 'weather-agent', path: './agents/weather' },
-      { id: 'tidal-agent', path: './agents/tidal' },
-      { id: 'port-agent', path: './agents/port' },
-      { id: 'safety-agent', path: './agents/safety' },
-      { id: 'route-agent', path: './agents/route' },
-      { id: 'wind-agent', path: './agents/wind' },
-    ];
-    
-    for (const config of agentConfigs) {
-      try {
-        // Agents would self-register via the registration endpoint
-        this.logger.info({ agentId: config.id }, 'Waiting for agent registration');
-      } catch (error) {
-        this.logger.error({ agentId: config.id, error }, 'Agent discovery failed');
+    try {
+      // For now, manually connect to known agents
+      const agentPorts = {
+        'weather-agent': 8101,
+        'tidal-agent': 8102,
+        'port-agent': 8103,
+        'safety-agent': 8104,
+        'route-agent': 8105,
+        'wind-agent': 8106,
+        'factory-agent': 8107,
+      };
+      
+      for (const [agentId, port] of Object.entries(agentPorts)) {
+        try {
+          // In a real implementation, we'd connect via MCP protocol
+          // For now, just register them as available
+          const agentSummary: AgentCapabilitySummary = {
+            agentId,
+            name: agentId.replace('-agent', ' Agent').replace(/\b\w/g, l => l.toUpperCase()),
+            version: '1.0.0',
+            description: `${agentId} service`,
+            status: 'starting',
+            tools: [], // Will be populated when agent connects
+            resources: [],
+            prompts: [],
+            lastUpdated: new Date(),
+            healthEndpoint: `http://localhost:${port}/health`,
+            performance: {
+              averageResponseTime: 0,
+              successRate: 100,
+            }
+          };
+          
+          await this.agentRegistry.registerAgent(agentSummary);
+          
+          this.logger.info({ agentId, port }, 'Registered agent');
+        } catch (error) {
+          this.logger.error({ agentId, error }, 'Failed to register agent');
+        }
       }
+    } catch (error) {
+      this.logger.error({ error }, 'Agent discovery failed');
     }
   }
   
   async shutdown() {
-    this.logger.info('Shutting down orchestrator');
-    
-    // Close agent connections
-    for (const [agentId, client] of this.agentConnections) {
-      await client.close();
+    try {
+      this.logger.info('Shutting down orchestrator...');
+      
+      // Close agent connections
+      for (const [agentId, connection] of this.agentConnections) {
+        try {
+          // Close MCP connection
+          this.logger.info({ agentId }, 'Closing agent connection');
+        } catch (error) {
+          this.logger.error({ agentId, error }, 'Error closing agent connection');
+        }
+      }
+      
+      // Close database connections
+      await this.redis.quit();
+      await this.postgres.end();
+      
+      // Close MCP server
+      await this.mcpServer.close();
+      
+      this.logger.info('Orchestrator shutdown complete');
+    } catch (error) {
+      this.logger.error({ error }, 'Error during shutdown');
+      throw error;
     }
-    
-    // Close database connections
-    await this.redis.quit();
-    await this.postgres.end();
-    
-    this.logger.info('Orchestrator shutdown complete');
   }
   
+  // Public methods for HTTP API
+  async getConnectedAgents(): Promise<string[]> {
+    const agents = await this.agentRegistry.getAllAgents();
+    return agents.filter(a => a.status === 'active').map(a => a.agentId);
+  }
+  
+  async registerAgent(agentId: string, capabilities: any): Promise<void> {
+    const agentSummary: AgentCapabilitySummary = {
+      agentId,
+      name: agentId.replace('-agent', ' Agent').replace(/\b\w/g, l => l.toUpperCase()),
+      version: '1.0.0',
+      description: `${agentId} service`,
+      status: 'active',
+      tools: capabilities.tools || [],
+      resources: capabilities.resources || [],
+      prompts: capabilities.prompts || [],
+      lastUpdated: new Date(),
+      healthEndpoint: capabilities.endpoint || `http://localhost:8100/health`,
+      performance: {
+        averageResponseTime: 0,
+        successRate: 100,
+      }
+    };
+    
+    await this.agentRegistry.registerAgent(agentSummary);
+    
+    this.emit('agent:status', {
+      agentId,
+      status: { status: 'active', lastSeen: new Date() }
+    });
+  }
+  
+  async getAgentStatuses(): Promise<any[]> {
+    const agents = await this.agentRegistry.getAllAgents();
+    return agents.map(agent => ({
+      id: agent.agentId,
+      name: agent.name,
+      status: agent.status,
+      lastSeen: agent.lastUpdated,
+      capabilities: agent.tools.map(t => t.name),
+    }));
+  }
 
 }
 

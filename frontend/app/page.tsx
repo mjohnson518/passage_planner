@@ -6,6 +6,7 @@ import { AgentVisualizer } from './components/visualization/AgentVisualizer'
 import { PassageMapViewer } from './components/map/PassageMapViewer'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 import { usePassagePlanner } from './hooks/usePassagePlanner'
+import { useStore } from './store'
 import { Anchor, Map, MessageSquare, Network, Moon, Sun, Menu, X, Activity } from 'lucide-react'
 
 export default function HomePage() {
@@ -13,7 +14,14 @@ export default function HomePage() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const { activeAgents } = usePassagePlanner()
-  const currentPlan = null // Placeholder for now
+  
+  // Connect to store
+  const connectSocket = useStore((state) => state.connectSocket)
+  const disconnectSocket = useStore((state) => state.disconnectSocket)
+  const connected = useStore((state) => state.connected)
+  const currentPlan = useStore((state) => state.currentPlan)
+  const agentStatuses = useStore((state) => state.agentStatuses)
+  const activeRequests = useStore((state) => state.activeRequests)
 
   useEffect(() => {
     // Check for saved theme preference or default to light mode
@@ -24,7 +32,14 @@ export default function HomePage() {
       setIsDarkMode(true)
       document.documentElement.classList.add('dark')
     }
-  }, [])
+    
+    // Connect to WebSocket
+    connectSocket()
+    
+    return () => {
+      disconnectSocket()
+    }
+  }, [connectSocket, disconnectSocket])
 
   const toggleDarkMode = () => {
     const newMode = !isDarkMode
@@ -38,6 +53,11 @@ export default function HomePage() {
       localStorage.setItem('theme', 'light')
     }
   }
+  
+  // Get active agent count
+  const activeAgentCount = Object.values(agentStatuses).filter(
+    agent => agent.status === 'active' || agent.status === 'processing'
+  ).length
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-ocean-50 via-white to-sand-50 dark:from-gray-950 dark:via-gray-900 dark:to-ocean-950/20 transition-colors duration-500">
@@ -66,11 +86,33 @@ export default function HomePage() {
           <nav className="hidden md:flex items-center gap-4">
             {/* Agent Status Badge */}
             <div className="flex items-center gap-2 px-4 py-2 rounded-full glass">
-              <Activity className={`h-4 w-4 ${activeAgents.length > 0 ? 'text-success-500 animate-pulse' : 'text-gray-400'}`} />
+              <div className="relative">
+                <Activity className={`h-4 w-4 ${activeAgentCount > 0 ? 'text-success-500' : 'text-gray-400'}`} />
+                {activeRequests.length > 0 && (
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                )}
+              </div>
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {activeAgents.length} {activeAgents.length === 1 ? 'agent' : 'agents'} active
-            </span>
-          </div>
+                {activeAgentCount} {activeAgentCount === 1 ? 'agent' : 'agents'} active
+              </span>
+              {activeRequests.length > 0 && (
+                <span className="text-xs text-blue-600 dark:text-blue-400">
+                  ({activeRequests.length} processing)
+                </span>
+              )}
+            </div>
+            
+            {/* Connection Status */}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
+              connected 
+                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
+                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${
+                connected ? 'bg-green-500' : 'bg-red-500'
+              }`} />
+              {connected ? 'Connected' : 'Disconnected'}
+            </div>
             
             {/* Theme Toggle */}
             <button

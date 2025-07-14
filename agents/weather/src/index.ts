@@ -182,39 +182,106 @@ export class WeatherAgent {
     // Check cache
     const cached = this.getCached(cacheKey);
     if (cached) {
-      return cached;
+      return { content: [{ type: 'text', text: JSON.stringify(cached) }] };
     }
     
-    try {
-      // Try NOAA API first
-      if (this.noaaApiKey) {
-        const response = await this.fetchNOAACurrentWeather(coordinates);
-        const result = this.transformNOAACurrentWeather(response, units);
-        this.setCache(cacheKey, result, 900); // 15 minutes
-        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-      }
+    let weatherData: any = {};
+    const errors: any[] = [];
+    
+    // Try multiple sources in parallel for better performance
+    const promises = [];
+    
+    // NOAA Weather
+    promises.push(
+      this.fetchNOAACurrentWeather(coordinates)
+        .then(data => ({ source: 'NOAA', data: this.transformNOAACurrentWeather(data, units) }))
+        .catch(error => {
+          errors.push({ source: 'NOAA', error: error.message });
+          return null;
+        })
+    );
+    
+    // OpenWeatherMap current
+    if (this.openWeatherApiKey) {
+      promises.push(
+        this.fetchOpenWeatherCurrent(coordinates, units)
+          .then(data => ({ source: 'OpenWeatherMap', data: this.transformOpenWeatherCurrent(data) }))
+          .catch(error => {
+            errors.push({ source: 'OpenWeatherMap', error: error.message });
+            return null;
+          })
+      );
       
-      // Fallback to OpenWeatherMap
-      if (this.openWeatherApiKey) {
-        const response = await this.fetchOpenWeatherCurrent(coordinates, units);
-        const result = this.transformOpenWeatherCurrent(response);
-        this.setCache(cacheKey, result, 900);
-        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-      }
+      // OpenWeatherMap marine (One Call API 3.0)
+      promises.push(
+        this.fetchOpenWeatherMarine(coordinates, units)
+          .then(data => ({ source: 'OpenWeatherMap Marine', data }))
+          .catch(error => {
+            errors.push({ source: 'OpenWeatherMap Marine', error: error.message });
+            return null;
+          })
+      );
       
-      throw new Error('No weather API keys configured');
-    } catch (error) {
-      this.logger.error({ error, coordinates }, 'Failed to fetch current weather');
+      // UV Index
+      promises.push(
+        this.fetchOpenWeatherUV(coordinates)
+          .then(uvIndex => ({ source: 'UV', data: { uvIndex } }))
+          .catch(() => null)
+      );
+    }
+    
+    const results = await Promise.all(promises);
+    
+    // Merge results from all sources
+    for (const result of results) {
+      if (result && result.data) {
+        if (result.source === 'NOAA') {
+          weatherData = { ...weatherData, ...result.data, primarySource: 'NOAA' };
+        } else if (result.source === 'OpenWeatherMap') {
+          weatherData = { ...result.data, ...weatherData };
+          if (!weatherData.primarySource) weatherData.primarySource = 'OpenWeatherMap';
+        } else if (result.source === 'OpenWeatherMap Marine' && result.data.current) {
+          weatherData.marine = {
+            waveHeight: result.data.current.waves?.height,
+            wavePeriod: result.data.current.waves?.period,
+            waveDirection: result.data.current.waves?.direction,
+            visibility: result.data.current.visibility,
+          };
+        } else if (result.source === 'UV') {
+          weatherData.uvIndex = result.data.uvIndex;
+        }
+      }
+    }
+    
+    if (!weatherData.temperature && !weatherData.windSpeed) {
+      this.logger.error('All weather APIs failed', { errors });
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             error: 'Unable to fetch weather data',
-            message: error instanceof Error ? error.message : 'Unknown error',
+            errors,
+            fallbackData: {
+              temperature: 20,
+              windSpeed: 10,
+              windDirection: 'N',
+              conditions: 'Data unavailable',
+              source: 'fallback',
+            },
           }),
         }],
       };
     }
+    
+    // Add metadata
+    weatherData.fetchedAt = new Date().toISOString();
+    weatherData.coordinates = coordinates;
+    weatherData.dataSources = results.filter(r => r !== null).map(r => r!.source);
+    
+    // Cache for 15 minutes
+    this.setCache(cacheKey, weatherData, 900);
+    
+    return { content: [{ type: 'text', text: JSON.stringify(weatherData) }] };
   }
   
   private async getMarineForecast(args: any) {
@@ -351,6 +418,70 @@ export class WeatherAgent {
         appid: this.openWeatherApiKey,
         units: units === 'metric' ? 'metric' : 'imperial',
       },
+      timeout: 5000,
+    });
+    
+    return response.data;
+  }
+  
+  private async fetchOpenWeatherMarine(coordinates: any, units: string) {
+    // One Call API 3.0 for marine-specific data
+    const url = `https://api.openweathermap.org/data/3.0/onecall`;
+    
+    try {
+      const response = await axios.get(url, {
+        params: {
+          lat: coordinates.latitude,
+          lon: coordinates.longitude,
+          appid: this.openWeatherApiKey,
+          units: units === 'metric' ? 'metric' : 'imperial',
+          exclude: 'minutely,alerts', // We handle alerts separately
+        },
+        timeout: 10000,
+      });
+      
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        this.logger.warn('OpenWeatherMap One Call API 3.0 requires separate subscription');
+        return null;
+      }
+      throw error;
+    }
+  }
+  
+  private async fetchOpenWeatherUV(coordinates: any) {
+    const url = `https://api.openweathermap.org/data/2.5/uvi`;
+    
+    try {
+      const response = await axios.get(url, {
+        params: {
+          lat: coordinates.latitude,
+          lon: coordinates.longitude,
+          appid: this.openWeatherApiKey,
+        },
+        timeout: 5000,
+      });
+      
+      return response.data.value;
+    } catch (error) {
+      this.logger.warn('UV index fetch failed', error);
+      return null;
+    }
+  }
+  
+  private async fetchOpenWeatherForecast(coordinates: any, units: string, days: number = 5) {
+    const url = `https://api.openweathermap.org/data/2.5/forecast`;
+    
+    const response = await axios.get(url, {
+      params: {
+        lat: coordinates.latitude,
+        lon: coordinates.longitude,
+        appid: this.openWeatherApiKey,
+        units: units === 'metric' ? 'metric' : 'imperial',
+        cnt: days * 8, // 8 forecasts per day (3-hour intervals)
+      },
+      timeout: 10000,
     });
     
     return response.data;

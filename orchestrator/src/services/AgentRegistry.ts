@@ -10,53 +10,60 @@ import {
 } from '@passage-planner/shared/types/core';
 
 export class AgentRegistry {
+  private redis: RedisClientType;
+  private postgres: Pool;
+  private logger: Logger;
   private agents = new Map<string, AgentCapabilitySummary>();
   
-  constructor(
-    private redis: RedisClientType,
-    private postgres: Pool,
-    private logger: Logger
-  ) {}
+  constructor(redis: RedisClientType, postgres: Pool, logger: Logger) {
+    this.redis = redis;
+    this.postgres = postgres;
+    this.logger = logger;
+  }
   
-  async registerAgent(summary: AgentCapabilitySummary): Promise<void> {
-    const { agentId } = summary;
-    
-    // Store in memory
-    this.agents.set(agentId, summary);
-    
-    // Store in Redis for distributed access
-    await this.redis.hSet('agents:registry', agentId, JSON.stringify(summary));
-    
-    // Store capabilities in PostgreSQL for querying
+  async registerAgent(agent: AgentCapabilitySummary): Promise<void> {
     try {
+      // Store in memory
+      this.agents.set(agent.agentId, agent);
+      
+      // Store in Redis for distributed access
+      await this.redis.set(
+        `agent:${agent.agentId}`,
+        JSON.stringify(agent),
+        { EX: 3600 } // 1 hour TTL
+      );
+      
+      // Store capabilities in PostgreSQL
       await this.postgres.query(
-        `INSERT INTO agent_capabilities (agent_id, name, description, version, capabilities, last_updated)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (agent_id) DO UPDATE SET
-           name = EXCLUDED.name,
-           description = EXCLUDED.description,
-           version = EXCLUDED.version,
-           capabilities = EXCLUDED.capabilities,
-           last_updated = EXCLUDED.last_updated`,
+        `INSERT INTO agent_capabilities 
+         (agent_id, name, description, version, capabilities, active) 
+         VALUES ($1, $2, $3, $4, $5, true)
+         ON CONFLICT (agent_id) 
+         DO UPDATE SET 
+           name = $2,
+           description = $3,
+           version = $4,
+           capabilities = $5,
+           last_updated = CURRENT_TIMESTAMP,
+           active = true`,
         [
-          agentId,
-          summary.name,
-          summary.description,
-          summary.version,
+          agent.agentId,
+          agent.name,
+          agent.description,
+          agent.version,
           JSON.stringify({
-            tools: summary.tools,
-            resources: summary.resources,
-            prompts: summary.prompts,
-          }),
-          summary.lastUpdated,
+            tools: agent.tools,
+            resources: agent.resources,
+            prompts: agent.prompts
+          })
         ]
       );
+      
+      this.logger.info({ agentId: agent.agentId }, 'Agent registered');
     } catch (error) {
-      this.logger.error({ error, agentId }, 'Failed to store agent capabilities');
+      this.logger.error({ agentId: agent.agentId, error }, 'Failed to register agent');
       throw error;
     }
-    
-    this.logger.info({ agentId }, 'Agent registered successfully');
   }
   
   async getAgent(agentId: string): Promise<AgentCapabilitySummary | null> {

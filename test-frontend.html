@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Passage Planner API Test</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Passage Planner API Test</h1>
+    
+    <div>
+        <h2>Backend Health Check</h2>
+        <button onclick="testHealth()">Test Health</button>
+        <pre id="health-result"></pre>
+    </div>
+    
+    <div>
+        <h2>Test Passage Planning</h2>
+        <button onclick="testPassagePlanning()">Plan Passage</button>
+        <pre id="passage-result"></pre>
+    </div>
+    
+    <div>
+        <h2>WebSocket Status</h2>
+        <div id="ws-status">Disconnected</div>
+        <h3>Active Agents:</h3>
+        <ul id="agents-list"></ul>
+    </div>
+    
+    <script>
+        // Connect to WebSocket
+        const socket = io('http://localhost:8080', {
+            transports: ['websocket']
+        });
+        
+        socket.on('connect', () => {
+            document.getElementById('ws-status').textContent = 'Connected';
+            console.log('WebSocket connected');
+        });
+        
+        socket.on('disconnect', () => {
+            document.getElementById('ws-status').textContent = 'Disconnected';
+            console.log('WebSocket disconnected');
+        });
+        
+        socket.on('agents:status', (data) => {
+            console.log('Agents status:', data);
+            const list = document.getElementById('agents-list');
+            list.innerHTML = '';
+            data.agents.forEach(agent => {
+                const li = document.createElement('li');
+                li.textContent = `${agent.name} - ${agent.status}${agent.currentOperation ? ': ' + agent.currentOperation : ''}`;
+                list.appendChild(li);
+            });
+        });
+        
+        socket.on('plan:complete', (plan) => {
+            console.log('Plan complete:', plan);
+            document.getElementById('passage-result').textContent = JSON.stringify(plan, null, 2);
+        });
+        
+        async function testHealth() {
+            try {
+                const response = await fetch('http://localhost:8080/health');
+                const data = await response.json();
+                document.getElementById('health-result').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('health-result').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function testPassagePlanning() {
+            try {
+                const response = await fetch('http://localhost:8080/api/mcp/tools/call', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tool: 'plan_passage',
+                        arguments: {
+                            departure: 'Boston, MA',
+                            destination: 'Portland, ME',
+                            departure_time: new Date().toISOString()
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('API Response:', data);
+                
+                // The actual plan will come via WebSocket
+                document.getElementById('passage-result').textContent = 'Request sent, waiting for WebSocket response...';
+                
+            } catch (error) {
+                document.getElementById('passage-result').textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html> 

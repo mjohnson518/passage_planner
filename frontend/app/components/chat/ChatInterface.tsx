@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Anchor, AlertCircle, Map } from 'lucide-react'
+import { Send, Loader2, Anchor, AlertCircle, Map, Activity } from 'lucide-react'
 import { usePassagePlanner } from '../../hooks/usePassagePlanner'
+import { useStore } from '../../store'
 import { formatDate } from '../../lib/utils'
 import { Message } from '../../types'
 import ReactMarkdown from 'react-markdown'
@@ -12,6 +13,11 @@ export function ChatInterface() {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  
+  // Real-time agent status
+  const activeRequests = useStore((state) => state.activeRequests)
+  const agentStatuses = useStore((state) => state.agentStatuses)
+  const planningInProgress = useStore((state) => state.planningInProgress)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -27,6 +33,12 @@ export function ChatInterface() {
 
     const message = input.trim()
     setInput('')
+    
+    // Set planning in progress if it's a passage planning request
+    if (message.toLowerCase().includes('plan') || message.toLowerCase().includes('passage')) {
+      useStore.getState().setPlanningInProgress(true)
+    }
+    
     await sendMessage(message)
   }
 
@@ -36,6 +48,11 @@ export function ChatInterface() {
       handleSubmit(e)
     }
   }
+  
+  // Get processing agents
+  const processingAgents = Object.values(agentStatuses).filter(
+    agent => agent.status === 'processing'
+  )
 
   return (
     <div className="flex flex-col h-full">
@@ -101,14 +118,56 @@ export function ChatInterface() {
         ))}
 
         {isProcessing && (
-          <div className="flex items-center gap-3 p-4 rounded-xl glass animate-fade-in">
-            <div className="relative">
-              <Loader2 className="h-5 w-5 text-ocean-600 dark:text-ocean-400 animate-spin" />
-              <div className="absolute inset-0 bg-ocean-500 blur-xl opacity-30 animate-pulse"></div>
+          <div className="space-y-3">
+            {/* Main processing indicator */}
+            <div className="flex items-center gap-3 p-4 rounded-xl glass animate-fade-in">
+              <div className="relative">
+                <Loader2 className="h-5 w-5 text-ocean-600 dark:text-ocean-400 animate-spin" />
+                <div className="absolute inset-0 bg-ocean-500 blur-xl opacity-30 animate-pulse"></div>
+              </div>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Planning your passage...
+              </span>
             </div>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Planning your passage...
-            </span>
+            
+            {/* Active agents indicator */}
+            {processingAgents.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-4">
+                {processingAgents.map((agent) => (
+                  <div
+                    key={agent.id}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 animate-fade-in"
+                  >
+                    <Activity className="h-3 w-3 text-blue-600 dark:text-blue-400 animate-pulse" />
+                    <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                      {agent.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Active requests */}
+            {activeRequests.length > 0 && (
+              <div className="px-4 space-y-1">
+                {activeRequests.slice(0, 3).map((request) => (
+                  <div
+                    key={request.id}
+                    className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2"
+                  >
+                    <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" />
+                    <span>
+                      {request.tool} → {agentStatuses[request.targetAgent]?.name || request.targetAgent}
+                    </span>
+                  </div>
+                ))}
+                {activeRequests.length > 3 && (
+                  <div className="text-xs text-gray-500 dark:text-gray-500">
+                    +{activeRequests.length - 3} more...
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

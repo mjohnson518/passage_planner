@@ -13,24 +13,24 @@ COPY tsconfig.json ./
 # Copy shared module
 COPY shared ./shared
 
-# Copy orchestrator files
-COPY orchestrator/package*.json ./orchestrator/
-COPY orchestrator/tsconfig.json ./orchestrator/
-COPY orchestrator/src ./orchestrator/src
+# Copy agent files
+COPY agents/weather/package*.json ./agents/weather/
+COPY agents/weather/tsconfig.json ./agents/weather/
+COPY agents/weather/src ./agents/weather/src
 
 # Install dependencies
 WORKDIR /app/shared
 RUN npm ci
 
-WORKDIR /app/orchestrator
+WORKDIR /app/agents/weather
 RUN npm ci
 
 # Build shared module
 WORKDIR /app/shared
 RUN npm run build
 
-# Build orchestrator
-WORKDIR /app/orchestrator
+# Build agent
+WORKDIR /app/agents/weather
 RUN npm run build
 
 # Production stage
@@ -48,28 +48,21 @@ WORKDIR /app
 # Copy built application
 COPY --from=builder --chown=nodejs:nodejs /app/shared/dist ./shared/dist
 COPY --from=builder --chown=nodejs:nodejs /app/shared/package*.json ./shared/
-COPY --from=builder --chown=nodejs:nodejs /app/orchestrator/dist ./orchestrator/dist
-COPY --from=builder --chown=nodejs:nodejs /app/orchestrator/package*.json ./orchestrator/
+COPY --from=builder --chown=nodejs:nodejs /app/agents/weather/dist ./agents/weather/dist
+COPY --from=builder --chown=nodejs:nodejs /app/agents/weather/package*.json ./agents/weather/
 
 # Install production dependencies only
 WORKDIR /app/shared
 RUN npm ci --only=production
 
-WORKDIR /app/orchestrator
+WORKDIR /app/agents/weather
 RUN npm ci --only=production
 
 # Switch to non-root user
 USER nodejs
 
-# Expose ports
-EXPOSE 8080 8081
-
 # Use tini for proper signal handling
 ENTRYPOINT ["/sbin/tini", "--"]
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8081/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"
-
-# Start the application
+# Start the agent
 CMD ["node", "dist/index.js"] 

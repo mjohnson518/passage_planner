@@ -31,6 +31,7 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
     });
 
     ws.on('agents:status', (data: { agents: AgentStatus[] }) => {
+      console.log('Agents status update:', data);
       setActiveAgents(data.agents);
     });
 
@@ -43,15 +44,21 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
       }]);
     });
 
-    ws.on('plan:complete', (plan: PassagePlan) => {
+    ws.on('plan:complete', (plan: any) => {
+      console.log('Received plan:', plan);
+      
+      // Use natural language response if available, otherwise format the plan
+      const content = plan.naturalResponse || formatPassagePlan(plan);
+      
       setMessages(prev => [...prev, {
         id: `plan-${plan.id}`,
         role: 'assistant',
-        content: formatPassagePlan(plan),
+        content: content,
         timestamp: new Date(),
         data: plan,
       }]);
       setIsProcessing(false);
+      setCurrentPlan(plan);
     });
 
     setSocket(ws);
@@ -73,55 +80,25 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
     setIsProcessing(true);
 
     try {
-      // Parse the message to extract passage planning details
-      const planDetails = parseMessageForPlan(content);
-      
-      // Send to API
-      const response = await fetch('/api/passage/plan', {
+      // Send to chat API for natural language processing
+      const response = await fetch('http://localhost:8080/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(planDetails),
+        body: JSON.stringify({
+          message: content
+        }),
       });
 
       if (!response.ok) {
         throw new Error('Failed to plan passage');
       }
 
-      const passagePlan = await response.json();
-      
-      // Simulate agent activity
-      setActiveAgents([
-        { id: 'weather-agent', name: 'Weather Agent', status: 'processing' as const, currentOperation: 'Fetching weather data' },
-        { id: 'tidal-agent', name: 'Tidal Agent', status: 'processing' as const, currentOperation: 'Getting tide predictions' },
-        { id: 'route-agent', name: 'Route Agent', status: 'processing' as const, currentOperation: 'Calculating optimal route' }
-      ]);
-      
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Add success message with passage plan
-      const planMessage: Message = {
-        id: `plan-${Date.now()}`,
-        role: 'assistant',
-        content: formatPassagePlan(passagePlan),
-        timestamp: new Date(),
-        data: passagePlan,
-        metadata: {
-          agentsUsed: ['weather-agent', 'tidal-agent', 'route-agent', 'port-agent', 'safety-agent']
-        }
-      };
-      
-      setMessages(prev => [...prev, planMessage]);
-      setIsProcessing(false);
-      setCurrentPlan(passagePlan);
-      
-      // Clear agents after a delay
-      setTimeout(() => {
-        setActiveAgents([]);
-      }, 3000);
+      // Response will be handled by WebSocket events
+      console.log('Request sent, waiting for WebSocket response...');
     } catch (error) {
+      console.error('Error planning passage:', error);
       setMessages(prev => [...prev, {
         id: `error-${Date.now()}`,
         role: 'assistant',

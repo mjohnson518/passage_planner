@@ -63,10 +63,16 @@ CREATE TABLE users (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
     role VARCHAR(50) DEFAULT 'user',
     subscription VARCHAR(50) DEFAULT 'free',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT true,
+    email_verified BOOLEAN DEFAULT false,
+    two_factor_enabled BOOLEAN DEFAULT false,
+    preferences JSONB DEFAULT '{}'::jsonb
 );
 
 -- API keys
@@ -77,7 +83,17 @@ CREATE TABLE api_keys (
     name VARCHAR(255),
     last_used TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP WITH TIME ZONE
+    expires_at TIMESTAMP WITH TIME ZONE,
+    scopes JSONB DEFAULT '["read"]'::jsonb,
+    rate_limit JSONB DEFAULT '{"requestsPerMinute": 10, "requestsPerDay": 100}'::jsonb
+);
+
+-- Refresh tokens
+CREATE TABLE refresh_tokens (
+    token VARCHAR(255) PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Passage plans
@@ -154,6 +170,13 @@ CREATE INDEX idx_marine_zones_zone_id ON marine_zones(zone_id);
 CREATE INDEX idx_marine_zones_boundaries ON marine_zones USING GIST(boundaries);
 CREATE INDEX idx_navigational_hazards_location ON navigational_hazards USING GIST(location);
 CREATE INDEX idx_navigational_hazards_type ON navigational_hazards(type);
+
+-- Auth indexes
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
+CREATE INDEX idx_api_keys_expires_at ON api_keys(expires_at);
+CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
 
 -- Insert sample data
 INSERT INTO ports (name, country, coordinates, timezone) VALUES
