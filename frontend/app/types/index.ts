@@ -1,102 +1,105 @@
 export interface Coordinate {
-  latitude: number
-  longitude: number
+  latitude: number;
+  longitude: number;
 }
 
 export interface Port {
-  id: string
-  name: string
-  coordinates: Coordinate
-  country: string
+  id: string;
+  name: string;
+  coordinates: Coordinate;
+  country: string;
 }
 
 export interface Waypoint {
-  id: string
-  name?: string
-  coordinates: Coordinate
-  estimatedArrival: Date
-  notes?: string
+  id: string;
+  name?: string;
+  coordinates: Coordinate;
+  estimatedArrival: Date;
+  notes?: string;
 }
 
 export interface WeatherCondition {
   timeWindow: {
-    start: Date
-    end: Date
-  }
-  description: string
-  windSpeed: number
-  windDirection: string
-  waveHeight: number
-  visibility: number
-  precipitation: number
+    start: Date;
+    end: Date;
+  };
+  description: string;
+  windSpeed: number;
+  windDirection: string;
+  waveHeight: number;
+  visibility: number;
+  precipitation: number;
 }
 
 export interface TidePrediction {
-  time: Date
-  height: number
-  type: 'high' | 'low'
+  time: Date;
+  height: number;
+  type: 'high' | 'low';
   current?: {
-    speed: number
-    direction: string
-  }
+    speed: number;
+    direction: string;
+  };
+}
+
+export interface TidalSummary {
+  location: string;
+  predictions: TidePrediction[];
+}
+
+export interface ContactInfo {
+  type: 'coast-guard' | 'harbormaster' | 'marina' | 'emergency' | 'customs';
+  name?: string;
+  phone?: string;
+  email?: string;
+  vhfChannel?: number;
+}
+
+export interface NavigationalHazard {
+  type: 'shoal' | 'rock' | 'wreck' | 'restricted_area' | 'traffic';
+  location: Coordinate;
+  description: string;
+  avoidanceRadius: number;
 }
 
 export interface PassagePlan {
-  id: string
-  departure: Port
-  destination: Port
-  waypoints: Waypoint[]
-  departureTime: Date
-  estimatedArrivalTime: Date
+  id: string;
+  departure: Port;
+  destination: Port;
+  waypoints: Waypoint[];
+  departureTime: Date;
+  estimatedArrivalTime: Date;
   distance: {
-    total: number
-    unit: 'nm' | 'km'
-  }
+    total: number;
+    unit: 'nm' | 'km';
+  };
   weather: {
-    conditions: WeatherCondition[]
-    warnings: string[]
-    lastUpdated: Date
-  }
-  tides: Array<{
-    location: string
-    predictions: TidePrediction[]
-  }>
+    conditions: WeatherCondition[];
+    warnings: string[];
+    lastUpdated: Date;
+  };
+  tides: TidalSummary[];
   safety: {
-    emergencyContacts: Array<{
-      type: string
-      name?: string
-      phone?: string
-      vhfChannel?: number
-    }>
-    hazards: Array<{
-      type: string
-      location: Coordinate
-      description: string
-    }>
-    requiredEquipment: string[]
-  }
+    emergencyContacts: ContactInfo[];
+    hazards: NavigationalHazard[];
+    requiredEquipment: string[];
+    weatherWindows: Array<{
+      start: Date;
+      end: Date;
+    }>;
+  };
 }
 
 export interface Message {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  timestamp: Date
-  metadata?: {
-    agentsUsed?: string[]
-    processingTime?: number
-    plan?: PassagePlan
-  }
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+  data?: any;
 }
 
 export interface AgentStatus {
-  id: string
-  name: string
-  status: 'active' | 'idle' | 'error' | 'processing'
-  lastActivity?: Date
-  currentOperation?: string
-  performance?: {
-    averageResponseTime: number
-    successRate: number
-  }
+  id: string;
+  name: string;
+  status: 'active' | 'idle' | 'error' | 'processing';
+  lastSeen: Date;
 } 

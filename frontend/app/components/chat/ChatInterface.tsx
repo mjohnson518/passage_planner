@@ -2,13 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Send, Loader2, Anchor, AlertCircle } from 'lucide-react'
-import { usePassagePlanner } from '@/app/hooks/usePassagePlanner'
-import { formatDate } from '@/app/lib/utils'
-import { Message } from '@/app/types'
+import { usePassagePlanner } from '../../hooks/usePassagePlanner'
+import { formatDate } from '../../lib/utils'
+import { Message } from '../../types'
 import ReactMarkdown from 'react-markdown'
 
 export function ChatInterface() {
-  const { messages, sendMessage, isProcessing, connected } = usePassagePlanner()
+  const { messages, sendMessage, isProcessing } = usePassagePlanner()
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -39,15 +39,7 @@ export function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Connection status */}
-      {!connected && (
-        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
-          <div className="flex items-center gap-2 text-sm text-yellow-800">
-            <AlertCircle className="h-4 w-4" />
-            <span>Connecting to passage planner service...</span>
-          </div>
-        </div>
-      )}
+
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">

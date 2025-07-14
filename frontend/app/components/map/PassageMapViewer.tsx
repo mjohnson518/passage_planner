@@ -3,8 +3,8 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { PassagePlan } from '@/app/types'
-import { formatDistance, formatDuration } from '@/app/lib/utils'
+import { PassagePlan } from '../../types'
+import { formatDuration } from '../../lib/utils'
 import { Navigation, Wind, Waves, AlertTriangle, Download } from 'lucide-react'
 
 // Fix Leaflet icon issue

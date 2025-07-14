@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import * as d3 from 'd3'
-import { AgentStatus } from '@/app/types'
+import { AgentStatus } from '../../types'
 import { Activity, AlertCircle, CheckCircle, Clock } from 'lucide-react'
 
 interface AgentNode {

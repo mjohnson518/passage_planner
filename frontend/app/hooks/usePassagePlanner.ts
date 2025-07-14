@@ -1,164 +1,64 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
-import { create } from 'zustand'
-import { io, Socket } from 'socket.io-client'
-import { Message, PassagePlan, AgentStatus } from '../types'
-import { useMutation } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
-import { config } from '../config'
+import { useState, useCallback } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { Message, PassagePlan, AgentStatus } from '@/app/types';
 
-interface PassagePlannerStore {
-  messages: Message[]
-  currentPlan: PassagePlan | null
-  activeAgents: AgentStatus[]
-  isProcessing: boolean
-  socket: Socket | null
-  
-  addMessage: (message: Message) => void
-  setCurrentPlan: (plan: PassagePlan | null) => void
-  updateAgentStatus: (agentId: string, status: Partial<AgentStatus>) => void
-  setProcessing: (processing: boolean) => void
-  setSocket: (socket: Socket | null) => void
-  clearMessages: () => void
+interface UsePassagePlannerReturn {
+  messages: Message[];
+  isProcessing: boolean;
+  activeAgents: AgentStatus[];
+  sendMessage: (content: string) => Promise<void>;
+  clearMessages: () => void;
 }
 
-const usePassagePlannerStore = create<PassagePlannerStore>((set) => ({
-  messages: [],
-  currentPlan: null,
-  activeAgents: [],
-  isProcessing: false,
-  socket: null,
-  
-  addMessage: (message) => set((state) => ({
-    messages: [...state.messages, message]
-  })),
-  
-  setCurrentPlan: (plan) => set({ currentPlan: plan }),
-  
-  updateAgentStatus: (agentId, status) => set((state) => ({
-    activeAgents: state.activeAgents.map(agent =>
-      agent.id === agentId ? { ...agent, ...status } : agent
-    )
-  })),
-  
-  setProcessing: (processing) => set({ isProcessing: processing }),
-  
-  setSocket: (socket) => set({ socket }),
-  
-  clearMessages: () => set({ messages: [], currentPlan: null }),
-}))
+export function usePassagePlanner(): UsePassagePlannerReturn {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [activeAgents, setActiveAgents] = useState<AgentStatus[]>([]);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
-export function usePassagePlanner() {
-  const store = usePassagePlannerStore()
-  const [connected, setConnected] = useState(false)
-  
   // Initialize WebSocket connection
-  useEffect(() => {
-    const socket = io(config.api.wsUrl, {
+  useState(() => {
+    const ws = io(process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8080', {
       transports: ['websocket'],
-      autoConnect: true,
-    })
-    
-    socket.on('connect', () => {
-      setConnected(true)
-      console.log('Connected to orchestrator')
-    })
-    
-    socket.on('disconnect', () => {
-      setConnected(false)
-      console.log('Disconnected from orchestrator')
-    })
-    
-    socket.on('agent:status', (status: AgentStatus) => {
-      store.updateAgentStatus(status.id, status)
-    })
-    
-    socket.on('processing:update', (data: { message: string; progress?: number }) => {
-      store.addMessage({
-        id: `system-${Date.now()}`,
+    });
+
+    ws.on('connect', () => {
+      console.log('Connected to orchestrator');
+    });
+
+    ws.on('agents:status', (data: { agents: AgentStatus[] }) => {
+      setActiveAgents(data.agents);
+    });
+
+    ws.on('processing:update', (update: any) => {
+      setMessages(prev => [...prev, {
+        id: `update-${Date.now()}`,
         role: 'system',
-        content: data.message,
+        content: `${update.stage}: ${update.message}`,
         timestamp: new Date(),
-      })
-    })
-    
-    socket.on('plan:complete', (plan: PassagePlan) => {
-      store.setCurrentPlan(plan)
-      store.setProcessing(false)
-    })
-    
-    socket.on('error', (error: any) => {
-      toast.error(error.message || 'An error occurred')
-      store.setProcessing(false)
-    })
-    
-    store.setSocket(socket)
-    
+      }]);
+    });
+
+    ws.on('plan:complete', (plan: PassagePlan) => {
+      setMessages(prev => [...prev, {
+        id: `plan-${plan.id}`,
+        role: 'assistant',
+        content: formatPassagePlan(plan),
+        timestamp: new Date(),
+        data: plan,
+      }]);
+      setIsProcessing(false);
+    });
+
+    setSocket(ws);
+
     return () => {
-      socket.disconnect()
-      store.setSocket(null)
-    }
-  }, [])
-  
-  // Plan passage mutation
-  const planPassageMutation = useMutation({
-    mutationFn: async (params: {
-      departure: string
-      destination: string
-      departureTime: string
-      preferences?: {
-        avoidNightSailing?: boolean
-        maxWindSpeed?: number
-        maxWaveHeight?: number
-      }
-    }) => {
-      const response = await fetch(`${config.api.url}/api/mcp/tools/call`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tool: 'plan_passage',
-          arguments: params,
-        }),
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to plan passage')
-      }
-      
-      return response.json()
-    },
-    onSuccess: (data) => {
-      if (data.content && data.content[0]) {
-        const plan = JSON.parse(data.content[0].text) as PassagePlan
-        store.setCurrentPlan(plan)
-        
-        store.addMessage({
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: 'I\'ve created your passage plan. You can view the details in the map tab.',
-          timestamp: new Date(),
-          metadata: {
-            plan,
-            processingTime: data.processingTime,
-            agentsUsed: data.agentsUsed,
-          },
-        })
-      }
-    },
-    onError: (error: Error) => {
-      toast.error(error.message)
-      store.addMessage({
-        id: `error-${Date.now()}`,
-        role: 'system',
-        content: `Error: ${error.message}`,
-        timestamp: new Date(),
-      })
-    },
-  })
-  
+      ws.disconnect();
+    };
+  });
+
   const sendMessage = useCallback(async (content: string) => {
     // Add user message
     const userMessage: Message = {
@@ -166,40 +66,105 @@ export function usePassagePlanner() {
       role: 'user',
       content,
       timestamp: new Date(),
-    }
-    store.addMessage(userMessage)
-    
-    // Parse the message to extract passage planning parameters
-    const departureMatch = content.match(/from\s+([^to]+)\s+to/i)
-    const destinationMatch = content.match(/to\s+([^on|departing|leaving]+)/i)
-    const dateMatch = content.match(/on\s+(\d{4}-\d{2}-\d{2})/i)
-    
-    if (departureMatch && destinationMatch) {
-      store.setProcessing(true)
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setIsProcessing(true);
+
+    try {
+      // Parse the message to extract passage planning details
+      const planDetails = parseMessageForPlan(content);
       
-      planPassageMutation.mutate({
-        departure: departureMatch[1].trim(),
-        destination: destinationMatch[1].trim(),
-        departureTime: dateMatch ? dateMatch[1] : new Date().toISOString(),
-      })
-    } else {
-      // Handle other types of queries
-      store.addMessage({
-        id: `assistant-${Date.now()}`,
+      // Send to API
+      const response = await fetch('/api/passage/plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(planDetails),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to plan passage');
+      }
+
+      // The response will be handled by the WebSocket events
+    } catch (error) {
+      setMessages(prev => [...prev, {
+        id: `error-${Date.now()}`,
         role: 'assistant',
-        content: 'I can help you plan a sailing passage. Try something like "Plan a passage from Boston to Portland on 2024-07-15"',
+        content: `I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         timestamp: new Date(),
-      })
+      }]);
+      setIsProcessing(false);
     }
-  }, [planPassageMutation, store])
+  }, []);
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
+  return {
+    messages,
+    isProcessing,
+    activeAgents,
+    sendMessage,
+    clearMessages,
+  };
+}
+
+// Helper function to parse natural language into plan details
+function parseMessageForPlan(message: string): any {
+  // Simple parsing logic - in production, this would use NLP
+  const lowerMessage = message.toLowerCase();
+  
+  // Extract departure and destination
+  const fromMatch = message.match(/from\s+([^to]+)\s+to/i);
+  const toMatch = message.match(/to\s+([^on|at|departing]+)/i);
+  
+  // Extract date/time
+  const dateMatch = message.match(/on\s+(\d{4}-\d{2}-\d{2})/i);
+  const timeMatch = message.match(/at\s+(\d{1,2}:\d{2})/i);
+  
+  const departure = fromMatch ? fromMatch[1].trim() : 'Boston, MA';
+  const destination = toMatch ? toMatch[1].trim() : 'Portland, ME';
+  const date = dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0];
+  const time = timeMatch ? timeMatch[1] : '10:00';
   
   return {
-    messages: store.messages,
-    currentPlan: store.currentPlan,
-    activeAgents: store.activeAgents,
-    isProcessing: store.isProcessing,
-    connected,
-    sendMessage,
-    clearMessages: store.clearMessages,
-  }
+    departure,
+    destination,
+    departureTime: `${date}T${time}:00Z`,
+    boatType: lowerMessage.includes('sail') ? 'sailboat' : 
+              lowerMessage.includes('power') ? 'powerboat' : 
+              'sailboat',
+    preferences: {
+      avoidNightSailing: lowerMessage.includes('avoid night'),
+      maxWindSpeed: 25,
+      maxWaveHeight: 2,
+    },
+  };
+}
+
+// Helper function to format passage plan for display
+function formatPassagePlan(plan: PassagePlan): string {
+  return `# Passage Plan: ${plan.departure.name} to ${plan.destination.name}
+
+## Summary
+- **Distance**: ${plan.distance.total} ${plan.distance.unit}
+- **Departure**: ${new Date(plan.departureTime).toLocaleString()}
+- **Estimated Arrival**: ${new Date(plan.estimatedArrivalTime).toLocaleString()}
+
+## Waypoints
+${plan.waypoints.map((wp, i) => `${i + 1}. ${wp.name || `Waypoint ${i + 1}`} (${wp.coordinates.latitude.toFixed(4)}°, ${wp.coordinates.longitude.toFixed(4)}°)`).join('\n')}
+
+## Weather Forecast
+${plan.weather.conditions.map(c => `- ${c.description}, Wind: ${c.windDirection} ${c.windSpeed}kt, Waves: ${c.waveHeight}ft`).join('\n')}
+
+## Tidal Information
+${plan.tides.map(t => `**${t.location}**: ${t.predictions.map(p => `${p.type} tide at ${new Date(p.time).toLocaleTimeString()}`).join(', ')}`).join('\n')}
+
+## Safety Information
+- **Required Equipment**: ${plan.safety.requiredEquipment.join(', ')}
+- **Emergency Contacts**: ${plan.safety.emergencyContacts.map(c => `${c.type}: ${c.phone || c.vhfChannel ? `VHF ${c.vhfChannel}` : 'N/A'}`).join(', ')}
+`;
 } 
