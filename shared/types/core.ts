@@ -56,6 +56,8 @@ export interface AgentCapabilitySummary {
     successRate: number;
     lastError?: string;
   };
+  command?: string;
+  args?: string[];
 }
 
 export type AgentStatus = 'active' | 'idle' | 'error' | 'maintenance' | 'starting';

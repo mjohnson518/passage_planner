@@ -203,7 +203,14 @@ export class MetricsCollector {
   exportMetrics(): {
     requests: RequestMetrics[];
     agents: Record<string, AgentMetrics>;
-    system: ReturnType<typeof this.getSystemMetrics>;
+    system: {
+      totalRequests: number;
+      averageResponseTime: number;
+      successRate: number;
+      requestsPerMinute: number;
+      activeAgents: number;
+      topErrors: Array<{ method: string; count: number }>;
+    };
     methods: Record<string, any>;
   } {
     return {

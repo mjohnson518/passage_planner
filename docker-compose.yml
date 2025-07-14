@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgis/postgis:15-3.3
     environment:
       POSTGRES_DB: passage_planner
       POSTGRES_USER: admin
@@ -12,6 +10,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d passage_planner"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -19,6 +22,11 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   prometheus:
     image: prom/prometheus:latest
@@ -27,6 +35,9 @@ services:
     volumes:
       - ./infrastructure/docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
 
   grafana:
     image: grafana/grafana:latest
@@ -38,6 +49,8 @@ services:
       - grafana_data:/var/lib/grafana
       - ./infrastructure/docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./infrastructure/docker/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
 
 volumes:
   postgres_data:

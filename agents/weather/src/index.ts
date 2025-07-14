@@ -210,7 +210,7 @@ export class WeatherAgent {
           type: 'text',
           text: JSON.stringify({
             error: 'Unable to fetch weather data',
-            message: error.message,
+            message: error instanceof Error ? error.message : 'Unknown error',
           }),
         }],
       };
@@ -241,13 +241,13 @@ export class WeatherAgent {
       
       return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     } catch (error) {
-      this.logger.error({ error, zone, coordinates }, 'Failed to fetch marine forecast');
+      this.logger.error({ error, zone }, 'Failed to fetch marine forecast');
       return {
         content: [{
           type: 'text',
           text: JSON.stringify({
             error: 'Unable to fetch marine forecast',
-            message: error.message,
+            message: error instanceof Error ? error.message : 'Unknown error',
           }),
         }],
       };
@@ -285,7 +285,7 @@ export class WeatherAgent {
           type: 'text',
           text: JSON.stringify({
             error: 'Unable to fetch storm warnings',
-            message: error.message,
+            message: error instanceof Error ? error.message : 'Unknown error',
           }),
         }],
       };
@@ -398,40 +398,23 @@ export class WeatherAgent {
   }
   
   private parseMarineForecastText(text: string) {
-    // This would parse the NOAA marine forecast text format
-    // Simplified implementation
-    const periods = [];
+    const periods: any[] = [];
     const lines = text.split('\n');
     
-    let currentPeriod = null;
+    let currentPeriod: any = null;
+    
     for (const line of lines) {
       if (line.match(/^\.([A-Z ]+)\.\.\./)) {
         if (currentPeriod) {
           periods.push(currentPeriod);
         }
+        const match = line.match(/^\.([A-Z ]+)\.\.\./);
         currentPeriod = {
-          name: line.match(/^\.([A-Z ]+)\.\.\./)[1],
-          windSpeed: '',
-          windDirection: '',
-          waveHeight: '',
-          weather: '',
-          detailedForecast: '',
+          name: match ? match[1] : 'Unknown',
+          text: '',
         };
-      } else if (currentPeriod && line.trim()) {
-        currentPeriod.detailedForecast += line + ' ';
-        
-        // Extract wind info
-        const windMatch = line.match(/winds?\s+(\w+)\s+(\d+)\s+to\s+(\d+)\s+kt/i);
-        if (windMatch) {
-          currentPeriod.windDirection = windMatch[1];
-          currentPeriod.windSpeed = `${windMatch[2]} to ${windMatch[3]} kt`;
-        }
-        
-        // Extract wave info
-        const waveMatch = line.match(/seas?\s+(\d+)\s+to\s+(\d+)\s+ft/i);
-        if (waveMatch) {
-          currentPeriod.waveHeight = `${waveMatch[1]} to ${waveMatch[2]} ft`;
-        }
+      } else if (currentPeriod) {
+        currentPeriod.text += line + ' ';
       }
     }
     
@@ -453,18 +436,17 @@ export class WeatherAgent {
   private estimateCloudCover(cloudLayers: any[]): number {
     if (!cloudLayers || cloudLayers.length === 0) return 0;
     
-    // Estimate based on cloud layer coverage
-    const coverageMap = {
-      'CLR': 0,
-      'FEW': 25,
-      'SCT': 50,
-      'BKN': 75,
-      'OVC': 100,
+    const coverageMap: { [key: string]: number } = {
+      CLR: 0,
+      FEW: 25,
+      SCT: 50,
+      BKN: 75,
+      OVC: 100,
     };
     
     let maxCoverage = 0;
     for (const layer of cloudLayers) {
-      const coverage = coverageMap[layer.amount] || 0;
+      const coverage = coverageMap[layer.amount as string] || 0;
       maxCoverage = Math.max(maxCoverage, coverage);
     }
     

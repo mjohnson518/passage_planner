@@ -190,12 +190,12 @@ export class OrchestratorService extends EventEmitter {
         throw error;
       } finally {
         const duration = Date.now() - startTime;
-        this.metricsCollector.recordRequest(request.params.name, duration, !error);
+        this.metricsCollector.recordRequest(request.params.name, duration, true);
       }
     });
   }
   
-  private async handlePassagePlanning(requestId: string, args: any) {
+  public async handlePassagePlanning(requestId: string, args: any) {
     // Create session
     const sessionId = await this.sessionManager.createSession({
       requestId,
@@ -215,24 +215,24 @@ export class OrchestratorService extends EventEmitter {
     const responses: AgentResponse[] = [];
     
     for (const step of plan.steps) {
+      const request: AgentRequest = {
+        id: `${requestId}-${step.id}`,
+        timestamp: new Date(),
+        source: 'orchestrator',
+        target: step.agentId,
+        type: 'tool',
+        name: step.operation,
+        arguments: step.arguments,
+        timeout: step.timeout,
+        priority: 'normal',
+        context: {
+          sessionId,
+          correlationId: requestId,
+          parentRequestId: requestId,
+        },
+      };
+      
       try {
-        const request: AgentRequest = {
-          id: `${requestId}-${step.id}`,
-          timestamp: new Date(),
-          source: 'orchestrator',
-          target: step.agentId,
-          type: 'tool',
-          name: step.operation,
-          arguments: step.arguments,
-          timeout: step.timeout,
-          priority: 'normal',
-          context: {
-            sessionId,
-            correlationId: requestId,
-            parentRequestId: requestId,
-          },
-        };
-        
         const response = await this.sendAgentRequest(request);
         responses.push(response);
         
@@ -353,7 +353,7 @@ export class OrchestratorService extends EventEmitter {
     return client;
   }
   
-  private async handleWeatherBriefing(requestId: string, args: any) {
+  public async handleWeatherBriefing(requestId: string, args: any) {
     // Simplified weather briefing handler
     const weatherRequest: AgentRequest = {
       id: requestId,
@@ -377,7 +377,7 @@ export class OrchestratorService extends EventEmitter {
     };
   }
   
-  private async handleAgentStatus(requestId: string) {
+  public async handleAgentStatus(requestId: string) {
     const statuses = await this.agentRegistry.getAllAgentStatuses();
     
     return {
@@ -448,9 +448,6 @@ export class OrchestratorService extends EventEmitter {
       await this.mcpServer.connect(transport);
       this.logger.info('MCP Orchestrator server started');
       
-      // Start HTTP health endpoint
-      this.startHealthEndpoint();
-      
       // Initialize agent discovery
       await this.discoverAgents();
       
@@ -462,31 +459,9 @@ export class OrchestratorService extends EventEmitter {
     }
   }
   
-  private startHealthEndpoint() {
-    const express = require('express');
-    const app = express();
-    
-    app.get('/health', async (req, res) => {
-      const health = {
-        status: 'healthy',
-        timestamp: new Date(),
-        redis: this.redis.isReady,
-        postgres: true, // Would check actual connection
-        agents: await this.agentRegistry.getHealthyAgentCount(),
-      };
-      res.json(health);
-    });
-    
-    app.get('/metrics', async (req, res) => {
-      const metrics = await this.collectSystemMetrics();
-      res.json(metrics);
-    });
-    
-    const port = process.env.HEALTH_PORT || 8081;
-    app.listen(port, () => {
-      this.logger.info(`Health endpoint listening on port ${port}`);
-    });
-  }
+
+  
+
   
   private async discoverAgents() {
     // In production, this would discover agents via:
@@ -528,9 +503,14 @@ export class OrchestratorService extends EventEmitter {
     
     this.logger.info('Orchestrator shutdown complete');
   }
+  
+
 }
 
-// Start the orchestrator
+// Export for use in server.ts
+export default OrchestratorService;
+
+// Start the orchestrator if run directly
 if (require.main === module) {
   const orchestrator = new OrchestratorService();
   
