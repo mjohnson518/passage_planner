@@ -95,11 +95,15 @@ export interface Message {
   content: string;
   timestamp: Date;
   data?: any;
+  metadata?: {
+    agentsUsed?: string[];
+  };
 }
 
 export interface AgentStatus {
   id: string;
   name: string;
   status: 'active' | 'idle' | 'error' | 'processing';
-  lastSeen: Date;
+  lastSeen?: Date;
+  currentOperation?: string;
 } 

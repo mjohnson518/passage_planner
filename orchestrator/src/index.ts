@@ -215,23 +215,23 @@ export class OrchestratorService extends EventEmitter {
     const responses: AgentResponse[] = [];
     
     for (const step of plan.steps) {
-      const request: AgentRequest = {
-        id: `${requestId}-${step.id}`,
-        timestamp: new Date(),
-        source: 'orchestrator',
-        target: step.agentId,
-        type: 'tool',
-        name: step.operation,
-        arguments: step.arguments,
-        timeout: step.timeout,
-        priority: 'normal',
-        context: {
-          sessionId,
-          correlationId: requestId,
-          parentRequestId: requestId,
-        },
-      };
-      
+        const request: AgentRequest = {
+          id: `${requestId}-${step.id}`,
+          timestamp: new Date(),
+          source: 'orchestrator',
+          target: step.agentId,
+          type: 'tool',
+          name: step.operation,
+          arguments: step.arguments,
+          timeout: step.timeout,
+          priority: 'normal',
+          context: {
+            sessionId,
+            correlationId: requestId,
+            parentRequestId: requestId,
+          },
+        };
+        
       try {
         const response = await this.sendAgentRequest(request);
         responses.push(response);

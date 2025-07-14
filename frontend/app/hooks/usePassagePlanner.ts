@@ -2,12 +2,13 @@
 
 import { useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Message, PassagePlan, AgentStatus } from '@/app/types';
+import { Message, PassagePlan, AgentStatus } from '../types';
 
 interface UsePassagePlannerReturn {
   messages: Message[];
   isProcessing: boolean;
   activeAgents: AgentStatus[];
+  currentPlan: PassagePlan | null;
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => void;
 }
@@ -16,6 +17,7 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeAgents, setActiveAgents] = useState<AgentStatus[]>([]);
+  const [currentPlan, setCurrentPlan] = useState<PassagePlan | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
 
   // Initialize WebSocket connection
@@ -87,7 +89,38 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
         throw new Error('Failed to plan passage');
       }
 
-      // The response will be handled by the WebSocket events
+      const passagePlan = await response.json();
+      
+      // Simulate agent activity
+      setActiveAgents([
+        { id: 'weather-agent', name: 'Weather Agent', status: 'processing' as const, currentOperation: 'Fetching weather data' },
+        { id: 'tidal-agent', name: 'Tidal Agent', status: 'processing' as const, currentOperation: 'Getting tide predictions' },
+        { id: 'route-agent', name: 'Route Agent', status: 'processing' as const, currentOperation: 'Calculating optimal route' }
+      ]);
+      
+      // Simulate processing time
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Add success message with passage plan
+      const planMessage: Message = {
+        id: `plan-${Date.now()}`,
+        role: 'assistant',
+        content: formatPassagePlan(passagePlan),
+        timestamp: new Date(),
+        data: passagePlan,
+        metadata: {
+          agentsUsed: ['weather-agent', 'tidal-agent', 'route-agent', 'port-agent', 'safety-agent']
+        }
+      };
+      
+      setMessages(prev => [...prev, planMessage]);
+      setIsProcessing(false);
+      setCurrentPlan(passagePlan);
+      
+      // Clear agents after a delay
+      setTimeout(() => {
+        setActiveAgents([]);
+      }, 3000);
     } catch (error) {
       setMessages(prev => [...prev, {
         id: `error-${Date.now()}`,
@@ -107,6 +140,7 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
     messages,
     isProcessing,
     activeAgents,
+    currentPlan,
     sendMessage,
     clearMessages,
   };
@@ -146,7 +180,7 @@ function parseMessageForPlan(message: string): any {
 }
 
 // Helper function to format passage plan for display
-function formatPassagePlan(plan: PassagePlan): string {
+function formatPassagePlan(plan: any): string {
   return `# Passage Plan: ${plan.departure.name} to ${plan.destination.name}
 
 ## Summary

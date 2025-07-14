@@ -190,39 +190,39 @@ export class TidalAgent {
       });
       const nearestData = JSON.parse(nearestResult.content[0].text);
       stationId = nearestData.station.id;
-    }
-    
+      }
+      
     if (!stationId) {
       throw new Error('Station ID required or coordinates to find nearest station');
-    }
-    
-    // Fetch tide predictions
+      }
+      
+      // Fetch tide predictions
     const params = new URLSearchParams({
-      product: 'predictions',
+          product: 'predictions',
       application: 'passage_planner',
       begin_date: args.beginDate,
       end_date: args.endDate,
       datum: args.datum || 'MLLW',
       station: stationId,
-      time_zone: 'gmt',
-      units: 'english',
-      interval: 'hilo',
-      format: 'json',
-    });
-    
+          time_zone: 'gmt',
+          units: 'english',
+          interval: 'hilo',
+          format: 'json',
+      });
+      
     const response = await axios.get(`${this.noaaApiUrl}?${params}`);
-    
+      
     if (response.data.error) {
       throw new Error(response.data.error.message);
     }
     
-    const predictions = response.data.predictions.map((pred: any) => ({
+      const predictions = response.data.predictions.map((pred: any) => ({
       time: pred.t,
-      height: parseFloat(pred.v),
-      type: pred.type === 'H' ? 'high' : 'low',
-    }));
-    
-    const result = {
+        height: parseFloat(pred.v),
+        type: pred.type === 'H' ? 'high' : 'low',
+      }));
+      
+      const result = {
       station: {
         id: stationId,
         name: response.data.metadata?.name || 'Unknown Station',
@@ -231,14 +231,14 @@ export class TidalAgent {
           longitude: parseFloat(response.data.metadata?.lon || 0),
         },
       },
-      predictions,
-    };
-    
+        predictions,
+      };
+      
     this.setCache(cacheKey, result, 3600); // Cache for 1 hour
-    
-    return {
+      
+      return {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    };
+      };
   }
   
   private async getCurrentPredictions(args: any) {
@@ -260,39 +260,39 @@ export class TidalAgent {
       });
       const nearestData = JSON.parse(nearestResult.content[0].text);
       stationId = nearestData.station.id;
-    }
-    
+      }
+      
     if (!stationId) {
       throw new Error('Station ID required or coordinates to find nearest station');
-    }
-    
-    // Fetch current predictions
+      }
+      
+      // Fetch current predictions
     const params = new URLSearchParams({
-      product: 'currents_predictions',
+          product: 'currents_predictions',
       application: 'passage_planner',
       begin_date: args.beginDate,
       end_date: args.endDate,
       station: stationId,
-      time_zone: 'gmt',
-      units: 'english',
-      interval: 'MAX_SLACK',
-      format: 'json',
-    });
-    
+          time_zone: 'gmt',
+          units: 'english',
+          interval: 'MAX_SLACK',
+          format: 'json',
+      });
+      
     const response = await axios.get(`${this.noaaApiUrl}?${params}`);
-    
+      
     if (response.data.error) {
       throw new Error(response.data.error.message);
     }
     
-    const predictions = response.data.current_predictions.map((pred: any) => ({
+      const predictions = response.data.current_predictions.map((pred: any) => ({
       time: pred.Time,
-      velocity: parseFloat(pred.Velocity_Major),
-      direction: parseFloat(pred.Direction),
+        velocity: parseFloat(pred.Velocity_Major),
+        direction: parseFloat(pred.Direction),
       type: pred.Type.toLowerCase().replace(' ', '_'),
-    }));
-    
-    const result = {
+      }));
+      
+      const result = {
       station: {
         id: stationId,
         name: response.data.metadata?.name || 'Unknown Station',
@@ -301,14 +301,14 @@ export class TidalAgent {
           longitude: parseFloat(response.data.metadata?.lon || 0),
         },
       },
-      predictions,
-    };
-    
+        predictions,
+      };
+      
     this.setCache(cacheKey, result, 3600); // Cache for 1 hour
-    
-    return {
+      
+      return {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    };
+      };
   }
   
   private async getWaterLevels(args: any) {
@@ -323,18 +323,18 @@ export class TidalAgent {
     // Calculate date range
     const endDate = new Date();
     const beginDate = new Date();
-    
+      
     switch (args.timeRange) {
-      case 'latest':
+        case 'latest':
         beginDate.setHours(beginDate.getHours() - 1);
-        break;
+          break;
       case '48hr':
         beginDate.setHours(beginDate.getHours() - 48);
-        break;
+          break;
       default: // 24hr
         beginDate.setHours(beginDate.getHours() - 24);
-    }
-    
+      }
+      
     const params = new URLSearchParams({
       product: 'water_level',
       application: 'passage_planner',
@@ -342,37 +342,37 @@ export class TidalAgent {
       end_date: endDate.toISOString().slice(0, 10).replace(/-/g, ''),
       datum: args.datum || 'MLLW',
       station: args.stationId,
-      time_zone: 'gmt',
-      units: 'english',
-      format: 'json',
+        time_zone: 'gmt',
+        units: 'english',
+        format: 'json',
     });
-    
+      
     const response = await axios.get(`${this.noaaApiUrl}?${params}`);
     
     if (response.data.error) {
       throw new Error(response.data.error.message);
     }
     
-    const waterLevels = response.data.data.map((level: any) => ({
+      const waterLevels = response.data.data.map((level: any) => ({
       time: level.t,
-      value: parseFloat(level.v),
-      sigma: level.s ? parseFloat(level.s) : undefined,
-      flags: level.f || undefined,
-    }));
-    
-    const result = {
-      station: {
+        value: parseFloat(level.v),
+        sigma: level.s ? parseFloat(level.s) : undefined,
+        flags: level.f || undefined,
+      }));
+      
+      const result = {
+        station: {
         id: args.stationId,
         name: response.data.metadata?.name || 'Unknown Station',
-      },
-      waterLevels,
-    };
+        },
+        waterLevels,
+      };
     
     this.setCache(cacheKey, result, 300); // Cache for 5 minutes
-    
-    return {
+      
+      return {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    };
+      };
   }
   
   private async findNearestStation(args: any) {
@@ -489,18 +489,18 @@ export class TidalAgent {
   }
   
   async start() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    this.logger.info('Tidal agent started');
-    
-    // Register with orchestrator
+      const transport = new StdioServerTransport();
+      await this.server.connect(transport);
+      this.logger.info('Tidal agent started');
+      
+      // Register with orchestrator
     if (process.env.ORCHESTRATOR_URL) {
       try {
         await axios.post(`${process.env.ORCHESTRATOR_URL}/api/agents/register`, 
           this.getCapabilitySummary()
         );
         this.logger.info('Registered with orchestrator');
-      } catch (error) {
+    } catch (error) {
         this.logger.error({ error }, 'Failed to register with orchestrator');
       }
     }

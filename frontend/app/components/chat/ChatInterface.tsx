@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Anchor, AlertCircle } from 'lucide-react'
+import { Send, Loader2, Anchor, AlertCircle, Map } from 'lucide-react'
 import { usePassagePlanner } from '../../hooks/usePassagePlanner'
 import { formatDate } from '../../lib/utils'
 import { Message } from '../../types'
@@ -38,69 +38,106 @@ export function ChatInterface() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
-
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+    <div className="flex flex-col h-full">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {messages.length === 0 && (
-          <div className="text-center py-12">
-            <Anchor className="h-12 w-12 mx-auto text-ocean-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Welcome to Passage Planner
+          <div className="text-center py-16 animate-fade-in">
+            <div className="relative inline-block mb-6">
+              <div className="absolute inset-0 bg-gradient-ocean blur-2xl opacity-30 animate-pulse-slow"></div>
+              <Anchor className="relative h-16 w-16 text-ocean-500 dark:text-ocean-400 animate-float" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3">
+              Welcome aboard, Captain!
             </h3>
-            <p className="text-gray-500 max-w-md mx-auto">
-              I can help you plan safe sailing passages. Try asking:
+            <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto mb-8">
+              I'm your AI-powered passage planning assistant. I can help you plan safe routes, 
+              check weather conditions, and navigate with confidence.
             </p>
-            <div className="mt-4 space-y-2">
+            <div className="space-y-3 max-w-lg mx-auto">
               <button
                 onClick={() => setInput('Plan a passage from Boston to Portland on July 15')}
-                className="text-sm text-ocean-600 hover:text-ocean-700"
+                className="w-full p-4 text-left rounded-xl glass-hover hover:shadow-lg transition-all duration-200 group"
               >
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-ocean-100 dark:bg-ocean-900/30 rounded-lg group-hover:scale-110 transition-transform">
+                    <Map className="h-5 w-5 text-ocean-600 dark:text-ocean-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">Plan a passage</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
                 "Plan a passage from Boston to Portland on July 15"
+                    </p>
+                  </div>
+                </div>
               </button>
-              <br />
               <button
                 onClick={() => setInput('What\'s the weather forecast for Cape Cod this weekend?')}
-                className="text-sm text-ocean-600 hover:text-ocean-700"
+                className="w-full p-4 text-left rounded-xl glass-hover hover:shadow-lg transition-all duration-200 group"
               >
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-ocean-100 dark:bg-ocean-900/30 rounded-lg group-hover:scale-110 transition-transform">
+                    <AlertCircle className="h-5 w-5 text-ocean-600 dark:text-ocean-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">Check weather</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
                 "What's the weather forecast for Cape Cod this weekend?"
+                    </p>
+                  </div>
+                </div>
               </button>
             </div>
           </div>
         )}
 
-        {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+        {messages.map((message, index) => (
+          <div
+            key={message.id}
+            className={`animate-fade-up animation-delay-${Math.min(index * 100, 500)}`}
+          >
+            <MessageBubble message={message} />
+          </div>
         ))}
 
         {isProcessing && (
-          <div className="flex items-center gap-2 text-gray-500">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-sm">Planning your passage...</span>
+          <div className="flex items-center gap-3 p-4 rounded-xl glass animate-fade-in">
+            <div className="relative">
+              <Loader2 className="h-5 w-5 text-ocean-600 dark:text-ocean-400 animate-spin" />
+              <div className="absolute inset-0 bg-ocean-500 blur-xl opacity-30 animate-pulse"></div>
+            </div>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Planning your passage...
+            </span>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="border-t p-4">
-        <div className="flex gap-2">
+      {/* Modern Input Area */}
+      <form onSubmit={handleSubmit} className="p-4 glass border-t border-white/20 dark:border-gray-800/30">
+        <div className="flex gap-3 max-w-4xl mx-auto">
+          <div className="flex-1 relative">
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about passages, weather, tides, or ports..."
-            className="flex-1 resize-none rounded-lg border border-gray-300 px-4 py-2 focus:border-ocean-500 focus:outline-none focus:ring-1 focus:ring-ocean-500"
+              className="w-full resize-none rounded-xl input-modern pr-12"
             rows={1}
-            disabled={isProcessing || !connected}
+              disabled={isProcessing}
+              style={{ minHeight: '48px', maxHeight: '120px' }}
           />
+            <div className="absolute right-2 bottom-2 text-xs text-gray-400">
+              {input.length > 0 && `${input.length}/1000`}
+            </div>
+          </div>
           <button
             type="submit"
-            disabled={!input.trim() || isProcessing || !connected}
-            className="rounded-lg bg-ocean-600 px-4 py-2 text-white hover:bg-ocean-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!input.trim() || isProcessing}
+            className="btn-primary rounded-xl px-4 py-3 min-w-[48px]"
           >
             {isProcessing ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -119,22 +156,22 @@ function MessageBubble({ message }: { message: Message }) {
   const isError = message.role === 'system' && message.content.includes('Error')
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} group`}>
       <div
-        className={`max-w-[80%] rounded-lg px-4 py-2 ${
+        className={`max-w-[80%] rounded-2xl px-5 py-3 shadow-soft transition-all duration-200 ${
           isUser
-            ? 'bg-ocean-600 text-white'
+            ? 'bg-gradient-ocean text-white ml-12'
             : isError
-            ? 'bg-red-50 text-red-900 border border-red-200'
-            : 'bg-gray-100 text-gray-900'
+            ? 'bg-danger-50 dark:bg-danger-900/20 text-danger-900 dark:text-danger-200 border border-danger-200 dark:border-danger-800 mr-12'
+            : 'glass mr-12 hover:shadow-lg'
         }`}
       >
         <div className="text-sm">
           {isUser ? (
             message.content
           ) : (
+            <div className="prose prose-sm max-w-none">
             <ReactMarkdown
-              className="prose prose-sm max-w-none"
               components={{
                 a: ({ href, children }) => (
                   <a
@@ -150,20 +187,31 @@ function MessageBubble({ message }: { message: Message }) {
             >
               {message.content}
             </ReactMarkdown>
+            </div>
           )}
         </div>
-        <div
-          className={`text-xs mt-1 ${
-            isUser ? 'text-ocean-100' : 'text-gray-500'
-          }`}
-        >
+        
+        {/* Timestamp and Metadata */}
+        <div className={`mt-2 space-y-1 ${isUser ? 'text-right' : 'text-left'}`}>
+          <div className={`text-xs ${
+            isUser ? 'text-ocean-200/70' : 'text-gray-500 dark:text-gray-400'
+          } opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
           {formatDate(message.timestamp)}
         </div>
+          
         {message.metadata?.agentsUsed && (
-          <div className="text-xs mt-1 text-gray-500">
-            Agents: {message.metadata.agentsUsed.join(', ')}
+            <div className="flex items-center gap-2 flex-wrap">
+              {message.metadata.agentsUsed.map((agent, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium badge-ocean"
+                >
+                  {agent}
+                </span>
+              ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   )
