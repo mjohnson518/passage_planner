@@ -34,6 +34,7 @@ start_agent "safety"
 start_agent "route"
 start_agent "wind"
 start_agent "factory"
+start_agent "currents"
 
 echo "All agents started. Check logs/ directory for output."
 echo "To stop all agents, run: ./scripts/stop-agents.sh" 
