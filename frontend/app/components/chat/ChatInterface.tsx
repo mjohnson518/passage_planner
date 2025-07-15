@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Anchor, AlertCircle, Map, Activity } from 'lucide-react'
+import { Send, Loader2, Anchor, AlertCircle, Map, Activity, Route, Cloud } from 'lucide-react'
 import { usePassagePlanner } from '../../hooks/usePassagePlanner'
 import { useStore } from '../../store'
 import { formatDate } from '../../lib/utils'
@@ -229,7 +229,7 @@ function MessageBubble({ message }: { message: Message }) {
           {isUser ? (
             message.content
           ) : (
-            <div className="prose prose-sm max-w-none">
+            <div className="prose prose-sm max-w-none dark:prose-invert prose-gray">
             <ReactMarkdown
               components={{
                 a: ({ href, children }) => (
@@ -237,11 +237,14 @@ function MessageBubble({ message }: { message: Message }) {
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-ocean-600 hover:text-ocean-700 underline"
+                    className="text-ocean-600 dark:text-ocean-400 hover:text-ocean-700 dark:hover:text-ocean-300 underline"
                   >
                     {children}
                   </a>
                 ),
+                p: ({ children }) => <p className="text-gray-900 dark:text-gray-100">{children}</p>,
+                li: ({ children }) => <li className="text-gray-900 dark:text-gray-100">{children}</li>,
+                strong: ({ children }) => <strong className="text-gray-900 dark:text-white font-semibold">{children}</strong>,
               }}
             >
               {message.content}
