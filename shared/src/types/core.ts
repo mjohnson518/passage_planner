@@ -3,6 +3,92 @@
 
 import { z } from 'zod';
 
+// ===== Authentication & User Types =====
+
+export interface User {
+  id: string;
+  email: string;
+  role: 'user' | 'admin';
+  subscription?: Subscription;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UserProfile {
+  id: string;
+  userId: string;
+  displayName?: string;
+  bio?: string;
+  sailingExperience?: 'beginner' | 'intermediate' | 'advanced' | 'professional';
+  boatType?: string;
+  boatName?: string;
+  homePort?: string;
+  avatarUrl?: string;
+  preferences: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Session {
+  id: string;
+  userId: string;
+  token: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface ApiKey {
+  id: string;
+  userId: string;
+  name: string;
+  keyHash: string;
+  lastUsedAt?: Date;
+  expiresAt?: Date;
+  scopes: string[];
+  createdAt: Date;
+}
+
+// ===== Subscription & Billing Types =====
+
+export type SubscriptionTier = 'free' | 'premium' | 'pro' | 'enterprise';
+export type SubscriptionStatus = 'active' | 'canceled' | 'past_due' | 'paused' | 'trialing';
+
+export interface Subscription {
+  id: string;
+  userId: string;
+  tier: SubscriptionTier;
+  status: SubscriptionStatus;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
+  cancelAtPeriodEnd: boolean;
+  trialEndDate?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UsageMetric {
+  id: string;
+  userId: string;
+  action: 'passage_planned' | 'weather_checked' | 'route_exported' | 'api_call';
+  metadata?: Record<string, any>;
+  createdAt: Date;
+}
+
+export interface SubscriptionLimits {
+  passagesPerMonth: number;
+  apiCallsPerDay: number;
+  exportFormats: string[];
+  forecastDays: number;
+  agents: string[] | '*';
+  support: 'community' | 'email' | 'priority' | 'dedicated';
+  customAgents?: boolean;
+  fleetManagement?: boolean;
+  whiteLabel?: boolean;
+  sla?: boolean;
+}
+
 // ===== Base Types =====
 
 export interface Coordinate {
@@ -56,8 +142,6 @@ export interface AgentCapabilitySummary {
     successRate: number;
     lastError?: string;
   };
-  command?: string;
-  args?: string[];
 }
 
 export type AgentStatus = 'active' | 'idle' | 'error' | 'maintenance' | 'starting';
@@ -180,6 +264,8 @@ export interface FallbackStrategy {
 
 export interface PassagePlan {
   id: string;
+  userId: string;
+  name?: string;
   departure: Port;
   destination: Port;
   waypoints: Waypoint[];
@@ -193,6 +279,10 @@ export interface PassagePlan {
   tides: TidalSummary[];
   safety: SafetyBriefing;
   alternativeRoutes?: Route[];
+  sharedToken?: string;
+  isPublic: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Waypoint {
@@ -316,4 +406,33 @@ export const PassagePlanRequestSchema = z.object({
     maxWindSpeed: z.number().optional(),
     maxWaveHeight: z.number().optional(),
   }).optional(),
-}); 
+});
+
+export const LoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+export const SignupSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  displayName: z.string().min(2).optional(),
+  boatType: z.string().optional(),
+});
+
+export const ApiKeyCreateSchema = z.object({
+  name: z.string().min(1).max(100),
+  scopes: z.array(z.string()).optional(),
+  expiresAt: z.date().optional(),
+});
+
+// ===== Business Metrics Types =====
+
+export interface BusinessMetrics {
+  mrr: number;
+  activeUsers: number;
+  churnRate: number;
+  ltv: number;
+  cac: number;
+  trialConversionRate: number;
+} 

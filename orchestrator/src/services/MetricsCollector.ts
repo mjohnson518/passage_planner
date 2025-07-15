@@ -1,244 +1,103 @@
-// orchestrator/src/services/MetricsCollector.ts
-
 import { Logger } from 'pino';
 
-interface RequestMetrics {
-  method: string;
-  duration: number;
-  success: boolean;
-  timestamp: Date;
-}
-
-interface AgentMetrics {
-  agentId: string;
-  requestCount: number;
-  totalDuration: number;
-  errorCount: number;
-  lastError?: string;
-  lastRequestTime?: Date;
-}
-
 export class MetricsCollector {
-  private requestMetrics: RequestMetrics[] = [];
-  private agentMetrics = new Map<string, AgentMetrics>();
-  private metricsRetentionMs = 3600000; // 1 hour
+  private requestCounts = new Map<string, number>();
+  private responseTimes = new Map<string, number[]>();
+  private errorCounts = new Map<string, number>();
   
-  constructor(private logger: Logger) {
-    // Clean up old metrics periodically
-    setInterval(() => this.cleanupOldMetrics(), 60000); // Every minute
-  }
+  constructor(private logger: Logger) {}
   
   recordRequest(method: string, duration: number, success: boolean): void {
-    const metric: RequestMetrics = {
-      method,
-      duration,
-      success,
-      timestamp: new Date(),
-    };
+    // Update request count
+    const currentCount = this.requestCounts.get(method) || 0;
+    this.requestCounts.set(method, currentCount + 1);
     
-    this.requestMetrics.push(metric);
-    
-    this.logger.debug({ method, duration, success }, 'Request metric recorded');
-  }
-  
-  recordAgentRequest(
-    agentId: string, 
-    duration: number, 
-    success: boolean, 
-    error?: string
-  ): void {
-    let metrics = this.agentMetrics.get(agentId);
-    
-    if (!metrics) {
-      metrics = {
-        agentId,
-        requestCount: 0,
-        totalDuration: 0,
-        errorCount: 0,
-      };
-      this.agentMetrics.set(agentId, metrics);
+    // Update response times
+    const times = this.responseTimes.get(method) || [];
+    times.push(duration);
+    if (times.length > 100) {
+      times.shift(); // Keep only last 100
     }
+    this.responseTimes.set(method, times);
     
-    metrics.requestCount++;
-    metrics.totalDuration += duration;
-    metrics.lastRequestTime = new Date();
-    
+    // Update error count if failed
     if (!success) {
-      metrics.errorCount++;
-      if (error) {
-        metrics.lastError = error;
-      }
+      const errorCount = this.errorCounts.get(method) || 0;
+      this.errorCounts.set(method, errorCount + 1);
     }
     
-    this.logger.debug({ agentId, duration, success }, 'Agent metric recorded');
+    this.logger.debug({ method, duration, success }, 'Request recorded');
   }
   
   getAverageResponseTime(method?: string): number {
-    const relevantMetrics = method
-      ? this.requestMetrics.filter(m => m.method === method)
-      : this.requestMetrics;
-    
-    if (relevantMetrics.length === 0) {
-      return 0;
+    if (method) {
+      const times = this.responseTimes.get(method) || [];
+      return times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
     }
     
-    const totalDuration = relevantMetrics.reduce((sum, m) => sum + m.duration, 0);
-    return totalDuration / relevantMetrics.length;
-  }
-  
-  getSuccessRate(method?: string): number {
-    const relevantMetrics = method
-      ? this.requestMetrics.filter(m => m.method === method)
-      : this.requestMetrics;
+    // Overall average
+    let totalTime = 0;
+    let totalCount = 0;
     
-    if (relevantMetrics.length === 0) {
-      return 1;
+    for (const times of this.responseTimes.values()) {
+      totalTime += times.reduce((a, b) => a + b, 0);
+      totalCount += times.length;
     }
     
-    const successCount = relevantMetrics.filter(m => m.success).length;
-    return successCount / relevantMetrics.length;
+    return totalCount > 0 ? totalTime / totalCount : 0;
   }
   
-  getRequestsPerMinute(method?: string): number {
-    const oneMinuteAgo = new Date(Date.now() - 60000);
-    
-    const relevantMetrics = this.requestMetrics.filter(m => 
-      m.timestamp > oneMinuteAgo && (!method || m.method === method)
-    );
-    
-    return relevantMetrics.length;
-  }
-  
-  getAgentMetrics(agentId: string): AgentMetrics | undefined {
-    return this.agentMetrics.get(agentId);
-  }
-  
-  getAllAgentMetrics(): Map<string, AgentMetrics> {
-    return new Map(this.agentMetrics);
-  }
-  
-  getAgentSuccessRate(agentId: string): number {
-    const metrics = this.agentMetrics.get(agentId);
-    
-    if (!metrics || metrics.requestCount === 0) {
-      return 1;
-    }
-    
-    return (metrics.requestCount - metrics.errorCount) / metrics.requestCount;
-  }
-  
-  getAgentAverageResponseTime(agentId: string): number {
-    const metrics = this.agentMetrics.get(agentId);
-    
-    if (!metrics || metrics.requestCount === 0) {
-      return 0;
-    }
-    
-    return metrics.totalDuration / metrics.requestCount;
-  }
-  
-  getSystemMetrics(): {
-    totalRequests: number;
-    averageResponseTime: number;
-    successRate: number;
-    requestsPerMinute: number;
-    activeAgents: number;
-    topErrors: Array<{ method: string; count: number }>;
-  } {
-    const errorCounts = new Map<string, number>();
-    
-    // Count errors by method
-    this.requestMetrics
-      .filter(m => !m.success)
-      .forEach(m => {
-        errorCounts.set(m.method, (errorCounts.get(m.method) || 0) + 1);
-      });
-    
-    const topErrors = Array.from(errorCounts.entries())
-      .map(([method, count]) => ({ method, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-    
-    return {
-      totalRequests: this.requestMetrics.length,
-      averageResponseTime: this.getAverageResponseTime(),
-      successRate: this.getSuccessRate(),
-      requestsPerMinute: this.getRequestsPerMinute(),
-      activeAgents: this.agentMetrics.size,
-      topErrors,
+  getMetrics(): Record<string, any> {
+    const metrics: Record<string, any> = {
+      requests: {},
+      responseTimes: {},
+      errorRates: {},
+      overall: {
+        totalRequests: 0,
+        averageResponseTime: this.getAverageResponseTime(),
+        errorRate: 0
+      }
     };
-  }
-  
-  getMethodMetrics(): Map<string, {
-    count: number;
-    averageTime: number;
-    successRate: number;
-  }> {
-    const methodMetrics = new Map<string, any>();
     
-    // Group metrics by method
-    const methodGroups = new Map<string, RequestMetrics[]>();
+    let totalRequests = 0;
+    let totalErrors = 0;
     
-    this.requestMetrics.forEach(metric => {
-      const group = methodGroups.get(metric.method) || [];
-      group.push(metric);
-      methodGroups.set(metric.method, group);
-    });
-    
-    // Calculate metrics for each method
-    methodGroups.forEach((metrics, method) => {
-      const successCount = metrics.filter(m => m.success).length;
-      const totalTime = metrics.reduce((sum, m) => sum + m.duration, 0);
+    for (const [method, count] of this.requestCounts.entries()) {
+      metrics.requests[method] = count;
+      totalRequests += count;
       
-      methodMetrics.set(method, {
-        count: metrics.length,
-        averageTime: totalTime / metrics.length,
-        successRate: successCount / metrics.length,
-      });
-    });
-    
-    return methodMetrics;
-  }
-  
-  exportMetrics(): {
-    requests: RequestMetrics[];
-    agents: Record<string, AgentMetrics>;
-    system: {
-      totalRequests: number;
-      averageResponseTime: number;
-      successRate: number;
-      requestsPerMinute: number;
-      activeAgents: number;
-      topErrors: Array<{ method: string; count: number }>;
-    };
-    methods: Record<string, any>;
-  } {
-    return {
-      requests: this.requestMetrics,
-      agents: Object.fromEntries(this.agentMetrics),
-      system: this.getSystemMetrics(),
-      methods: Object.fromEntries(this.getMethodMetrics()),
-    };
-  }
-  
-  private cleanupOldMetrics(): void {
-    const cutoffTime = new Date(Date.now() - this.metricsRetentionMs);
-    
-    // Remove old request metrics
-    const oldLength = this.requestMetrics.length;
-    this.requestMetrics = this.requestMetrics.filter(
-      m => m.timestamp > cutoffTime
-    );
-    
-    const removed = oldLength - this.requestMetrics.length;
-    if (removed > 0) {
-      this.logger.debug({ removed }, 'Cleaned up old request metrics');
+      const times = this.responseTimes.get(method) || [];
+      metrics.responseTimes[method] = {
+        average: times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0,
+        min: times.length > 0 ? Math.min(...times) : 0,
+        max: times.length > 0 ? Math.max(...times) : 0,
+        p95: this.calculatePercentile(times, 0.95),
+        p99: this.calculatePercentile(times, 0.99)
+      };
+      
+      const errors = this.errorCounts.get(method) || 0;
+      totalErrors += errors;
+      metrics.errorRates[method] = count > 0 ? errors / count : 0;
     }
+    
+    metrics.overall.totalRequests = totalRequests;
+    metrics.overall.errorRate = totalRequests > 0 ? totalErrors / totalRequests : 0;
+    
+    return metrics;
+  }
+  
+  private calculatePercentile(values: number[], percentile: number): number {
+    if (values.length === 0) return 0;
+    
+    const sorted = [...values].sort((a, b) => a - b);
+    const index = Math.ceil(sorted.length * percentile) - 1;
+    return sorted[index] || 0;
   }
   
   reset(): void {
-    this.requestMetrics = [];
-    this.agentMetrics.clear();
+    this.requestCounts.clear();
+    this.responseTimes.clear();
+    this.errorCounts.clear();
     this.logger.info('Metrics reset');
   }
 } 

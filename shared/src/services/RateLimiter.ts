@@ -1,249 +1,153 @@
-import { createClient, RedisClientType } from 'redis';
-import pino from 'pino';
+import { RedisClientType } from 'redis';
+import { Logger } from 'pino';
 
-export interface RateLimitConfig {
-  windowMs: number;  // Time window in milliseconds
-  maxRequests: number; // Max requests per window
-  keyPrefix?: string; // Prefix for Redis keys
+export interface RateLimitOptions {
+  windowMs: number; // Time window in milliseconds
+  max: number; // Max requests per window
+  keyPrefix?: string;
+  skipSuccessfulRequests?: boolean;
+  skipFailedRequests?: boolean;
 }
 
-export interface APIRateLimits {
-  openweather: RateLimitConfig;
-  windy: RateLimitConfig;
-  noaa: RateLimitConfig;
-  [key: string]: RateLimitConfig;
+export interface RateLimitResult {
+  allowed: boolean;
+  limit: number;
+  remaining: number;
+  resetAt: Date;
+  retryAfter?: number; // Seconds until retry
 }
 
 export class RateLimiter {
   private redis: RedisClientType;
-  private logger = pino({
-    level: process.env.LOG_LEVEL || 'info',
-    transport: {
-      target: 'pino-pretty',
-      options: { colorize: true }
-    }
-  });
+  private logger: Logger;
   
-  private readonly defaultLimits: APIRateLimits = {
-    openweather: {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 60, // 60 calls per minute (free tier)
-      keyPrefix: 'rl:openweather:',
-    },
-    windy: {
-      windowMs: 60 * 60 * 1000, // 1 hour
-      maxRequests: 1000, // 1000 calls per hour
-      keyPrefix: 'rl:windy:',
-    },
-    noaa: {
-      windowMs: 60 * 1000, // 1 minute
-      maxRequests: 100, // Conservative limit (no official limit)
-      keyPrefix: 'rl:noaa:',
-    },
-  };
-  
-  constructor(redisUrl?: string) {
-    this.redis = createClient({
-      url: redisUrl || process.env.REDIS_URL || 'redis://localhost:6379',
-    });
-    
-    this.redis.on('error', (err) => {
-      this.logger.error('Redis Client Error', err);
-    });
-    
-    this.redis.on('connect', () => {
-      this.logger.info('Connected to Redis for rate limiting');
-    });
+  constructor(redis: RedisClientType, logger: Logger) {
+    this.redis = redis;
+    this.logger = logger;
   }
   
-  async connect(): Promise<void> {
-    if (!this.redis.isOpen) {
-      await this.redis.connect();
-    }
-  }
-  
-  async disconnect(): Promise<void> {
-    if (this.redis.isOpen) {
-      await this.redis.disconnect();
-    }
-  }
-  
-  /**
-   * Check if a request is allowed under the rate limit
-   * @param api - The API identifier (e.g., 'openweather', 'windy')
-   * @param identifier - Unique identifier for the rate limit (e.g., API key, user ID)
-   * @returns Object with allowed status and metadata
-   */
-  async checkLimit(api: string, identifier: string = 'default'): Promise<{
-    allowed: boolean;
-    remaining: number;
-    resetAt: Date;
-    retryAfter?: number;
-  }> {
-    const config = this.defaultLimits[api] || {
-      windowMs: 60 * 1000,
-      maxRequests: 100,
-      keyPrefix: `rl:${api}:`,
-    };
-    
-    const key = `${config.keyPrefix}${identifier}`;
+  async checkLimit(
+    identifier: string,
+    options: RateLimitOptions
+  ): Promise<RateLimitResult> {
+    const key = `${options.keyPrefix || 'ratelimit'}:${identifier}`;
     const now = Date.now();
-    const windowStart = now - config.windowMs;
+    const windowStart = now - options.windowMs;
     
     try {
+      // Use Redis sorted set for sliding window
+      const multi = this.redis.multi();
+      
       // Remove old entries
-      await this.redis.zRemRangeByScore(key, '-inf', windowStart.toString());
+      multi.zRemRangeByScore(key, '-inf', windowStart.toString());
       
-      // Count requests in current window
-      const count = await this.redis.zCard(key);
-      
-      if (count >= config.maxRequests) {
-        // Get oldest request time to calculate retry after
-        const oldestRequest = await this.redis.zRange(key, 0, 0, { 
-          WITHSCORES: true 
-        });
-        
-        const oldestTime = oldestRequest[0]?.score || now;
-        const resetAt = new Date(oldestTime + config.windowMs);
-        const retryAfter = Math.ceil((resetAt.getTime() - now) / 1000);
-        
-        this.logger.warn({
-          api,
-          identifier,
-          count,
-          limit: config.maxRequests,
-          resetAt,
-        }, 'Rate limit exceeded');
-        
-        return {
-          allowed: false,
-          remaining: 0,
-          resetAt,
-          retryAfter,
-        };
-      }
+      // Count current entries
+      multi.zCard(key);
       
       // Add current request
-      await this.redis.zAdd(key, {
-        score: now,
-        value: `${now}:${Math.random()}`,
-      });
+      multi.zAdd(key, { score: now, value: `${now}-${Math.random()}` });
       
-      // Set expiry on the key
-      await this.redis.expire(key, Math.ceil(config.windowMs / 1000));
+      // Set expiry
+      multi.expire(key, Math.ceil(options.windowMs / 1000));
       
-      const remaining = config.maxRequests - count - 1;
-      const resetAt = new Date(now + config.windowMs);
+      const results = await multi.exec();
+      const count = results[1] as number;
+      
+      const allowed = count < options.max;
+      const remaining = Math.max(0, options.max - count - 1);
+      const resetAt = new Date(now + options.windowMs);
+      
+      if (!allowed) {
+        // Calculate retry after
+        const oldestEntry = await this.redis.zRange(key, 0, 0, { BY: 'SCORE' });
+        if (oldestEntry.length > 0) {
+          const oldestTime = parseInt(oldestEntry[0].split('-')[0]);
+          const retryAfter = Math.ceil((oldestTime + options.windowMs - now) / 1000);
+          
+          return {
+            allowed: false,
+            limit: options.max,
+            remaining: 0,
+            resetAt,
+            retryAfter,
+          };
+        }
+      }
       
       return {
-        allowed: true,
+        allowed,
+        limit: options.max,
         remaining,
         resetAt,
       };
       
     } catch (error) {
-      this.logger.error({ error, api, identifier }, 'Rate limit check failed');
+      this.logger.error({ error, key }, 'Rate limit check failed');
       
-      // On error, allow the request but log it
+      // Fail open - allow request if Redis is down
       return {
         allowed: true,
-        remaining: -1,
-        resetAt: new Date(now + config.windowMs),
+        limit: options.max,
+        remaining: options.max,
+        resetAt: new Date(now + options.windowMs),
       };
     }
   }
   
-  /**
-   * Get current usage statistics for an API
-   */
-  async getUsageStats(api: string, identifier: string = 'default'): Promise<{
-    current: number;
-    limit: number;
-    percentage: number;
-    resetAt: Date;
-  }> {
-    const config = this.defaultLimits[api] || {
-      windowMs: 60 * 1000,
-      maxRequests: 100,
-      keyPrefix: `rl:${api}:`,
-    };
-    
-    const key = `${config.keyPrefix}${identifier}`;
-    const now = Date.now();
-    const windowStart = now - config.windowMs;
+  // Reset rate limit for an identifier
+  async reset(identifier: string, keyPrefix?: string): Promise<void> {
+    const key = `${keyPrefix || 'ratelimit'}:${identifier}`;
     
     try {
-      // Remove old entries
-      await this.redis.zRemRangeByScore(key, '-inf', windowStart.toString());
-      
-      // Count requests in current window
-      const current = await this.redis.zCard(key);
-      const percentage = (current / config.maxRequests) * 100;
-      
-      return {
-        current,
-        limit: config.maxRequests,
-        percentage,
-        resetAt: new Date(now + config.windowMs),
-      };
+      await this.redis.del(key);
     } catch (error) {
-      this.logger.error({ error, api }, 'Failed to get usage stats');
-      return {
-        current: 0,
-        limit: config.maxRequests,
-        percentage: 0,
-        resetAt: new Date(now + config.windowMs),
-      };
+      this.logger.error({ error, key }, 'Failed to reset rate limit');
     }
   }
   
-  /**
-   * Reset rate limit for a specific API and identifier
-   */
-  async resetLimit(api: string, identifier: string = 'default'): Promise<void> {
-    const config = this.defaultLimits[api];
-    if (!config) return;
+  // Get current usage for an identifier
+  async getUsage(
+    identifier: string,
+    windowMs: number,
+    keyPrefix?: string
+  ): Promise<number> {
+    const key = `${keyPrefix || 'ratelimit'}:${identifier}`;
+    const windowStart = Date.now() - windowMs;
     
-    const key = `${config.keyPrefix}${identifier}`;
-    await this.redis.del(key);
-    
-    this.logger.info({ api, identifier }, 'Rate limit reset');
+    try {
+      // Remove old entries and count
+      await this.redis.zRemRangeByScore(key, '-inf', windowStart.toString());
+      return await this.redis.zCard(key);
+    } catch (error) {
+      this.logger.error({ error, key }, 'Failed to get usage');
+      return 0;
+    }
   }
   
-  /**
-   * Update rate limit configuration for an API
-   */
-  updateLimits(api: string, config: RateLimitConfig): void {
-    this.defaultLimits[api] = {
-      ...config,
-      keyPrefix: config.keyPrefix || `rl:${api}:`,
-    };
-    
-    this.logger.info({ api, config }, 'Rate limits updated');
-  }
-  
-  /**
-   * Middleware for Express routes
-   */
-  middleware(api: string) {
+  // Create Express middleware
+  middleware(options: RateLimitOptions) {
     return async (req: any, res: any, next: any) => {
-      const identifier = req.user?.id || req.ip || 'anonymous';
-      const result = await this.checkLimit(api, identifier);
+      // Determine identifier
+      const identifier = this.getIdentifier(req);
       
-      // Set rate limit headers
-      res.set({
-        'X-RateLimit-Limit': this.defaultLimits[api]?.maxRequests || 100,
-        'X-RateLimit-Remaining': Math.max(0, result.remaining),
-        'X-RateLimit-Reset': result.resetAt.toISOString(),
-      });
+      // Check rate limit
+      const result = await this.checkLimit(identifier, options);
+      
+      // Set headers
+      res.setHeader('X-RateLimit-Limit', result.limit);
+      res.setHeader('X-RateLimit-Remaining', result.remaining);
+      res.setHeader('X-RateLimit-Reset', result.resetAt.toISOString());
       
       if (!result.allowed) {
-        res.set('Retry-After', result.retryAfter?.toString() || '60');
+        res.setHeader('Retry-After', result.retryAfter || 60);
+        
         return res.status(429).json({
-          error: 'Too Many Requests',
-          message: `Rate limit exceeded for ${api} API`,
-          retryAfter: result.retryAfter,
-          resetAt: result.resetAt,
+          error: {
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: 'Too many requests',
+            retryAfter: result.retryAfter,
+            resetAt: result.resetAt,
+          },
         });
       }
       
@@ -251,16 +155,41 @@ export class RateLimiter {
     };
   }
   
-  /**
-   * Get all current rate limit statuses
-   */
-  async getAllStatuses(identifier: string = 'default'): Promise<Record<string, any>> {
-    const statuses: Record<string, any> = {};
-    
-    for (const [api, config] of Object.entries(this.defaultLimits)) {
-      statuses[api] = await this.getUsageStats(api, identifier);
+  // Determine identifier from request
+  private getIdentifier(req: any): string {
+    // Prefer authenticated user ID
+    if (req.user?.userId) {
+      return `user:${req.user.userId}`;
     }
     
-    return statuses;
+    // Fall back to API key
+    if (req.headers['x-api-key']) {
+      return `apikey:${req.headers['x-api-key'].substring(0, 8)}`;
+    }
+    
+    // Fall back to IP address
+    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    return `ip:${ip}`;
+  }
+  
+  // Create tiered rate limiters based on subscription
+  createTieredLimiter() {
+    const tiers = {
+      free: { windowMs: 60000, max: 10 }, // 10 per minute
+      premium: { windowMs: 60000, max: 60 }, // 60 per minute
+      pro: { windowMs: 60000, max: 300 }, // 300 per minute
+      enterprise: { windowMs: 60000, max: 1000 }, // 1000 per minute
+    };
+    
+    return async (req: any, res: any, next: any) => {
+      const tier = req.user?.subscription?.tier || 'free';
+      const options = {
+        ...tiers[tier as keyof typeof tiers],
+        keyPrefix: `ratelimit:${tier}`,
+      };
+      
+      const middleware = this.middleware(options);
+      return middleware(req, res, next);
+    };
   }
 } 

@@ -1,11 +1,11 @@
-// orchestrator/src/services/SessionManager.ts
-
 import { RedisClientType } from 'redis';
 import { Logger } from 'pino';
+import { v4 as uuidv4 } from 'uuid';
 
-interface SessionData {
-  requestId: string;
+export interface SessionData {
+  sessionId: string;
   userId?: string;
+  requestId: string;
   startTime: Date;
   lastActivity?: Date;
   completedSteps?: number;
@@ -14,211 +14,115 @@ interface SessionData {
 }
 
 export class SessionManager {
-  private sessionTTL = 3600; // 1 hour in seconds
+  private static readonly SESSION_KEY_PREFIX = 'session:';
+  private static readonly SESSION_TTL = 3600; // 1 hour
   
   constructor(
     private redis: RedisClientType,
     private logger: Logger
   ) {}
   
-  async createSession(data: SessionData): Promise<string> {
-    const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    const sessionData = {
-      ...data,
+  async createSession(data: Omit<SessionData, 'sessionId'>): Promise<string> {
+    const sessionId = uuidv4();
+    const sessionData: SessionData = {
       sessionId,
-      createdAt: new Date().toISOString(),
-      lastActivity: new Date().toISOString(),
+      ...data
     };
     
-    // Store session in Redis
-    await this.redis.setEx(
-      `sessions:${sessionId}`,
-      this.sessionTTL,
-      JSON.stringify(sessionData)
-    );
-    
-    // Add to user's session list if userId is provided
-    if (data.userId) {
-      await this.redis.sAdd(`user:${data.userId}:sessions`, sessionId);
-      await this.redis.expire(`user:${data.userId}:sessions`, this.sessionTTL);
+    try {
+      await this.redis.set(
+        `${SessionManager.SESSION_KEY_PREFIX}${sessionId}`,
+        JSON.stringify(sessionData),
+        { EX: SessionManager.SESSION_TTL }
+      );
+      
+      this.logger.info({ sessionId, userId: data.userId }, 'Session created');
+      return sessionId;
+    } catch (error) {
+      this.logger.error({ error, sessionId }, 'Failed to create session');
+      throw error;
     }
-    
-    // Track active sessions
-    await this.redis.sAdd('sessions:active', sessionId);
-    
-    this.logger.info({ sessionId, userId: data.userId }, 'Session created');
-    
-    return sessionId;
   }
   
   async getSession(sessionId: string): Promise<SessionData | null> {
-    const data = await this.redis.get(`sessions:${sessionId}`);
-    
-    if (!data) {
+    try {
+      const data = await this.redis.get(`${SessionManager.SESSION_KEY_PREFIX}${sessionId}`);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      this.logger.error({ error, sessionId }, 'Failed to get session');
       return null;
     }
-    
-    return JSON.parse(data);
   }
   
   async updateSession(sessionId: string, updates: Partial<SessionData>): Promise<void> {
-    const session = await this.getSession(sessionId);
-    
-    if (!session) {
-      throw new Error(`Session ${sessionId} not found`);
+    try {
+      const current = await this.getSession(sessionId);
+      if (!current) {
+        throw new Error('Session not found');
+      }
+      
+      const updated = { ...current, ...updates };
+      await this.redis.set(
+        `${SessionManager.SESSION_KEY_PREFIX}${sessionId}`,
+        JSON.stringify(updated),
+        { EX: SessionManager.SESSION_TTL }
+      );
+      
+      this.logger.debug({ sessionId, updates }, 'Session updated');
+    } catch (error) {
+      this.logger.error({ error, sessionId }, 'Failed to update session');
+      throw error;
     }
-    
-    const updatedSession = {
-      ...session,
-      ...updates,
-      lastActivity: new Date().toISOString(),
-    };
-    
-    // Update session with new TTL
-    await this.redis.setEx(
-      `sessions:${sessionId}`,
-      this.sessionTTL,
-      JSON.stringify(updatedSession)
-    );
-    
-    this.logger.debug({ sessionId, updates }, 'Session updated');
   }
   
   async endSession(sessionId: string): Promise<void> {
-    const session = await this.getSession(sessionId);
-    
-    if (!session) {
-      return;
+    try {
+      await this.redis.del(`${SessionManager.SESSION_KEY_PREFIX}${sessionId}`);
+      this.logger.info({ sessionId }, 'Session ended');
+    } catch (error) {
+      this.logger.error({ error, sessionId }, 'Failed to end session');
     }
-    
-    // Remove from active sessions
-    await this.redis.sRem('sessions:active', sessionId);
-    
-    // Remove from user's session list
-    if (session.userId) {
-      await this.redis.sRem(`user:${session.userId}:sessions`, sessionId);
-    }
-    
-    // Archive session data (keep for analytics)
-    const archiveData = {
-      ...session,
-      endTime: new Date().toISOString(),
-      duration: Date.now() - new Date(session.startTime).getTime(),
-    };
-    
-    await this.redis.setEx(
-      `sessions:archive:${sessionId}`,
-      86400 * 7, // Keep for 7 days
-      JSON.stringify(archiveData)
-    );
-    
-    // Delete active session
-    await this.redis.del(`sessions:${sessionId}`);
-    
-    this.logger.info({ sessionId }, 'Session ended');
   }
   
-  async getUserSessions(userId: string): Promise<SessionData[]> {
-    const sessionIds = await this.redis.sMembers(`user:${userId}:sessions`);
-    const sessions: SessionData[] = [];
-    
-    for (const sessionId of sessionIds) {
-      const session = await this.getSession(sessionId);
-      if (session) {
-        sessions.push(session);
+  async getActiveSessions(): Promise<SessionData[]> {
+    try {
+      const keys = await this.redis.keys(`${SessionManager.SESSION_KEY_PREFIX}*`);
+      const sessions: SessionData[] = [];
+      
+      for (const key of keys) {
+        const data = await this.redis.get(key);
+        if (data) {
+          sessions.push(JSON.parse(data));
+        }
       }
+      
+      return sessions;
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to get active sessions');
+      return [];
     }
-    
-    return sessions;
   }
   
-  async getActiveSessions(): Promise<string[]> {
-    return this.redis.sMembers('sessions:active');
-  }
-  
-  async cleanupExpiredSessions(): Promise<void> {
-    const activeSessions = await this.getActiveSessions();
+  async cleanupExpiredSessions(): Promise<number> {
+    // Redis handles TTL automatically, but this method can be used for additional cleanup
+    const sessions = await this.getActiveSessions();
+    const now = new Date();
     let cleaned = 0;
     
-    for (const sessionId of activeSessions) {
-      const exists = await this.redis.exists(`sessions:${sessionId}`);
-      if (!exists) {
-        await this.redis.sRem('sessions:active', sessionId);
+    for (const session of sessions) {
+      const lastActivity = session.lastActivity || session.startTime;
+      const age = now.getTime() - new Date(lastActivity).getTime();
+      
+      if (age > SessionManager.SESSION_TTL * 1000) {
+        await this.endSession(session.sessionId);
         cleaned++;
       }
     }
     
     if (cleaned > 0) {
-      this.logger.info({ cleaned }, 'Cleaned up expired sessions');
-    }
-  }
-  
-  async getSessionMetrics(): Promise<{
-    activeSessions: number;
-    averageDuration: number;
-    completionRate: number;
-  }> {
-    const activeSessions = await this.redis.sCard('sessions:active');
-    
-    // Get archived sessions for metrics
-    const archiveKeys = await this.redis.keys('sessions:archive:*');
-    let totalDuration = 0;
-    let completedSessions = 0;
-    let totalSessions = archiveKeys.length;
-    
-    for (const key of archiveKeys.slice(0, 100)) { // Sample last 100
-      const data = await this.redis.get(key);
-      if (data) {
-        const session = JSON.parse(data);
-        totalDuration += session.duration || 0;
-        
-        if (session.completedSteps === session.totalSteps) {
-          completedSessions++;
-        }
-      }
+      this.logger.info({ count: cleaned }, 'Cleaned up expired sessions');
     }
     
-    return {
-      activeSessions,
-      averageDuration: totalSessions > 0 ? totalDuration / totalSessions : 0,
-      completionRate: totalSessions > 0 ? completedSessions / totalSessions : 0,
-    };
-  }
-  
-  // Store intermediate results for a session
-  async storeIntermediateResult(
-    sessionId: string, 
-    stepId: string, 
-    result: any
-  ): Promise<void> {
-    const key = `sessions:${sessionId}:results:${stepId}`;
-    
-    await this.redis.setEx(
-      key,
-      this.sessionTTL,
-      JSON.stringify({
-        stepId,
-        result,
-        timestamp: new Date().toISOString(),
-      })
-    );
-  }
-  
-  // Get all intermediate results for a session
-  async getIntermediateResults(sessionId: string): Promise<Record<string, any>> {
-    const pattern = `sessions:${sessionId}:results:*`;
-    const keys = await this.redis.keys(pattern);
-    const results: Record<string, any> = {};
-    
-    for (const key of keys) {
-      const data = await this.redis.get(key);
-      if (data) {
-        const parsed = JSON.parse(data);
-        results[parsed.stepId] = parsed.result;
-      }
-    }
-    
-    return results;
+    return cleaned;
   }
 } 

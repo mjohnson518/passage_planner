@@ -1,457 +1,232 @@
-import pino from 'pino';
-import { RateLimiter } from './RateLimiter';
-import { CacheManager } from './CacheManager';
+import axios, { AxiosInstance, AxiosError } from 'axios';
+import { Logger } from 'pino';
 
 export interface APIProvider {
   name: string;
+  baseUrl: string;
   priority: number;
-  healthCheck: () => Promise<boolean>;
-  fetch: (params: any) => Promise<any>;
-  transform?: (data: any) => any;
-  rateLimit?: {
-    api: string;
-    identifier?: string;
-  };
+  healthCheckUrl?: string;
+  headers?: Record<string, string>;
+  timeout?: number;
 }
 
-export interface CircuitBreakerConfig {
-  failureThreshold: number;
-  resetTimeout: number;
-  halfOpenRequests: number;
+export interface FallbackOptions {
+  maxRetries?: number;
+  retryDelay?: number;
+  circuitBreakerThreshold?: number;
+  circuitBreakerTimeout?: number;
 }
 
-export interface FallbackConfig {
-  providers: APIProvider[];
-  cacheType?: string;
-  circuitBreaker?: CircuitBreakerConfig;
-  retryConfig?: {
-    attempts: number;
-    delay: number;
-    backoffMultiplier: number;
-  };
-}
-
-type CircuitState = 'closed' | 'open' | 'half-open';
-
-class CircuitBreaker {
-  private state: CircuitState = 'closed';
-  private failures = 0;
-  private successCount = 0;
-  private lastFailureTime?: Date;
-  private halfOpenRequests = 0;
-  
-  constructor(private config: CircuitBreakerConfig) {}
-  
-  async execute<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.state === 'open') {
-      // Check if we should try half-open
-      if (this.lastFailureTime && 
-          Date.now() - this.lastFailureTime.getTime() > this.config.resetTimeout) {
-        this.state = 'half-open';
-        this.halfOpenRequests = 0;
-      } else {
-        throw new Error('Circuit breaker is open');
-      }
-    }
-    
-    if (this.state === 'half-open' && 
-        this.halfOpenRequests >= this.config.halfOpenRequests) {
-      throw new Error('Circuit breaker is half-open, max requests reached');
-    }
-    
-    try {
-      const result = await fn();
-      this.onSuccess();
-      return result;
-    } catch (error) {
-      this.onFailure();
-      throw error;
-    }
-  }
-  
-  private onSuccess() {
-    if (this.state === 'half-open') {
-      this.successCount++;
-      this.halfOpenRequests++;
-      
-      if (this.successCount >= this.config.halfOpenRequests) {
-        this.state = 'closed';
-        this.failures = 0;
-        this.successCount = 0;
-      }
-    } else {
-      this.failures = 0;
-    }
-  }
-  
-  private onFailure() {
-    this.failures++;
-    this.lastFailureTime = new Date();
-    
-    if (this.state === 'half-open') {
-      this.state = 'open';
-      this.successCount = 0;
-    } else if (this.failures >= this.config.failureThreshold) {
-      this.state = 'open';
-    }
-  }
-  
-  getState(): CircuitState {
-    return this.state;
-  }
-  
-  reset() {
-    this.state = 'closed';
-    this.failures = 0;
-    this.successCount = 0;
-    this.lastFailureTime = undefined;
-  }
+interface CircuitBreakerState {
+  failures: number;
+  lastFailure?: Date;
+  state: 'closed' | 'open' | 'half-open';
 }
 
 export class APIFallbackManager {
-  private logger = pino({
-    level: process.env.LOG_LEVEL || 'info',
-    transport: {
-      target: 'pino-pretty',
-      options: { colorize: true }
+  private providers: APIProvider[];
+  private logger: Logger;
+  private circuitBreakers: Map<string, CircuitBreakerState> = new Map();
+  private options: Required<FallbackOptions>;
+  
+  constructor(providers: APIProvider[], logger?: Logger, options?: FallbackOptions) {
+    this.providers = providers.sort((a, b) => a.priority - b.priority);
+    this.logger = logger || console as any;
+    this.options = {
+      maxRetries: options?.maxRetries || 3,
+      retryDelay: options?.retryDelay || 1000,
+      circuitBreakerThreshold: options?.circuitBreakerThreshold || 5,
+      circuitBreakerTimeout: options?.circuitBreakerTimeout || 60000, // 1 minute
+    };
+    
+    // Initialize circuit breakers
+    for (const provider of this.providers) {
+      this.circuitBreakers.set(provider.name, {
+        failures: 0,
+        state: 'closed',
+      });
     }
-  });
+  }
   
-  private circuitBreakers = new Map<string, CircuitBreaker>();
-  private providerHealth = new Map<string, boolean>();
-  
-  constructor(
-    private rateLimiter: RateLimiter,
-    private cacheManager: CacheManager
-  ) {}
-  
-  /**
-   * Execute request with fallback strategy
-   */
-  async execute<T>(
-    config: FallbackConfig,
-    params: any,
-    cacheKey?: string
+  async request<T>(
+    path: string,
+    options?: {
+      method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+      params?: any;
+      data?: any;
+      headers?: Record<string, string>;
+    }
   ): Promise<T> {
-    // Check cache first if configured
-    if (config.cacheType && cacheKey) {
-      const cached = await this.cacheManager.get<T>(config.cacheType, cacheKey);
-      if (cached) {
-        this.logger.debug({ cacheType: config.cacheType, cacheKey }, 'Cache hit');
-        return cached;
+    const errors: Error[] = [];
+    
+    for (const provider of this.providers) {
+      if (!this.isProviderAvailable(provider)) {
+        this.logger.warn({ provider: provider.name }, 'Provider unavailable (circuit open)');
+        continue;
       }
-    }
-    
-    // Sort providers by priority
-    const providers = [...config.providers].sort((a, b) => a.priority - b.priority);
-    
-    const errors: Array<{ provider: string; error: string }> = [];
-    
-    for (const provider of providers) {
+      
       try {
-        // Check circuit breaker
-        const breaker = this.getOrCreateCircuitBreaker(
-          provider.name,
-          config.circuitBreaker
-        );
+        const response = await this.makeRequest(provider, path, options);
         
-        const result = await breaker.execute(async () => {
-          // Check rate limit
-          if (provider.rateLimit) {
-            const rateLimitCheck = await this.rateLimiter.checkLimit(
-              provider.rateLimit.api,
-              provider.rateLimit.identifier
-            );
-            
-            if (!rateLimitCheck.allowed) {
-              throw new Error(`Rate limit exceeded for ${provider.name}`);
-            }
-          }
-          
-          // Check provider health
-          const isHealthy = await this.checkProviderHealth(provider);
-          if (!isHealthy) {
-            throw new Error(`Provider ${provider.name} is unhealthy`);
-          }
-          
-          // Execute request with retry
-          const data = await this.executeWithRetry(
-            () => provider.fetch(params),
-            config.retryConfig
-          );
-          
-          // Transform data if needed
-          return provider.transform ? provider.transform(data) : data;
-        });
+        // Reset circuit breaker on success
+        this.resetCircuitBreaker(provider);
         
-        // Cache successful result
-        if (config.cacheType && cacheKey) {
-          await this.cacheManager.set(config.cacheType, cacheKey, result);
-        }
+        return response.data as T;
+      } catch (error) {
+        errors.push(error as Error);
+        this.handleProviderError(provider, error as Error);
         
-        this.logger.info({ provider: provider.name }, 'Request successful');
-        return result;
-        
-      } catch (error: any) {
         this.logger.warn({
           provider: provider.name,
-          error: error.message
-        }, 'Provider failed, trying next');
-        
-        errors.push({
-          provider: provider.name,
-          error: error.message
-        });
-        
-        continue;
+          error: (error as Error).message,
+          path,
+        }, 'Provider request failed, trying next');
       }
     }
     
     // All providers failed
-    this.logger.error({ errors }, 'All providers failed');
-    throw new Error(`All API providers failed: ${JSON.stringify(errors)}`);
+    throw new Error(`All API providers failed: ${errors.map(e => e.message).join('; ')}`);
   }
   
-  /**
-   * Execute function with retry logic
-   */
-  private async executeWithRetry<T>(
-    fn: () => Promise<T>,
-    config?: {
-      attempts: number;
-      delay: number;
-      backoffMultiplier: number;
-    }
-  ): Promise<T> {
-    const retryConfig = config || {
-      attempts: 3,
-      delay: 1000,
-      backoffMultiplier: 2
-    };
+  private async makeRequest(
+    provider: APIProvider,
+    path: string,
+    options?: any
+  ) {
+    const client = axios.create({
+      baseURL: provider.baseUrl,
+      timeout: provider.timeout || 30000,
+      headers: {
+        ...provider.headers,
+        ...options?.headers,
+      },
+    });
     
-    let lastError: Error | undefined;
-    let delay = retryConfig.delay;
-    
-    for (let attempt = 1; attempt <= retryConfig.attempts; attempt++) {
+    // Add retry logic
+    let lastError: Error;
+    for (let i = 0; i < this.options.maxRetries; i++) {
       try {
-        return await fn();
-      } catch (error: any) {
-        lastError = error;
+        return await client.request({
+          url: path,
+          method: options?.method || 'GET',
+          params: options?.params,
+          data: options?.data,
+        });
+      } catch (error) {
+        lastError = error as Error;
         
-        if (attempt < retryConfig.attempts) {
-          this.logger.debug({
-            attempt,
-            delay,
-            error: error.message
-          }, 'Retrying request');
-          
-          await new Promise(resolve => setTimeout(resolve, delay));
-          delay *= retryConfig.backoffMultiplier;
+        if (this.isRetryableError(error as AxiosError)) {
+          await this.delay(this.options.retryDelay * Math.pow(2, i)); // Exponential backoff
+        } else {
+          throw error;
         }
       }
     }
     
-    throw lastError || new Error('Request failed after retries');
+    throw lastError!;
   }
   
-  /**
-   * Check provider health
-   */
-  private async checkProviderHealth(provider: APIProvider): Promise<boolean> {
-    const cacheKey = `health:${provider.name}`;
-    const cached = this.providerHealth.get(cacheKey);
+  private isProviderAvailable(provider: APIProvider): boolean {
+    const breaker = this.circuitBreakers.get(provider.name)!;
     
-    // Use cached health status for 1 minute
-    if (cached !== undefined) {
-      return cached;
+    if (breaker.state === 'closed') {
+      return true;
     }
     
-    try {
-      const isHealthy = await provider.healthCheck();
-      this.providerHealth.set(cacheKey, isHealthy);
-      
-      // Clear cache after 1 minute
-      setTimeout(() => {
-        this.providerHealth.delete(cacheKey);
-      }, 60000);
-      
-      return isHealthy;
-    } catch (error) {
-      this.logger.error({
-        provider: provider.name,
-        error
-      }, 'Health check failed');
-      
-      this.providerHealth.set(cacheKey, false);
+    if (breaker.state === 'open') {
+      // Check if timeout has passed
+      if (breaker.lastFailure) {
+        const timePassed = Date.now() - breaker.lastFailure.getTime();
+        if (timePassed > this.options.circuitBreakerTimeout) {
+          // Move to half-open state
+          breaker.state = 'half-open';
+          return true;
+        }
+      }
       return false;
     }
+    
+    // Half-open state - allow one request
+    return true;
   }
   
-  /**
-   * Get or create circuit breaker for provider
-   */
-  private getOrCreateCircuitBreaker(
-    providerName: string,
-    config?: CircuitBreakerConfig
-  ): CircuitBreaker {
-    let breaker = this.circuitBreakers.get(providerName);
+  private handleProviderError(provider: APIProvider, error: Error) {
+    const breaker = this.circuitBreakers.get(provider.name)!;
     
-    if (!breaker) {
-      const breakerConfig = config || {
-        failureThreshold: 5,
-        resetTimeout: 60000, // 1 minute
-        halfOpenRequests: 3
-      };
-      
-      breaker = new CircuitBreaker(breakerConfig);
-      this.circuitBreakers.set(providerName, breaker);
-    }
+    breaker.failures++;
+    breaker.lastFailure = new Date();
     
-    return breaker;
-  }
-  
-  /**
-   * Get status of all providers
-   */
-  async getProviderStatus(): Promise<Array<{
-    name: string;
-    healthy: boolean;
-    circuitState?: CircuitState;
-    rateLimit?: any;
-  }>> {
-    const status = [];
-    
-    for (const [name, breaker] of this.circuitBreakers) {
-      const health = this.providerHealth.get(`health:${name}`);
-      
-      status.push({
-        name,
-        healthy: health !== false,
-        circuitState: breaker.getState()
-      });
-    }
-    
-    return status;
-  }
-  
-  /**
-   * Reset circuit breaker for a provider
-   */
-  resetCircuitBreaker(providerName: string) {
-    const breaker = this.circuitBreakers.get(providerName);
-    if (breaker) {
-      breaker.reset();
-      this.logger.info({ provider: providerName }, 'Circuit breaker reset');
+    if (breaker.failures >= this.options.circuitBreakerThreshold) {
+      breaker.state = 'open';
+      this.logger.error({
+        provider: provider.name,
+        failures: breaker.failures,
+      }, 'Circuit breaker opened');
     }
   }
   
-  /**
-   * Create weather API fallback configuration
-   */
-  static createWeatherFallback(
-    rateLimiter: RateLimiter,
-    options: {
-      noaaApiKey?: string;
-      openWeatherApiKey?: string;
-      windyApiKey?: string;
-    }
-  ): FallbackConfig {
-    const providers: APIProvider[] = [];
-    
-    // NOAA - highest priority (free, reliable)
-    if (options.noaaApiKey) {
-      providers.push({
-        name: 'NOAA',
-        priority: 1,
-        healthCheck: async () => {
-          try {
-            const response = await fetch('https://api.weather.gov/');
-            return response.ok;
-          } catch {
-            return false;
-          }
-        },
-        fetch: async (params) => {
-          const response = await fetch(
-            `https://api.weather.gov/points/${params.latitude},${params.longitude}`
-          );
-          if (!response.ok) throw new Error('NOAA API error');
-          return response.json();
-        },
-        rateLimit: {
-          api: 'noaa'
-        }
-      });
+  private resetCircuitBreaker(provider: APIProvider) {
+    const breaker = this.circuitBreakers.get(provider.name)!;
+    breaker.failures = 0;
+    breaker.state = 'closed';
+    breaker.lastFailure = undefined;
+  }
+  
+  private isRetryableError(error: AxiosError): boolean {
+    if (!error.response) {
+      // Network error - retryable
+      return true;
     }
     
-    // OpenWeatherMap - second priority
-    if (options.openWeatherApiKey) {
-      providers.push({
-        name: 'OpenWeatherMap',
-        priority: 2,
-        healthCheck: async () => {
-          try {
-            const response = await fetch(
-              `https://api.openweathermap.org/data/2.5/weather?lat=0&lon=0&appid=${options.openWeatherApiKey}`
-            );
-            return response.status !== 401;
-          } catch {
-            return false;
-          }
-        },
-        fetch: async (params) => {
-          const response = await fetch(
-            `https://api.openweathermap.org/data/2.5/weather?lat=${params.latitude}&lon=${params.longitude}&appid=${options.openWeatherApiKey}&units=metric`
-          );
-          if (!response.ok) throw new Error('OpenWeatherMap API error');
-          return response.json();
-        },
-        rateLimit: {
-          api: 'openweather'
-        }
-      });
-    }
+    // Retry on 5xx errors and specific 4xx errors
+    const status = error.response.status;
+    return status >= 500 || status === 429 || status === 408;
+  }
+  
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  
+  // Health check for all providers
+  async healthCheck(): Promise<Record<string, boolean>> {
+    const results: Record<string, boolean> = {};
     
-    // Windy - third priority
-    if (options.windyApiKey) {
-      providers.push({
-        name: 'Windy',
-        priority: 3,
-        healthCheck: async () => true, // Windy doesn't have a simple health endpoint
-        fetch: async (params) => {
-          const response = await fetch('https://api.windy.com/api/point-forecast/v2', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              lat: params.latitude,
-              lon: params.longitude,
-              model: 'gfs',
-              parameters: ['wind', 'temp', 'pressure'],
-              key: options.windyApiKey
-            })
+    for (const provider of this.providers) {
+      try {
+        if (provider.healthCheckUrl) {
+          await axios.get(provider.baseUrl + provider.healthCheckUrl, {
+            timeout: 5000,
           });
-          if (!response.ok) throw new Error('Windy API error');
-          return response.json();
-        },
-        rateLimit: {
-          api: 'windy'
+          results[provider.name] = true;
+        } else {
+          // No health check URL, assume healthy if circuit is closed
+          const breaker = this.circuitBreakers.get(provider.name)!;
+          results[provider.name] = breaker.state === 'closed';
         }
-      });
+      } catch (error) {
+        results[provider.name] = false;
+      }
     }
     
-    return {
-      providers,
-      cacheType: 'weather_current',
-      circuitBreaker: {
-        failureThreshold: 3,
-        resetTimeout: 300000, // 5 minutes
-        halfOpenRequests: 2
-      },
-      retryConfig: {
-        attempts: 2,
-        delay: 500,
-        backoffMultiplier: 2
-      }
-    };
+    return results;
+  }
+  
+  // Get current circuit breaker states
+  getCircuitBreakerStates(): Record<string, CircuitBreakerState> {
+    const states: Record<string, CircuitBreakerState> = {};
+    
+    for (const [name, state] of this.circuitBreakers.entries()) {
+      states[name] = { ...state };
+    }
+    
+    return states;
+  }
+  
+  // Manually reset a specific provider
+  resetProvider(providerName: string) {
+    const provider = this.providers.find(p => p.name === providerName);
+    if (provider) {
+      this.resetCircuitBreaker(provider);
+    }
   }
 } 
