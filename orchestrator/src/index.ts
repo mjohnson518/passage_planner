@@ -18,6 +18,7 @@ import { RequestRouter } from './services/RequestRouter';
 import { ResponseAggregator } from './services/ResponseAggregator';
 import { SessionManager } from './services/SessionManager';
 import { MetricsCollector } from './services/MetricsCollector';
+import { AgentManager } from './services/AgentManager';
 import { 
   AgentCapabilitySummary, 
   AgentRequest, 
@@ -50,6 +51,7 @@ export class OrchestratorService extends EventEmitter {
   private responseAggregator: ResponseAggregator;
   private sessionManager: SessionManager;
   private metricsCollector: MetricsCollector;
+  private agentManager: AgentManager;
   
   // State
   private activeRequests = new Map<string, OrchestrationPlan>();
@@ -91,7 +93,8 @@ export class OrchestratorService extends EventEmitter {
     this.requestRouter = new RequestRouter(this.agentRegistry, this.logger);
     this.responseAggregator = new ResponseAggregator(this.logger);
     this.sessionManager = new SessionManager(this.redis, this.logger);
-    this.metricsCollector = new MetricsCollector(this.logger);
+    this.metricsCollector = new MetricsCollector(this.postgres, this.logger);
+    this.agentManager = new AgentManager(this.logger);
     
     this.setupMcpHandlers();
     this.setupEventHandlers();
@@ -630,6 +633,63 @@ export class HttpServer {
           socket.emit('mcp_response', { error: 'Failed to process MCP message' });
         }
       });
+
+      // Agent management handlers
+      socket.on('agents:status', () => {
+        const status = this.orchestrator['agentManager'].getAgentsStatus();
+        socket.emit('agents:status', status);
+      });
+
+      socket.on('agent:start', async ({ name }: { name: string }) => {
+        try {
+          await this.orchestrator['agentManager'].startAgent(name);
+          socket.emit('agent:started', { name });
+        } catch (error) {
+          this.logger.error({ error, agent: name }, 'Failed to start agent');
+          socket.emit('agent:error', { name, error: error.message });
+        }
+      });
+
+      socket.on('agent:stop', async ({ name }: { name: string }) => {
+        try {
+          await this.orchestrator['agentManager'].stopAgent(name);
+          socket.emit('agent:stopped', { name });
+        } catch (error) {
+          this.logger.error({ error, agent: name }, 'Failed to stop agent');
+          socket.emit('agent:error', { name, error: error.message });
+        }
+      });
+
+      socket.on('agent:restart', async ({ name }: { name: string }) => {
+        try {
+          await this.orchestrator['agentManager'].restartAgent(name);
+          socket.emit('agent:restarted', { name });
+        } catch (error) {
+          this.logger.error({ error, agent: name }, 'Failed to restart agent');
+          socket.emit('agent:error', { name, error: error.message });
+        }
+      });
+    });
+
+    // Forward agent manager events to WebSocket clients
+    this.orchestrator['agentManager'].on('agent:started', (data) => {
+      this.io.emit('agent:started', data);
+    });
+
+    this.orchestrator['agentManager'].on('agent:stopped', (data) => {
+      this.io.emit('agent:stopped', data);
+    });
+
+    this.orchestrator['agentManager'].on('agent:crashed', (data) => {
+      this.io.emit('agent:crashed', data);
+    });
+
+    this.orchestrator['agentManager'].on('agent:health', (data) => {
+      this.io.emit('agent:health', data);
+    });
+
+    this.orchestrator['agentManager'].on('agent:unhealthy', (data) => {
+      this.io.emit('agent:unhealthy', data);
     });
   }
 
