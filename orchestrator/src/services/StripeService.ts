@@ -1,22 +1,27 @@
 import Stripe from 'stripe';
-import { Logger } from '../../../shared/src/services/logger';
 import { Pool } from 'pg';
+import { Logger } from 'pino';
+import crypto from 'crypto';
+import { CreateCheckoutSessionParams, CreatePortalSessionParams } from '@passage-planner/shared';
+import { emailService } from './EmailService';
 
-export interface SubscriptionData {
+export interface CreateCheckoutSessionParams {
   userId: string;
-  stripeCustomerId: string;
-  stripeSubscriptionId: string;
-  tier: 'free' | 'premium' | 'pro' | 'enterprise';
-  status: 'active' | 'canceled' | 'past_due' | 'paused';
-  currentPeriodStart: Date;
-  currentPeriodEnd: Date;
-  cancelAtPeriodEnd: boolean;
+  priceId: string;
+  successUrl: string;
+  cancelUrl: string;
+  customerEmail?: string;
+}
+
+export interface CreatePortalSessionParams {
+  customerId: string;
+  returnUrl: string;
 }
 
 export class StripeService {
   private stripe: Stripe;
-  private logger: Logger;
   private db: Pool;
+  private logger: Logger;
   private webhookSecret: string;
 
   // Price IDs from Stripe Dashboard
@@ -27,133 +32,104 @@ export class StripeService {
     pro_yearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID!,
   };
 
-  constructor(db: Pool) {
+  constructor(db: Pool, logger: Logger) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
       apiVersion: '2023-10-16',
     });
     this.db = db;
+    this.logger = logger.child({ service: 'stripe' });
     this.webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-    this.logger = new Logger('StripeService');
   }
 
-  /**
-   * Create or retrieve a Stripe customer
-   */
-  async getOrCreateCustomer(userId: string, email: string): Promise<Stripe.Customer> {
-    try {
-      // Check if customer already exists
-      const result = await this.db.query(
-        'SELECT stripe_customer_id FROM subscriptions WHERE user_id = $1',
+  // Create or get Stripe customer
+  async getOrCreateCustomer(userId: string, email?: string): Promise<Stripe.Customer> {
+    // Check if customer already exists
+    const result = await this.db.query(
+      'SELECT stripe_customer_id FROM subscriptions WHERE user_id = $1',
+      [userId]
+    );
+
+    if (result.rows[0]?.stripe_customer_id) {
+      const customer = await this.stripe.customers.retrieve(result.rows[0].stripe_customer_id);
+      return customer as Stripe.Customer;
+    }
+
+    // Get user email if not provided
+    if (!email) {
+      const userResult = await this.db.query(
+        'SELECT email FROM users WHERE id = $1',
         [userId]
       );
-
-      if (result.rows[0]?.stripe_customer_id) {
-        const customer = await this.stripe.customers.retrieve(
-          result.rows[0].stripe_customer_id
-        );
-        return customer as Stripe.Customer;
-      }
-
-      // Create new customer
-      const customer = await this.stripe.customers.create({
-        email,
-        metadata: { userId },
-      });
-
-      // Store customer ID
-      await this.db.query(
-        `INSERT INTO subscriptions (user_id, stripe_customer_id, tier, status) 
-         VALUES ($1, $2, 'free', 'active') 
-         ON CONFLICT (user_id) 
-         DO UPDATE SET stripe_customer_id = $2`,
-        [userId, customer.id]
-      );
-
-      return customer;
-    } catch (error) {
-      this.logger.error({ error, userId }, 'Failed to get or create customer');
-      throw error;
+      email = userResult.rows[0]?.email;
     }
+
+    // Create new customer
+    const customer = await this.stripe.customers.create({
+      email,
+      metadata: {
+        userId,
+      },
+    });
+
+    // Store customer ID
+    await this.db.query(
+      `INSERT INTO subscriptions (user_id, stripe_customer_id, tier, status) 
+       VALUES ($1, $2, 'free', 'active') 
+       ON CONFLICT (user_id) 
+       DO UPDATE SET stripe_customer_id = $2`,
+      [userId, customer.id]
+    );
+
+    return customer;
   }
 
-  /**
-   * Create a checkout session for subscription
-   */
-  async createCheckoutSession(
-    userId: string,
-    email: string,
-    priceId: string,
-    successUrl: string,
-    cancelUrl: string
-  ): Promise<Stripe.Checkout.Session> {
+  // Create checkout session for subscription
+  async createCheckoutSession(params: CreateCheckoutSessionParams): Promise<Stripe.Checkout.Session> {
     try {
-      const customer = await this.getOrCreateCustomer(userId, email);
+      const customer = await this.getOrCreateCustomer(params.userId, params.customerEmail);
 
       const session = await this.stripe.checkout.sessions.create({
         customer: customer.id,
         payment_method_types: ['card'],
-        line_items: [
-          {
-            price: priceId,
-            quantity: 1,
-          },
-        ],
+        line_items: [{
+          price: params.priceId,
+          quantity: 1,
+        }],
         mode: 'subscription',
-        success_url: successUrl,
-        cancel_url: cancelUrl,
+        success_url: params.successUrl,
+        cancel_url: params.cancelUrl,
         metadata: {
-          userId,
+          userId: params.userId,
         },
         subscription_data: {
           trial_period_days: 14,
           metadata: {
-            userId,
+            userId: params.userId,
           },
         },
         allow_promotion_codes: true,
         billing_address_collection: 'auto',
       });
 
-      this.logger.info({ userId, sessionId: session.id }, 'Created checkout session');
+      this.logger.info({ userId: params.userId, sessionId: session.id }, 'Created checkout session');
       return session;
     } catch (error) {
-      this.logger.error({ error, userId }, 'Failed to create checkout session');
+      this.logger.error({ error, userId: params.userId }, 'Failed to create checkout session');
       throw error;
     }
   }
 
-  /**
-   * Create a customer portal session for subscription management
-   */
-  async createPortalSession(
-    userId: string,
-    returnUrl: string
-  ): Promise<Stripe.BillingPortal.Session> {
-    try {
-      const result = await this.db.query(
-        'SELECT stripe_customer_id FROM subscriptions WHERE user_id = $1',
-        [userId]
-      );
+  // Create customer portal session
+  async createPortalSession(params: CreatePortalSessionParams): Promise<Stripe.BillingPortal.Session> {
+    const session = await this.stripe.billingPortal.sessions.create({
+      customer: params.customerId,
+      return_url: params.returnUrl,
+    });
 
-      if (!result.rows[0]?.stripe_customer_id) {
-        throw new Error('No customer found');
-      }
-
-      const session = await this.stripe.billingPortal.sessions.create({
-        customer: result.rows[0].stripe_customer_id,
-        return_url: returnUrl,
-      });
-
-      return session;
-    } catch (error) {
-      this.logger.error({ error, userId }, 'Failed to create portal session');
-      throw error;
-    }
+    return session;
   }
 
-  /**
-   * Handle webhook events from Stripe
-   */
+  // Handle webhook events
   async handleWebhook(signature: string, payload: Buffer): Promise<void> {
     let event: Stripe.Event;
 
@@ -188,8 +164,8 @@ export class StripeService {
         await this.handlePaymentFailed(event.data.object as Stripe.Invoice);
         break;
 
-      case 'invoice.payment_succeeded':
-        await this.handlePaymentSucceeded(event.data.object as Stripe.Invoice);
+      case 'customer.subscription.trial_will_end':
+        await this.handleTrialEnding(event.data.object as Stripe.Subscription);
         break;
 
       default:
@@ -197,241 +173,210 @@ export class StripeService {
     }
   }
 
-  /**
-   * Handle successful checkout
-   */
   private async handleCheckoutComplete(session: Stripe.Checkout.Session): Promise<void> {
     const userId = session.metadata?.userId;
     if (!userId) {
-      this.logger.error({ session }, 'No userId in checkout session metadata');
+      this.logger.error({ sessionId: session.id }, 'No userId in checkout session metadata');
       return;
     }
 
-    await this.updateUserSubscription({
-      userId,
-      stripeCustomerId: session.customer as string,
-      stripeSubscriptionId: session.subscription as string,
-      status: 'active',
+    // Get subscription details
+    const subscription = await this.stripe.subscriptions.retrieve(session.subscription as string);
+    const priceId = subscription.items.data[0]?.price.id;
+    let tier: 'premium' | 'pro' = 'premium';
+    
+    if (priceId === this.PRICE_IDS.pro_monthly || priceId === this.PRICE_IDS.pro_yearly) {
+      tier = 'pro';
+    }
+
+    // Update subscription in database
+    await this.db.query(
+      `UPDATE subscriptions 
+       SET stripe_subscription_id = $1, status = 'active' 
+       WHERE user_id = $2`,
+      [session.subscription, userId]
+    );
+
+    // Get user details for email
+    const userResult = await this.db.query(
+      'SELECT email, name FROM users WHERE id = $1',
+      [userId]
+    );
+    const user = userResult.rows[0];
+
+    // Send subscription confirmation email
+    try {
+      await emailService.sendSubscriptionConfirmation(
+        userId,
+        user.email,
+        user.name || 'Captain',
+        tier
+      );
+    } catch (error) {
+      this.logger.error({ error, userId }, 'Failed to send subscription confirmation email');
+    }
+
+    // Track metric
+    await this.trackUsageMetric(userId, 'subscription_created', {
+      subscription_id: session.subscription,
+      amount: session.amount_total,
     });
 
-    // Send welcome email
-    await this.sendSubscriptionEmail(userId, 'welcome');
+    this.logger.info({ userId, subscriptionId: session.subscription }, 'Checkout completed');
   }
 
-  /**
-   * Handle subscription updates
-   */
   private async handleSubscriptionUpdate(subscription: Stripe.Subscription): Promise<void> {
     const userId = subscription.metadata?.userId;
-    if (!userId) {
-      this.logger.error({ subscription }, 'No userId in subscription metadata');
-      return;
+    if (!userId) return;
+
+    // Determine tier from price ID
+    const priceId = subscription.items.data[0]?.price.id;
+    let tier = 'free';
+    
+    if (priceId === this.PRICE_IDS.premium_monthly || priceId === this.PRICE_IDS.premium_yearly) {
+      tier = 'premium';
+    } else if (priceId === this.PRICE_IDS.pro_monthly || priceId === this.PRICE_IDS.pro_yearly) {
+      tier = 'pro';
     }
 
-    const tier = this.getTierFromPriceId(subscription.items.data[0].price.id);
-    const status = this.mapStripeStatus(subscription.status);
+    // Update subscription in database
+    await this.db.query(
+      `UPDATE subscriptions 
+       SET tier = $1, 
+           status = $2,
+           current_period_start = to_timestamp($3),
+           current_period_end = to_timestamp($4),
+           cancel_at_period_end = $5
+       WHERE user_id = $6`,
+      [
+        tier,
+        subscription.status,
+        subscription.current_period_start,
+        subscription.current_period_end,
+        subscription.cancel_at_period_end,
+        userId
+      ]
+    );
 
-    await this.updateUserSubscription({
-      userId,
-      stripeCustomerId: subscription.customer as string,
-      stripeSubscriptionId: subscription.id,
-      tier,
-      status,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-    });
+    this.logger.info({ userId, tier, status: subscription.status }, 'Subscription updated');
   }
 
-  /**
-   * Handle subscription cancellation
-   */
   private async handleSubscriptionCanceled(subscription: Stripe.Subscription): Promise<void> {
     const userId = subscription.metadata?.userId;
     if (!userId) return;
 
-    await this.updateUserSubscription({
-      userId,
-      stripeCustomerId: subscription.customer as string,
-      stripeSubscriptionId: subscription.id,
-      tier: 'free',
-      status: 'canceled',
-    });
-
-    // Send cancellation email
-    await this.sendSubscriptionEmail(userId, 'canceled');
-  }
-
-  /**
-   * Handle failed payments
-   */
-  private async handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
-    const subscription = await this.stripe.subscriptions.retrieve(
-      invoice.subscription as string
-    );
-
-    const userId = subscription.metadata?.userId;
-    if (!userId) return;
-
-    await this.updateUserSubscription({
-      userId,
-      stripeCustomerId: invoice.customer as string,
-      stripeSubscriptionId: invoice.subscription as string,
-      status: 'past_due',
-    });
-
-    // Send payment failed email
-    await this.sendSubscriptionEmail(userId, 'payment_failed');
-  }
-
-  /**
-   * Handle successful payments
-   */
-  private async handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
-    if (!invoice.subscription) return;
-
-    const subscription = await this.stripe.subscriptions.retrieve(
-      invoice.subscription as string
-    );
-
-    const userId = subscription.metadata?.userId;
-    if (!userId) return;
-
-    // Log successful payment
-    await this.db.query(
-      `INSERT INTO payment_history (user_id, stripe_invoice_id, amount, status, created_at)
-       VALUES ($1, $2, $3, 'succeeded', NOW())`,
-      [userId, invoice.id, invoice.amount_paid / 100]
-    );
-  }
-
-  /**
-   * Update user subscription in database
-   */
-  private async updateUserSubscription(data: Partial<SubscriptionData>): Promise<void> {
-    const { userId, ...updates } = data;
-
-    const setClause = Object.keys(updates)
-      .map((key, index) => `${this.camelToSnake(key)} = $${index + 2}`)
-      .join(', ');
-
-    const values = [userId, ...Object.values(updates)];
-
+    // Update subscription status
     await this.db.query(
       `UPDATE subscriptions 
-       SET ${setClause}, updated_at = NOW() 
+       SET status = 'canceled', tier = 'free' 
        WHERE user_id = $1`,
-      values
+      [userId]
     );
 
-    this.logger.info({ userId, updates }, 'Updated user subscription');
-  }
+    // Get user details for email
+    const userResult = await this.db.query(
+      'SELECT email, name FROM users WHERE id = $1',
+      [userId]
+    );
+    const user = userResult.rows[0];
 
-  /**
-   * Get tier from Stripe price ID
-   */
-  private getTierFromPriceId(priceId: string): 'premium' | 'pro' {
-    if (priceId === this.PRICE_IDS.premium_monthly || 
-        priceId === this.PRICE_IDS.premium_yearly) {
-      return 'premium';
-    }
-    return 'pro';
-  }
-
-  /**
-   * Map Stripe status to our status
-   */
-  private mapStripeStatus(stripeStatus: Stripe.Subscription.Status): SubscriptionData['status'] {
-    switch (stripeStatus) {
-      case 'active':
-      case 'trialing':
-        return 'active';
-      case 'past_due':
-        return 'past_due';
-      case 'canceled':
-      case 'unpaid':
-        return 'canceled';
-      case 'paused':
-        return 'paused';
-      default:
-        return 'canceled';
-    }
-  }
-
-  /**
-   * Send subscription-related emails
-   */
-  private async sendSubscriptionEmail(
-    userId: string,
-    type: 'welcome' | 'canceled' | 'payment_failed'
-  ): Promise<void> {
-    // This would integrate with your email service
-    this.logger.info({ userId, type }, 'Sending subscription email');
-  }
-
-  /**
-   * Convert camelCase to snake_case
-   */
-  private camelToSnake(str: string): string {
-    return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-  }
-
-  /**
-   * Report usage for metered billing
-   */
-  async reportApiUsage(userId: string, quantity: number): Promise<void> {
+    // Send cancellation confirmation email
     try {
-      const result = await this.db.query(
-        `SELECT s.stripe_subscription_id, si.stripe_item_id 
-         FROM subscriptions s
-         JOIN subscription_items si ON s.id = si.subscription_id
-         WHERE s.user_id = $1 AND si.metered = true`,
-        [userId]
+      const endDate = new Date(subscription.current_period_end * 1000);
+      await emailService.sendCancellationConfirmation(
+        userId,
+        user.email,
+        user.name || 'Captain',
+        endDate
       );
-
-      if (result.rows[0]) {
-        await this.stripe.subscriptionItems.createUsageRecord(
-          result.rows[0].stripe_item_id,
-          {
-            quantity,
-            timestamp: Math.floor(Date.now() / 1000),
-            action: 'increment',
-          }
-        );
-      }
     } catch (error) {
-      this.logger.error({ error, userId }, 'Failed to report usage');
+      this.logger.error({ error, userId }, 'Failed to send cancellation confirmation email');
     }
+
+    // Track churn
+    await this.trackUsageMetric(userId, 'subscription_canceled', {
+      subscription_id: subscription.id,
+      canceled_at: new Date().toISOString(),
+    });
+
+    this.logger.info({ userId }, 'Subscription canceled');
   }
 
-  /**
-   * Get subscription details for a user
-   */
-  async getSubscription(userId: string): Promise<SubscriptionData | null> {
+  private async handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
+    const customerId = invoice.customer as string;
+    
+    // Get user ID from customer
+    const result = await this.db.query(
+      'SELECT user_id FROM subscriptions WHERE stripe_customer_id = $1',
+      [customerId]
+    );
+    
+    const userId = result.rows[0]?.user_id;
+    if (!userId) return;
+
+    // Update subscription status
+    await this.db.query(
+      `UPDATE subscriptions SET status = 'past_due' WHERE user_id = $1`,
+      [userId]
+    );
+
+    this.logger.warn({ userId, invoiceId: invoice.id }, 'Payment failed');
+  }
+
+  private async handleTrialEnding(subscription: Stripe.Subscription): Promise<void> {
+    const userId = subscription.metadata?.userId;
+    if (!userId) return;
+
+    // Get user details for email
+    const userResult = await this.db.query(
+      'SELECT email, name FROM users WHERE id = $1',
+      [userId]
+    );
+    const user = userResult.rows[0];
+
+    // Calculate days remaining
+    const trialEnd = new Date(subscription.trial_end! * 1000);
+    const today = new Date();
+    const daysRemaining = Math.ceil((trialEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Send trial ending email
     try {
-      const result = await this.db.query(
-        `SELECT * FROM subscriptions WHERE user_id = $1`,
-        [userId]
+      await emailService.sendTrialEndingEmail(
+        user.email,
+        user.name || 'Captain',
+        daysRemaining
       );
-
-      if (!result.rows[0]) {
-        return null;
-      }
-
-      const row = result.rows[0];
-      return {
-        userId: row.user_id,
-        stripeCustomerId: row.stripe_customer_id,
-        stripeSubscriptionId: row.stripe_subscription_id,
-        tier: row.tier,
-        status: row.status,
-        currentPeriodStart: row.current_period_start,
-        currentPeriodEnd: row.current_period_end,
-        cancelAtPeriodEnd: row.cancel_at_period_end,
-      };
     } catch (error) {
-      this.logger.error({ error, userId }, 'Failed to get subscription');
-      return null;
+      this.logger.error({ error, userId }, 'Failed to send trial ending email');
     }
+
+    // Track trial ending event
+    await this.trackUsageMetric(userId, 'trial_ending', {
+      subscription_id: subscription.id,
+      trial_end: subscription.trial_end,
+    });
+
+    this.logger.info({ userId }, 'Trial ending soon');
+  }
+
+  // Track usage metrics
+  private async trackUsageMetric(userId: string, action: string, metadata: any): Promise<void> {
+    await this.db.query(
+      'INSERT INTO usage_metrics (user_id, action, metadata) VALUES ($1, $2, $3)',
+      [userId, action, JSON.stringify(metadata)]
+    );
+  }
+
+  // Generate API key
+  generateApiKey(): { key: string; hash: string } {
+    const key = `pp_${crypto.randomBytes(32).toString('base64url')}`;
+    const hash = crypto.createHash('sha256').update(key).digest('hex');
+    return { key, hash };
+  }
+
+  // Verify API key
+  verifyApiKey(key: string, hash: string): boolean {
+    const computedHash = crypto.createHash('sha256').update(key).digest('hex');
+    return computedHash === hash;
   }
 } 

@@ -3,8 +3,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { createClient, User, Session } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
-import { config } from '@/config'
-import { toast } from '@/components/ui/toaster'
+import { config } from '../config'
+import { toast } from '../hooks/use-toast'
 
 interface AuthContextType {
   user: User | null

@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { Button } from './components/ui/button'
 import { FeatureCard } from './components/marketing/FeatureCard'
@@ -74,32 +76,32 @@ export default function HomePage() {
           
           <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             <FeatureCard
-              icon={<Cloud className="h-8 w-8" />}
+              icon={Cloud}
               title="Weather Routing"
               description="Real-time weather forecasts and optimal routing to avoid storms and find favorable winds"
             />
             <FeatureCard
-              icon={<Waves className="h-8 w-8" />}
+              icon={Waves}
               title="Tidal Planning"
               description="Precise tide and current predictions to time your passages perfectly"
             />
             <FeatureCard
-              icon={<Map className="h-8 w-8" />}
+              icon={Map}
               title="Interactive Charts"
               description="Plan routes on detailed nautical charts with waypoint optimization"
             />
             <FeatureCard
-              icon={<Anchor className="h-8 w-8" />}
+              icon={Anchor}
               title="Port Information"
               description="Comprehensive port data including facilities, contacts, and entry requirements"
             />
             <FeatureCard
-              icon={<Shield className="h-8 w-8" />}
+              icon={Shield}
               title="Safety Briefings"
               description="Automated safety checklists and emergency contact information"
             />
             <FeatureCard
-              icon={<Compass className="h-8 w-8" />}
+              icon={Compass}
               title="Route Optimization"
               description="AI-powered route suggestions based on your boat and preferences"
             />

@@ -24,6 +24,13 @@ import {
   AgentResponse,
   OrchestrationPlan 
 } from '@passage-planner/shared';
+import express from 'express';
+import cors from 'cors';
+import { createServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import { StripeService } from './services/StripeService';
+import { AuthMiddleware } from './middleware/auth';
+import { RateLimiter } from './middleware/rateLimiter';
 
 export class OrchestratorService extends EventEmitter {
   private mcpServer: Server;
@@ -244,6 +251,421 @@ export class OrchestratorService extends EventEmitter {
     await this.postgres.end();
     
     this.logger.info('Orchestrator shutdown complete');
+  }
+}
+
+export class HttpServer {
+  private app: express.Application;
+  private server: any;
+  private io: SocketIOServer;
+  private orchestrator: OrchestratorService;
+  private stripeService: StripeService;
+  private authMiddleware: AuthMiddleware;
+  private rateLimiter: RateLimiter;
+  private logger = pino({
+    level: process.env.LOG_LEVEL || 'info',
+    transport: {
+      target: 'pino-pretty',
+      options: { colorize: true }
+    }
+  });
+
+  constructor(orchestrator: OrchestratorService) {
+    this.orchestrator = orchestrator;
+    this.app = express();
+    this.server = createServer(this.app);
+    this.io = new SocketIOServer(this.server, {
+      cors: {
+        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+        credentials: true
+      }
+    });
+    
+    // Initialize services
+    this.stripeService = new StripeService(orchestrator['postgres'], this.logger);
+    this.authMiddleware = new AuthMiddleware(orchestrator['postgres'], this.logger);
+    this.rateLimiter = new RateLimiter(orchestrator['redis'], this.logger);
+    
+    this.setupMiddleware();
+    this.setupRoutes();
+    this.setupWebSocket();
+  }
+
+  private setupMiddleware() {
+    this.app.use(cors({
+      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+      credentials: true
+    }));
+    this.app.use(express.json());
+    this.app.use(express.raw({ type: 'application/json' })); // For Stripe webhooks
+    
+    // Health check endpoint (no auth required)
+    this.app.get('/health', (req, res) => {
+      res.json({ status: 'healthy', timestamp: new Date() });
+    });
+  }
+
+  private setupRoutes() {
+    // Public routes
+    this.app.post('/api/auth/signup', this.handleSignup.bind(this));
+    this.app.post('/api/auth/login', this.handleLogin.bind(this));
+    this.app.post('/api/auth/refresh', this.handleRefreshToken.bind(this));
+    
+    // Stripe webhook (uses raw body)
+    this.app.post('/api/stripe/webhook', 
+      express.raw({ type: 'application/json' }), 
+      this.handleStripeWebhook.bind(this)
+    );
+    
+    // Protected routes
+    this.app.use('/api', this.authMiddleware.authenticate.bind(this.authMiddleware));
+    
+    // Apply rate limiting based on subscription tier
+    this.app.use('/api/mcp', this.rateLimiter.limit.bind(this.rateLimiter));
+    
+    // MCP endpoints
+    this.app.post('/api/mcp/tools/list', this.handleListTools.bind(this));
+    this.app.post('/api/mcp/tools/call', this.handleCallTool.bind(this));
+    
+    // Subscription management
+    this.app.post('/api/subscription/create-checkout', this.handleCreateCheckout.bind(this));
+    this.app.post('/api/subscription/create-portal', this.handleCreatePortal.bind(this));
+    this.app.get('/api/subscription/status', this.handleGetSubscription.bind(this));
+    
+    // API key management
+    this.app.post('/api/keys/create', this.handleCreateApiKey.bind(this));
+    this.app.get('/api/keys', this.handleListApiKeys.bind(this));
+    this.app.delete('/api/keys/:id', this.handleDeleteApiKey.bind(this));
+    
+    // Usage metrics
+    this.app.get('/api/usage', this.handleGetUsage.bind(this));
+  }
+
+  // Auth handlers
+  private async handleSignup(req: express.Request, res: express.Response) {
+    try {
+      const { email, password } = req.body;
+      
+      // Create user
+      const result = await this.orchestrator['postgres'].query(
+        'INSERT INTO users (email) VALUES ($1) RETURNING id, email',
+        [email]
+      );
+      
+      const user = result.rows[0];
+      
+      // Create subscription record
+      await this.orchestrator['postgres'].query(
+        `INSERT INTO subscriptions (user_id, tier, status) 
+         VALUES ($1, 'free', 'active')`,
+        [user.id]
+      );
+      
+      // Generate JWT
+      const token = await this.authMiddleware.generateToken(user);
+      
+      res.json({ user, token });
+    } catch (error) {
+      this.logger.error({ error }, 'Signup failed');
+      res.status(400).json({ error: 'Signup failed' });
+    }
+  }
+
+  private async handleLogin(req: express.Request, res: express.Response) {
+    try {
+      const { email, password } = req.body;
+      
+      // Verify credentials (simplified - use bcrypt in production)
+      const result = await this.orchestrator['postgres'].query(
+        'SELECT id, email FROM users WHERE email = $1',
+        [email]
+      );
+      
+      const user = result.rows[0];
+      if (!user) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+      
+      // Generate JWT
+      const token = await this.authMiddleware.generateToken(user);
+      
+      res.json({ user, token });
+    } catch (error) {
+      this.logger.error({ error }, 'Login failed');
+      res.status(401).json({ error: 'Login failed' });
+    }
+  }
+
+  private async handleRefreshToken(req: express.Request, res: express.Response) {
+    // Implement token refresh logic
+    res.status(501).json({ error: 'Not implemented' });
+  }
+
+  // Stripe handlers
+  private async handleStripeWebhook(req: express.Request, res: express.Response) {
+    const signature = req.headers['stripe-signature'] as string;
+    
+    try {
+      await this.stripeService.handleWebhook(signature, req.body);
+      res.json({ received: true });
+    } catch (error) {
+      this.logger.error({ error }, 'Webhook processing failed');
+      res.status(400).json({ error: 'Webhook processing failed' });
+    }
+  }
+
+  private async handleCreateCheckout(req: express.Request, res: express.Response) {
+    try {
+      const { priceId } = req.body;
+      const userId = (req as any).user.id;
+      
+      const session = await this.stripeService.createCheckoutSession({
+        userId,
+        priceId,
+        successUrl: `${process.env.FRONTEND_URL}/profile?success=true`,
+        cancelUrl: `${process.env.FRONTEND_URL}/pricing?canceled=true`,
+      });
+      
+      res.json({ sessionUrl: session.url });
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to create checkout session');
+      res.status(500).json({ error: 'Failed to create checkout session' });
+    }
+  }
+
+  private async handleCreatePortal(req: express.Request, res: express.Response) {
+    try {
+      const userId = (req as any).user.id;
+      
+      // Get Stripe customer ID
+      const result = await this.orchestrator['postgres'].query(
+        'SELECT stripe_customer_id FROM subscriptions WHERE user_id = $1',
+        [userId]
+      );
+      
+      const customerId = result.rows[0]?.stripe_customer_id;
+      if (!customerId) {
+        return res.status(400).json({ error: 'No subscription found' });
+      }
+      
+      const session = await this.stripeService.createPortalSession({
+        customerId,
+        returnUrl: `${process.env.FRONTEND_URL}/profile`,
+      });
+      
+      res.json({ portalUrl: session.url });
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to create portal session');
+      res.status(500).json({ error: 'Failed to create portal session' });
+    }
+  }
+
+  private async handleGetSubscription(req: express.Request, res: express.Response) {
+    try {
+      const userId = (req as any).user.id;
+      
+      const result = await this.orchestrator['postgres'].query(
+        'SELECT * FROM subscriptions WHERE user_id = $1',
+        [userId]
+      );
+      
+      res.json(result.rows[0] || { tier: 'free', status: 'active' });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get subscription' });
+    }
+  }
+
+  // API key handlers
+  private async handleCreateApiKey(req: express.Request, res: express.Response) {
+    try {
+      const { name } = req.body;
+      const userId = (req as any).user.id;
+      
+      // Check subscription allows API access
+      const subscription = (req as any).subscription;
+      if (subscription.tier === 'free') {
+        return res.status(403).json({ error: 'API access requires Premium or Pro subscription' });
+      }
+      
+      const { key, hash } = this.stripeService.generateApiKey();
+      
+      await this.orchestrator['postgres'].query(
+        'INSERT INTO api_keys (user_id, name, key_hash) VALUES ($1, $2, $3)',
+        [userId, name, hash]
+      );
+      
+      res.json({ key, name, note: 'Save this key - it cannot be retrieved again' });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create API key' });
+    }
+  }
+
+  private async handleListApiKeys(req: express.Request, res: express.Response) {
+    try {
+      const userId = (req as any).user.id;
+      
+      const result = await this.orchestrator['postgres'].query(
+        'SELECT id, name, last_used_at, created_at FROM api_keys WHERE user_id = $1',
+        [userId]
+      );
+      
+      res.json(result.rows);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to list API keys' });
+    }
+  }
+
+  private async handleDeleteApiKey(req: express.Request, res: express.Response) {
+    try {
+      const { id } = req.params;
+      const userId = (req as any).user.id;
+      
+      await this.orchestrator['postgres'].query(
+        'DELETE FROM api_keys WHERE id = $1 AND user_id = $2',
+        [id, userId]
+      );
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete API key' });
+    }
+  }
+
+  // Usage handler
+  private async handleGetUsage(req: express.Request, res: express.Response) {
+    try {
+      const userId = (req as any).user.id;
+      const { period = 'month' } = req.query;
+      
+      const result = await this.orchestrator['postgres'].query(
+        `SELECT action, COUNT(*) as count, DATE_TRUNC($1, created_at) as period
+         FROM usage_metrics 
+         WHERE user_id = $2 AND created_at > NOW() - INTERVAL '1 ' || $1
+         GROUP BY action, period
+         ORDER BY period DESC`,
+        [period, userId]
+      );
+      
+      res.json(result.rows);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get usage' });
+    }
+  }
+
+  // MCP handlers with subscription checks
+  private async handleCallTool(req: express.Request, res: express.Response) {
+    try {
+      const { tool, arguments: args } = req.body;
+      const userId = (req as any).user.id;
+      const subscription = (req as any).subscription;
+      
+      // Check feature access
+      if (tool === 'plan_passage') {
+        const canUse = await this.checkFeatureAccess(userId, 'create_passage', subscription);
+        if (!canUse) {
+          return res.status(403).json({ 
+            error: 'Usage limit exceeded',
+            upgradeUrl: '/pricing'
+          });
+        }
+      }
+      
+      // Track usage
+      await this.orchestrator['postgres'].query(
+        'INSERT INTO usage_metrics (user_id, action, metadata) VALUES ($1, $2, $3)',
+        [userId, `tool_${tool}`, JSON.stringify({ tool, timestamp: new Date() })]
+      );
+      
+      // Call original MCP handler
+      const request = {
+        method: 'tools/call',
+        params: {
+          name: tool,
+          arguments: args
+        }
+      };
+      
+      const response = await this.orchestrator.handleRequest(request);
+      res.json(response);
+      
+    } catch (error) {
+      this.logger.error({ error }, 'Tool call failed');
+      res.status(500).json({ error: 'Tool call failed' });
+    }
+  }
+
+  private async checkFeatureAccess(userId: string, feature: string, subscription: any): Promise<boolean> {
+    // Implement feature gating logic
+    if (subscription.tier === 'free' && feature === 'create_passage') {
+      const result = await this.orchestrator['postgres'].query(
+        `SELECT COUNT(*) FROM usage_metrics 
+         WHERE user_id = $1 
+         AND action = 'passage_planned' 
+         AND created_at > DATE_TRUNC('month', NOW())`,
+        [userId]
+      );
+      
+      const monthlyUsage = parseInt(result.rows[0].count);
+      return monthlyUsage < 2; // Free tier limit
+    }
+    
+    return true;
+  }
+
+  private setupWebSocket() {
+    this.io.on('connection', (socket) => {
+      this.logger.info('WebSocket client connected');
+
+      socket.on('disconnect', () => {
+        this.logger.info('WebSocket client disconnected');
+      });
+
+      // Example: Handle MCP messages from the frontend
+      socket.on('mcp_message', async (data: any) => {
+        try {
+          const response = await this.orchestrator.handleRequest(data);
+          socket.emit('mcp_response', response);
+        } catch (error) {
+          this.logger.error({ error }, 'Error processing MCP message');
+          socket.emit('mcp_response', { error: 'Failed to process MCP message' });
+        }
+      });
+    });
+  }
+
+  async start() {
+    try {
+      // Connect to Redis
+      await this.redis.connect();
+      this.logger.info('Connected to Redis');
+      
+      // Test PostgreSQL connection
+      await this.postgres.query('SELECT NOW()');
+      this.logger.info('Connected to PostgreSQL');
+      
+      // Start HTTP server
+      const port = process.env.HTTP_PORT || 3000;
+      this.server.listen(port, () => {
+        this.logger.info(`HTTP server listening on port ${port}`);
+      });
+
+      // Start WebSocket server
+      this.logger.info('WebSocket server started');
+      
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to start HTTP server');
+      process.exit(1);
+    }
+  }
+
+  async shutdown() {
+    this.logger.info('Shutting down HTTP server');
+    
+    // Close database connections
+    await this.redis.quit();
+    await this.postgres.end();
+    
+    this.logger.info('HTTP server shutdown complete');
   }
 }
 

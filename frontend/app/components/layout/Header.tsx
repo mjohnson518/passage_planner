@@ -5,10 +5,10 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { Menu, X, Anchor, User, LogOut, Settings, CreditCard, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { useAuth } from '@/contexts/AuthContext'
-import { useSocket } from '@/contexts/SocketContext'
+import { useAuth } from '../../contexts/AuthContext'
+import { useSocket } from '../../contexts/SocketContext'
 import { Button } from '../ui/button'
-import { cn } from '@/lib/utils'
+import { cn } from '../../lib/utils'
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)

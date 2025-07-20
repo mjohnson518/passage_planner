@@ -1,14 +1,11 @@
--- Enable required extensions
+-- Core application tables
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "postgis";
-CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- Users table (extends auth provider)
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255),
-  role VARCHAR(20) NOT NULL DEFAULT 'user',
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -65,22 +62,17 @@ CREATE TABLE api_keys (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Passage plans
+-- Passage plans (existing table, add user reference)
 CREATE TABLE passage_plans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   name VARCHAR(255),
-  departure_port VARCHAR(255) NOT NULL,
-  destination_port VARCHAR(255) NOT NULL,
-  departure_time TIMESTAMP NOT NULL,
-  estimated_arrival_time TIMESTAMP,
-  distance_nm DECIMAL(10, 2),
-  waypoints JSONB,
+  departure_port VARCHAR(255),
+  destination_port VARCHAR(255),
+  departure_time TIMESTAMP,
+  estimated_arrival TIMESTAMP,
+  route_data JSONB,
   weather_data JSONB,
-  tidal_data JSONB,
-  safety_data JSONB,
-  shared_token VARCHAR(255) UNIQUE,
-  is_public BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -180,8 +172,7 @@ CREATE INDEX idx_profiles_user_id ON user_profiles(user_id);
 CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX idx_subscriptions_status ON subscriptions(status);
 CREATE INDEX idx_usage_metrics_user_action ON usage_metrics(user_id, action, created_at);
-CREATE INDEX idx_passage_plans_user_id ON passage_plans(user_id);
-CREATE INDEX idx_passage_plans_created_at ON passage_plans(created_at);
+CREATE INDEX idx_passage_plans_user_id ON passage_plans(user_id, created_at);
 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
 CREATE INDEX idx_sessions_token ON sessions(token);
 CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);

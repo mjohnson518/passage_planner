@@ -91,18 +91,6 @@
     @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
   
-  /* Ocean wave animation */
-  .ocean-wave {
-    background: linear-gradient(180deg, transparent, transparent 70%, rgba(255,255,255,.1) 70%, rgba(255,255,255,.1));
-    background-size: 100% 50px;
-    animation: wave 10s linear infinite;
-  }
-  
-  @keyframes wave {
-    0% { background-position-y: 0; }
-    100% { background-position-y: 50px; }
-  }
-  
   /* Loading states */
   .skeleton {
     @apply animate-pulse bg-muted rounded;
@@ -133,7 +121,10 @@
 @layer utilities {
   /* Text gradient */
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-sea-500;
+    background: linear-gradient(to right, #0ea5e9, #0284c7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
   
   /* Smooth scrolling */
@@ -154,5 +145,35 @@
   /* Focus ring */
   .focus-ring {
     @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background;
+  }
+  
+  /* Ocean wave animation */
+  .ocean-wave {
+    background: linear-gradient(
+      45deg,
+      #0ea5e9 25%,
+      #0284c7 25%,
+      #0284c7 50%,
+      #0ea5e9 50%,
+      #0ea5e9 75%,
+      #0284c7 75%,
+      #0284c7
+    );
+    background-size: 40px 40px;
+    animation: wave 2s linear infinite;
+  }
+  
+  @keyframes wave {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: 40px 40px;
+    }
+  }
+  
+  /* Primary button styles */
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
   }
 } 

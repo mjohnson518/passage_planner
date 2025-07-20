@@ -4,12 +4,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Anchor, Mail, Lock, User, Eye, EyeOff, Check } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
-import { useAuth } from '@/contexts/AuthContext'
-import { cn } from '@/lib/utils'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Checkbox } from '../components/ui/checkbox'
+import { useAuth } from '../contexts/AuthContext'
+import { cn } from '../lib/utils'
 
 const passwordRequirements = [
   { regex: /.{8,}/, text: 'At least 8 characters' },
@@ -207,7 +207,7 @@ export default function SignupPage() {
               <Checkbox
                 id="terms"
                 checked={agreedToTerms}
-                onCheckedChange={setAgreedToTerms}
+                onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
               />
               <label
                 htmlFor="terms"
