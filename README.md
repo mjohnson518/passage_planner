@@ -1,16 +1,24 @@
-# Passage Planner - Multi-Agent Maritime Navigation System
+# Passage Planner - Production-Ready SaaS Maritime Navigation System
 
-A production-ready passage planning system built with the Model Context Protocol (MCP) that orchestrates specialized AI agents to provide comprehensive sailing route planning. The system uses a hierarchical architecture where an orchestrator agent manages specialized sub-agents for weather forecasting, tidal predictions, port information, safety planning, and route optimization.
+A production-ready SaaS passage planning system built with the Model Context Protocol (MCP) that orchestrates specialized AI agents to provide comprehensive sailing route planning. The system features a complete business infrastructure including authentication, subscription billing, analytics, and real-time monitoring.
 
 ## 🌟 Key Features
 
+### Core Planning Features
 - **Hierarchical Agent Architecture**: Orchestrator pattern managing specialized MCP agents
 - **Dynamic Agent Creation**: Meta-agent capable of creating new agents for unforeseen requirements
 - **Real-time Visualization**: Live architecture diagram showing agent interactions and request flow
 - **Comprehensive Planning**: Weather, tides, currents, port facilities, safety considerations, and optimal routing
-- **Production-Ready**: Kubernetes deployment, monitoring, security, and scalability built-in
 - **Natural Language Interface**: Plan sailing passages using conversational queries
 - **Real-Time Data Integration**: Live weather, tidal predictions, and safety warnings
+
+### SaaS Platform Features
+- **Authentication & Authorization**: Supabase-powered auth with JWT tokens
+- **Subscription Billing**: Stripe integration with three tiers (Free, Premium $19/mo, Pro $49/mo)
+- **Email System**: Beautiful transactional emails with React Email and Resend
+- **Analytics Dashboard**: Comprehensive business metrics and user behavior tracking
+- **Agent Health Monitoring**: Real-time monitoring with auto-restart capabilities
+- **Production Infrastructure**: Kubernetes-ready with comprehensive monitoring
 
 ## 🏗️ Architecture
 
@@ -19,12 +27,18 @@ A production-ready passage planning system built with the Model Context Protocol
 │   Web Client    │────▶│   Orchestrator  │────▶│  Specialized    │
 │   (Next.js)     │◀────│     (MCP)       │◀────│    Agents       │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
-                               │                         │
-                               ▼                         ▼
-                        ┌─────────────┐          ┌──────────────┐
-                        │    Redis    │          │  PostgreSQL  │
-                        │   (State)   │          │   (Data)     │
-                        └─────────────┘          └──────────────┘
+        │                      │                         │
+        │                      ▼                         ▼
+        │               ┌─────────────┐          ┌──────────────┐
+        │               │    Redis    │          │  PostgreSQL  │
+        │               │   (State)   │          │   (Data)     │
+        │               └─────────────┘          └──────────────┘
+        │
+        ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Supabase      │     │    Stripe       │     │    Resend       │
+│   (Auth)        │     │   (Billing)     │     │   (Email)       │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
 ### Specialized Agents
@@ -37,31 +51,48 @@ A production-ready passage planning system built with the Model Context Protocol
 - **Wind Agent**: Wind forecasts, gust analysis, optimal sail recommendations
 - **Agent Factory**: Dynamic agent creation for new capabilities
 
+### Platform Components
+
+- **Authentication Service**: User registration, login, password reset, session management
+- **Billing Service**: Subscription management, payment processing, webhook handling
+- **Email Service**: Transactional emails, usage reports, billing notifications
+- **Analytics Service**: Business metrics, user behavior tracking, cohort analysis
+- **Agent Manager**: Health monitoring, auto-restart, performance tracking
+
+## 💰 Pricing Tiers
+
+- **Free Tier**: 5 passages/month, basic features
+- **Premium ($19/mo)**: 50 passages/month, advanced weather, priority support
+- **Pro ($49/mo)**: Unlimited passages, API access, fleet management, white-label options
+
 ## 🛠️ Technical Stack
 
 - **Framework**: Model Context Protocol (MCP) by Anthropic
 - **Language**: TypeScript/Node.js
-- **Frontend**: Next.js 14 with real-time WebSocket updates
-- **Infrastructure**: Kubernetes, Redis, PostgreSQL
-- **Monitoring**: Prometheus, Grafana, Jaeger
-- **Security**: JWT auth, rate limiting, encryption
-- **APIs**: NOAA Weather, OpenWeatherMap, WindFinder
-- **Container**: Docker
+- **Frontend**: Next.js 14 with App Router, Tailwind CSS, shadcn/ui
+- **Authentication**: Supabase Auth with JWT tokens
+- **Payments**: Stripe with subscription management
+- **Email**: React Email + Resend for transactional emails
+- **Database**: PostgreSQL 15+ with Supabase
+- **Cache/Queue**: Redis 7+
+- **Monitoring**: Prometheus, Grafana, custom analytics
+- **Container**: Docker & Kubernetes-ready
+- **Testing**: Jest, React Testing Library, Supertest
 
-## 🎯 Use Cases
+## 📊 Analytics & Monitoring
 
-- **Recreational Sailors**: Planning coastal or offshore passages with comprehensive weather and safety information
-- **Professional Delivery Crews**: Optimizing routes for time and weather windows
-- **Marine Educators**: Teaching passage planning with real-world data and considerations
-- **Developers**: Learning MCP and agentic architectures through a practical implementation
+### Business Metrics Dashboard (Admin Only)
+- **Revenue Metrics**: MRR, ARR, ARPU, LTV
+- **User Metrics**: Total users, paid users, conversion rates
+- **Engagement**: MAU, feature usage, retention cohorts
+- **Performance**: Churn rate, growth trends, funnel analysis
 
-## 📋 Prerequisites
-
-- Node.js 20.x LTS
-- Docker & Docker Compose
-- PostgreSQL 15+ (via Docker)
-- Redis 7+ (via Docker)
-- Git
+### Agent Health Monitoring
+- Real-time status of all agents
+- Automatic restart on failure
+- Memory and CPU usage tracking
+- Request/response metrics
+- WebSocket-based live updates
 
 ## 🚀 Quick Start
 
@@ -79,7 +110,11 @@ A production-ready passage planning system built with the Model Context Protocol
 3. **Set up environment variables**
    ```bash
    cp .env.example .env
-   # Edit .env with your API keys
+   # Required variables:
+   # - SUPABASE_URL, SUPABASE_ANON_KEY
+   # - STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+   # - RESEND_API_KEY
+   # - Weather API keys
    ```
 
 4. **Start infrastructure**
@@ -87,35 +122,40 @@ A production-ready passage planning system built with the Model Context Protocol
    docker-compose up -d
    ```
 
-5. **Start development servers**
+5. **Run database migrations**
+   ```bash
+   npm run db:migrate
+   ```
+
+6. **Start development servers**
    ```bash
    npm run dev
    ```
 
 The application will be available at:
 - Frontend: http://localhost:3000
-- Orchestrator Health: http://localhost:8081/health
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3001 (admin/admin)
+- Orchestrator: http://localhost:8080
+- Agent Health Dashboard: http://localhost:3000/admin/agents (admin only)
+- Analytics Dashboard: http://localhost:3000/admin/analytics (admin only)
 
 ## 📁 Project Structure
 
 ```
 passage-planner/
 ├── frontend/               # Next.js web application
+│   ├── app/               # App router pages and components
+│   ├── components/        # Reusable UI components
+│   ├── contexts/          # React contexts (Auth, Socket, etc.)
+│   ├── hooks/             # Custom React hooks
+│   └── lib/               # Utilities and services
 ├── orchestrator/          # MCP orchestrator service
+│   ├── services/          # Core services (Stripe, Email, Analytics)
+│   └── config/            # Configuration files
 ├── agents/                # Specialized agent implementations
-│   ├── weather/
-│   ├── wind/
-│   ├── tidal/
-│   ├── port/
-│   ├── safety/
-│   ├── route/
-│   └── factory/
 ├── shared/                # Shared types and utilities
-├── infrastructure/        # Docker, Kubernetes, Terraform configs
-├── tests/                 # Integration and E2E tests
-└── docs/                  # Documentation
+├── emails/                # React Email templates
+├── infrastructure/        # Docker, Kubernetes configs
+└── tests/                 # Integration and E2E tests
 ```
 
 ## 🧪 Testing
@@ -124,37 +164,35 @@ passage-planner/
 # Run all tests
 npm test
 
+# Run frontend tests
+npm run test:frontend
+
+# Run backend tests
+npm run test:backend
+
 # Run integration tests
 npm run test:integration
 
 # Run E2E tests
 npm run test:e2e
-
-# Run load tests
-npm run test:load
 ```
-
-## 📊 Monitoring
-
-The system includes comprehensive monitoring:
-
-- **Metrics**: Prometheus collects metrics from all components
-- **Dashboards**: Grafana provides real-time visualization
-- **Alerts**: Configured alerts for system health
-- **Tracing**: Distributed tracing with Jaeger for request flow analysis
 
 ## 🔒 Security
 
-- JWT authentication for API access
-- API key management for external services
+- JWT authentication with secure token handling
+- Stripe webhook signature verification
 - Rate limiting and input validation
-- Encrypted data storage
-- GDPR compliance features
+- Encrypted sensitive data storage
+- Role-based access control for admin features
+- GDPR compliance with data export/deletion
 
 ## 🚢 Example Usage
 
 ```typescript
-// Plan a passage from Boston to Portland
+// After authentication
+const { user } = useAuth();
+
+// Plan a passage (counts against subscription limit)
 const plan = await orchestrator.callTool('plan_passage', {
   departure: 'Boston, MA',
   destination: 'Portland, ME',
@@ -166,15 +204,33 @@ const plan = await orchestrator.callTool('plan_passage', {
     max_wave_height: 2
   }
 });
+
+// Track analytics
+const { trackFeature } = useAnalytics();
+trackFeature('passage_planned', { 
+  distance: plan.total_distance,
+  duration: plan.estimated_duration 
+});
 ```
+
+## 📧 Email Templates
+
+Beautiful, responsive email templates for:
+- Welcome emails with getting started guide
+- Trial ending reminders (3 days before)
+- Subscription confirmations
+- Payment failures
+- Usage reports (weekly/monthly)
+- Password reset
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Write tests for your changes
+4. Commit your changes (`git commit -m 'Add amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
 
 ## 📄 License
 
@@ -184,9 +240,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Model Context Protocol (MCP) by Anthropic
 - NOAA for weather and marine data APIs
+- Stripe for payment infrastructure
+- Supabase for authentication and database
 - The sailing community for inspiration
 
 ## 📞 Support
 
 For questions and support:
-- Create an issue in the GitHub repository
+- Free tier: GitHub issues
+- Premium tier: Email support (support@passageplanner.com)
+- Pro tier: Priority support with SLA
