@@ -63,7 +63,15 @@ A production-ready SaaS passage planning system built with the Model Context Pro
 
 - **Free Tier**: 5 passages/month, basic features
 - **Premium ($19/mo)**: 50 passages/month, advanced weather, priority support
-- **Pro ($49/mo)**: Unlimited passages, API access, fleet management, white-label options
+- **Pro ($49/mo)**: Unlimited passages, fleet management, API access, white-label options
+
+### Pro Fleet Management Features
+- **Multi-Vessel Management**: Track and manage unlimited vessels in your fleet
+- **Crew Coordination**: Invite crew members with role-based permissions
+- **Fleet Analytics**: Utilization metrics, popular routes, and performance tracking
+- **Vessel Tracking**: Real-time location monitoring for all fleet vessels
+- **Maintenance Scheduling**: Track and schedule vessel maintenance
+- **Shared Passages**: Automatically share passage plans across your fleet
 
 ## 🛠️ Technical Stack
 
