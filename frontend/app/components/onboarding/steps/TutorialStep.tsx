@@ -19,7 +19,7 @@ export function TutorialStep({ onNext, onPrevious }: TutorialStepProps) {
       icon: Calendar,
       number: '2',
       title: 'Choose departure time',
-      description: 'Select when you want to leave. We'll check weather, tides, and daylight for the best conditions.'
+      description: 'Select when you want to leave. We\'ll check weather, tides, and daylight for the best conditions.'
     },
     {
       icon: Settings,

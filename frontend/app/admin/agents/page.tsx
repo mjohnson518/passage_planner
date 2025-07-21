@@ -23,7 +23,7 @@ export default function AgentMonitoringPage() {
     // Example admin check - replace with proper role-based access control
     const adminEmails = ['admin@passageplanner.com', 'marc@example.com']
     const hasAdminAccess = 
-      user.subscription_tier === 'pro' || 
+      user.subscription?.tier === 'pro' || 
       adminEmails.includes(user.email || '')
 
     if (!hasAdminAccess) {

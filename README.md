@@ -231,6 +231,21 @@ Beautiful, responsive email templates for:
 - Usage reports (weekly/monthly)
 - Password reset
 
+## 🚀 Performance Optimizations
+
+The application is optimized for fast loading and smooth performance:
+
+- **Code Splitting**: Dynamic imports and lazy loading for heavy components
+- **Bundle Optimization**: Tree shaking, minification, and webpack optimizations
+- **Image Optimization**: Next.js Image component with WebP/AVIF support
+- **Caching Strategy**: Static assets cached for 1 year, API request deduplication
+- **Performance Utilities**: Debouncing, throttling, and memory leak prevention
+- **PWA Support**: Service worker for offline access and background sync
+- **Critical Path**: Preloading fonts, preconnecting to external domains
+- **Monitoring**: Bundle analyzer and Core Web Vitals tracking
+
+Target metrics: FCP < 1.8s, LCP < 2.5s, TTI < 3.8s, CLS < 0.1, FID < 100ms
+
 ## 🤝 Contributing
 
 1. Fork the repository

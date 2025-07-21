@@ -22,7 +22,6 @@ export default function AnalyticsPage() {
     // Admin check - in production this would be role-based
     const adminEmails = ['admin@passageplanner.com', 'marc@example.com']
     const hasAdminAccess = 
-      user.subscription_tier === 'pro' || 
       adminEmails.includes(user.email || '')
 
     if (!hasAdminAccess) {
