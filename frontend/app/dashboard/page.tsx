@@ -1,374 +1,268 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { useAuth } from '@/contexts/AuthContext'
-import { useQuery } from '@tanstack/react-query'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Button } from '../components/ui/button'
+import { Badge } from '../components/ui/badge'
+import { DemoPassage } from '../components/demo/DemoPassage'
 import { 
-  Anchor, 
-  Map, 
-  Cloud, 
-  Calendar, 
+  Plus, 
+  History, 
+  Compass, 
+  Ship, 
   TrendingUp,
-  Ship,
-  Navigation,
-  FileText,
-  Plus,
-  ArrowRight,
   Clock,
-  AlertCircle
+  MapPin,
+  Waves
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
-
-interface DashboardStats {
-  totalPassages: number
-  totalDistance: number
-  hoursUnderway: number
-  favoritePort: string
-  currentMonth: {
-    passages: number
-    limit: number
-  }
-}
+import Link from 'next/link'
 
 interface RecentPassage {
   id: string
-  name: string
   departure: string
   destination: string
   date: string
-  distance: number
   status: 'completed' | 'planned' | 'in-progress'
+  distance: number
 }
 
 export default function DashboardPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
-  const [greeting, setGreeting] = useState('')
+  const [recentPassages, setRecentPassages] = useState<RecentPassage[]>([])
+  const [stats, setStats] = useState({
+    totalPassages: 0,
+    totalDistance: 0,
+    avgDuration: 0
+  })
 
-  // Redirect if not authenticated
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!user) {
       router.push('/login')
+      return
     }
-  }, [user, authLoading, router])
 
-  // Set time-based greeting
-  useEffect(() => {
-    const hour = new Date().getHours()
-    if (hour < 12) setGreeting('Good morning')
-    else if (hour < 18) setGreeting('Good afternoon')
-    else setGreeting('Good evening')
-  }, [])
+    // Load mock data for now
+    setRecentPassages([
+      {
+        id: '1',
+        departure: 'Boston, MA',
+        destination: 'Portland, ME',
+        date: '2024-01-15',
+        status: 'completed',
+        distance: 98
+      },
+      {
+        id: '2',
+        departure: 'Newport, RI',
+        destination: 'Block Island',
+        date: '2024-01-20',
+        status: 'planned',
+        distance: 45
+      }
+    ])
 
-  // Fetch dashboard stats
-  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
-    queryKey: ['dashboard-stats', user?.id],
-    queryFn: async () => {
-      const response = await fetch('/api/users/stats', {
-        headers: {
-          Authorization: `Bearer ${user?.access_token}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch stats')
-      return response.json()
-    },
-    enabled: !!user,
-  })
+    setStats({
+      totalPassages: 12,
+      totalDistance: 1234,
+      avgDuration: 18.5
+    })
+  }, [user, router])
 
-  // Fetch recent passages
-  const { data: passages, isLoading: passagesLoading } = useQuery<RecentPassage[]>({
-    queryKey: ['recent-passages', user?.id],
-    queryFn: async () => {
-      const response = await fetch('/api/passages/recent?limit=5', {
-        headers: {
-          Authorization: `Bearer ${user?.access_token}`,
-        },
-      })
-      if (!response.ok) throw new Error('Failed to fetch passages')
-      return response.json()
-    },
-    enabled: !!user,
-  })
-
-  if (authLoading) {
-    return <LoadingSkeleton />
-  }
-
-  if (!user) {
-    return null
-  }
-
-  const usagePercentage = stats 
-    ? (stats.currentMonth.passages / stats.currentMonth.limit) * 100 
-    : 0
+  if (!user) return null
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">
-          {greeting}, {user.email.split('@')[0]}!
+    <div className="container mx-auto px-4 py-6 lg:py-8 max-w-7xl">
+      {/* Welcome Section */}
+      <div className="mb-6 lg:mb-8">
+        <h1 className="text-2xl lg:text-3xl font-bold">
+          Welcome back, {user.email.split('@')[0]}!
         </h1>
-        <p className="text-muted-foreground">
-          Ready to plan your next adventure on the water?
+        <p className="text-muted-foreground mt-1">
+          Ready to plan your next sailing adventure?
         </p>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-3 mb-8">
-        <Link href="/planner">
-          <Card className="hover:shadow-lg transition-all cursor-pointer group">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
-                    <Navigation className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Plan New Passage</h3>
-                    <p className="text-sm text-muted-foreground">Start planning your route</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+      {/* Quick Actions - Mobile Optimized */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6 lg:mb-8">
+        <Link href="/planner" className="group">
+          <Card className="h-full hover:shadow-lg transition-all cursor-pointer group-hover:border-primary/50">
+            <CardContent className="p-4 lg:p-6 text-center">
+              <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3 group-hover:bg-primary/20 transition-colors">
+                <Plus className="h-6 w-6 lg:h-7 lg:w-7 text-primary" />
               </div>
+              <h3 className="font-semibold text-sm lg:text-base">New Passage</h3>
+              <p className="text-xs lg:text-sm text-muted-foreground mt-1">
+                Plan a new route
+              </p>
             </CardContent>
           </Card>
         </Link>
 
-        <Link href="/passages">
-          <Card className="hover:shadow-lg transition-all cursor-pointer group">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
-                    <Map className="h-6 w-6 text-blue-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">My Passages</h3>
-                    <p className="text-sm text-muted-foreground">View saved routes</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-blue-500 transition-colors" />
+        <Link href="/passages" className="group">
+          <Card className="h-full hover:shadow-lg transition-all cursor-pointer group-hover:border-primary/50">
+            <CardContent className="p-4 lg:p-6 text-center">
+              <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/30 transition-colors">
+                <History className="h-6 w-6 lg:h-7 lg:w-7 text-blue-600 dark:text-blue-400" />
               </div>
+              <h3 className="font-semibold text-sm lg:text-base">My Passages</h3>
+              <p className="text-xs lg:text-sm text-muted-foreground mt-1">
+                View history
+              </p>
             </CardContent>
           </Card>
         </Link>
 
-        <Link href="/weather">
-          <Card className="hover:shadow-lg transition-all cursor-pointer group">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-green-500/10 rounded-lg group-hover:bg-green-500/20 transition-colors">
-                    <Cloud className="h-6 w-6 text-green-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Weather Center</h3>
-                    <p className="text-sm text-muted-foreground">Marine forecasts</p>
-                  </div>
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-green-500 transition-colors" />
+        <Link href="/weather" className="group">
+          <Card className="h-full hover:shadow-lg transition-all cursor-pointer group-hover:border-primary/50">
+            <CardContent className="p-4 lg:p-6 text-center">
+              <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center mx-auto mb-3 group-hover:bg-green-200 dark:group-hover:bg-green-900/30 transition-colors">
+                <Waves className="h-6 w-6 lg:h-7 lg:w-7 text-green-600 dark:text-green-400" />
               </div>
+              <h3 className="font-semibold text-sm lg:text-base">Weather</h3>
+              <p className="text-xs lg:text-sm text-muted-foreground mt-1">
+                Check conditions
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/boats" className="group">
+          <Card className="h-full hover:shadow-lg transition-all cursor-pointer group-hover:border-primary/50">
+            <CardContent className="p-4 lg:p-6 text-center">
+              <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center mx-auto mb-3 group-hover:bg-purple-200 dark:group-hover:bg-purple-900/30 transition-colors">
+                <Ship className="h-6 w-6 lg:h-7 lg:w-7 text-purple-600 dark:text-purple-400" />
+              </div>
+              <h3 className="font-semibold text-sm lg:text-base">My Boats</h3>
+              <p className="text-xs lg:text-sm text-muted-foreground mt-1">
+                Manage vessels
+              </p>
             </CardContent>
           </Card>
         </Link>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-4 mb-8">
+      {/* Stats Overview - Responsive Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 lg:mb-8">
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Passages</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Passages
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {statsLoading ? (
-              <Skeleton className="h-8 w-20" />
-            ) : (
-              <div className="text-2xl font-bold">{stats?.totalPassages || 0}</div>
-            )}
+            <div className="text-2xl font-bold">{stats.totalPassages}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              <TrendingUp className="inline h-3 w-3 mr-1" />
+              +2 this month
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Distance Sailed</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Distance Sailed
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {statsLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : (
-              <div className="text-2xl font-bold">{stats?.totalDistance || 0} nm</div>
-            )}
+            <div className="text-2xl font-bold">{stats.totalDistance} nm</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              <Compass className="inline h-3 w-3 mr-1" />
+              Across all passages
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Hours Underway</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Avg Duration
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {statsLoading ? (
-              <Skeleton className="h-8 w-20" />
-            ) : (
-              <div className="text-2xl font-bold">{stats?.hoursUnderway || 0}</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">This Month</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {statsLoading ? (
-              <Skeleton className="h-8 w-full" />
-            ) : (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl font-bold">
-                    {stats?.currentMonth.passages || 0}/{stats?.currentMonth.limit || 2}
-                  </span>
-                  {usagePercentage >= 100 && (
-                    <AlertCircle className="h-4 w-4 text-amber-500" />
-                  )}
-                </div>
-                <div className="w-full bg-secondary rounded-full h-2">
-                  <div 
-                    className={cn(
-                      "h-2 rounded-full transition-all",
-                      usagePercentage >= 100 ? "bg-amber-500" : "bg-primary"
-                    )}
-                    style={{ width: `${Math.min(usagePercentage, 100)}%` }}
-                  />
-                </div>
-              </div>
-            )}
+            <div className="text-2xl font-bold">{stats.avgDuration}h</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              <Clock className="inline h-3 w-3 mr-1" />
+              Per passage
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Passages */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Recent Passages</CardTitle>
-              <CardDescription>Your latest route plans and completed trips</CardDescription>
-            </div>
-            <Link href="/passages">
-              <Button variant="outline" size="sm">View All</Button>
-            </Link>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {passagesLoading ? (
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : passages && passages.length > 0 ? (
-            <div className="space-y-3">
-              {passages.map((passage) => (
-                <Link key={passage.id} href={`/passages/${passage.id}`}>
-                  <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent transition-colors cursor-pointer">
-                    <div className="flex items-center space-x-4">
-                      <Ship className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">
+      {/* Recent Passages - Mobile Optimized */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Passages</CardTitle>
+            <CardDescription>Your latest sailing plans</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recentPassages.length > 0 ? (
+              <div className="space-y-3">
+                {recentPassages.map((passage) => (
+                  <div
+                    key={passage.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <p className="font-medium text-sm truncate">
                           {passage.departure} → {passage.destination}
                         </p>
-                        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                          <span className="flex items-center">
-                            <Calendar className="h-3 w-3 mr-1" />
-                            {new Date(passage.date).toLocaleDateString()}
-                          </span>
-                          <span>{passage.distance} nm</span>
-                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{new Date(passage.date).toLocaleDateString()}</span>
+                        <span>•</span>
+                        <span>{passage.distance} nm</span>
                       </div>
                     </div>
-                    <StatusBadge status={passage.status} />
+                    <Badge
+                      variant={
+                        passage.status === 'completed'
+                          ? 'secondary'
+                          : passage.status === 'planned'
+                          ? 'outline'
+                          : 'default'
+                      }
+                      className="ml-2 flex-shrink-0"
+                    >
+                      {passage.status}
+                    </Badge>
                   </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <Ship className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground mb-4">No passages yet</p>
-              <Link href="/planner">
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Plan Your First Passage
-                </Button>
-              </Link>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Upgrade CTA for free users */}
-      {stats?.currentMonth.limit === 2 && (
-        <Card className="mt-8 bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold mb-1">Unlock Unlimited Passages</h3>
-                <p className="text-muted-foreground">
-                  Upgrade to Premium for unlimited route planning, 7-day forecasts, and more.
-                </p>
+                ))}
               </div>
-              <Link href="/pricing">
-                <Button className="btn-primary">
-                  Upgrade Now
+            ) : (
+              <div className="text-center py-8">
+                <Compass className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">No passages yet</p>
+                <Button className="mt-4" asChild>
+                  <Link href="/planner">Plan Your First Passage</Link>
                 </Button>
-              </Link>
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
-    </div>
-  )
-}
 
-function StatusBadge({ status }: { status: string }) {
-  const styles = {
-    completed: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
-    planned: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
-    'in-progress': 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400',
-  }
-
-  return (
-    <span className={cn(
-      'px-2.5 py-0.5 rounded-full text-xs font-medium capitalize',
-      styles[status as keyof typeof styles] || styles.planned
-    )}>
-      {status.replace('-', ' ')}
-    </span>
-  )
-}
-
-function LoadingSkeleton() {
-  return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <Skeleton className="h-10 w-64 mb-2" />
-      <Skeleton className="h-6 w-96 mb-8" />
-      <div className="grid gap-4 md:grid-cols-3 mb-8">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-24" />
-        ))}
+        {/* Demo Passage - Hidden on small mobile */}
+        <div className="hidden sm:block">
+          <DemoPassage />
+        </div>
       </div>
-      <div className="grid gap-4 md:grid-cols-4 mb-8">
-        {[...Array(4)].map((_, i) => (
-          <Skeleton key={i} className="h-28" />
-        ))}
-      </div>
-      <Skeleton className="h-96" />
+
+      {/* Floating Action Button for Mobile */}
+      <Link href="/planner" className="lg:hidden">
+        <Button
+          size="lg"
+          className="fab w-14 h-14 p-0"
+        >
+          <Plus className="h-6 w-6" />
+          <span className="sr-only">New Passage</span>
+        </Button>
+      </Link>
     </div>
   )
 } 

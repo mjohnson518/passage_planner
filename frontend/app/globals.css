@@ -176,4 +176,55 @@
   .btn-primary {
     @apply bg-primary text-primary-foreground hover:bg-primary/90;
   }
+  
+  /* Mobile-optimized styles */
+  @media (max-width: 768px) {
+    /* Prevent horizontal scroll */
+    html, body {
+      overflow-x: hidden;
+    }
+    
+    /* Improve touch targets */
+    button, a {
+      min-height: 44px;
+    }
+    
+    /* Adjust typography for mobile */
+    h1 {
+      @apply text-3xl sm:text-4xl;
+    }
+    
+    h2 {
+      @apply text-2xl sm:text-3xl;
+    }
+    
+    h3 {
+      @apply text-xl sm:text-2xl;
+    }
+    
+    /* Reduce spacing on mobile */
+    section {
+      @apply py-12 sm:py-20;
+    }
+  }
+  
+  /* Safe area insets for notched devices */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Improve tap highlight on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Smooth scrolling on iOS */
+  .ios-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Floating action button */
+  .fab {
+    @apply fixed bottom-20 right-4 lg:bottom-8 lg:right-8 z-40 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 active:scale-95;
+  }
 } 

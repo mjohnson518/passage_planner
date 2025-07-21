@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from 'next-themes'
 import { AuthProvider } from './contexts/AuthContext'
 import { SocketProvider } from './contexts/SocketContext'
+import { useServiceWorker } from './hooks/useServiceWorker'
+import { InstallPrompt } from './components/pwa/InstallPrompt'
 
 const queryClient = new QueryClient({
   defaultOptions: {
