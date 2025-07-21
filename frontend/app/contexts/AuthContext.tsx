@@ -47,7 +47,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false)
 
         if (event === 'SIGNED_IN') {
-          router.push('/dashboard')
+          // Check if user needs onboarding (e.g., no boat profiles)
+          const { data: boats } = await supabase
+            .from('boat_profiles')
+            .select('id')
+            .eq('user_id', session?.user?.id)
+            .limit(1)
+          
+          if (!boats || boats.length === 0) {
+            router.push('/onboarding')
+          } else {
+            router.push('/dashboard')
+          }
         } else if (event === 'SIGNED_OUT') {
           router.push('/')
         }

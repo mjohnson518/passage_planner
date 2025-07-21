@@ -239,4 +239,10 @@ export const ANALYTICS_EVENTS = {
   SETTINGS_UPDATED: 'settings_updated',
   SUPPORT_CONTACTED: 'support_contacted',
   DOCS_VIEWED: 'docs_viewed',
+  
+  // Onboarding
+  ONBOARDING_STARTED: 'onboarding_started',
+  ONBOARDING_COMPLETED: 'onboarding_completed',
+  ONBOARDING_SKIPPED: 'onboarding_skipped',
+  BOAT_PROFILE_CREATED: 'boat_profile_created',
 } 
