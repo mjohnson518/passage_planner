@@ -93,7 +93,7 @@ export class OrchestratorService extends EventEmitter {
     this.requestRouter = new RequestRouter(this.agentRegistry, this.logger);
     this.responseAggregator = new ResponseAggregator(this.logger);
     this.sessionManager = new SessionManager(this.redis, this.logger);
-    this.metricsCollector = new MetricsCollector(this.postgres, this.logger);
+    this.metricsCollector = new MetricsCollector(this.logger);
     this.agentManager = new AgentManager(this.logger);
     
     this.setupMcpHandlers();
@@ -199,6 +199,39 @@ export class OrchestratorService extends EventEmitter {
     return `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
   
+  async handleRequest(request: any): Promise<any> {
+    const { tool, arguments: args } = request;
+    const requestId = this.generateRequestId();
+    
+    switch (tool) {
+      case 'plan_passage':
+        return await this.handlePassagePlanning(requestId, args);
+      case 'get_weather_briefing':
+        return await this.handleWeatherBriefing(requestId, args);
+      case 'check_agent_status':
+        return await this.handleAgentStatus(requestId);
+      default:
+        throw new Error(`Unknown tool: ${tool}`);
+    }
+  }
+
+  async listTools(): Promise<any[]> {
+    return [
+      {
+        name: 'plan_passage',
+        description: 'Plan a sailing passage between two ports',
+      },
+      {
+        name: 'get_weather_briefing',
+        description: 'Get detailed weather briefing for a route',
+      },
+      {
+        name: 'check_agent_status',
+        description: 'Check the status of all registered agents',
+      }
+    ];
+  }
+
   async start() {
     try {
       // Connect to Redis
@@ -556,6 +589,16 @@ export class HttpServer {
   }
 
   // MCP handlers with subscription checks
+  private async handleListTools(req: express.Request, res: express.Response) {
+    try {
+      const tools = await this.orchestrator.listTools();
+      res.json({ tools });
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to list tools');
+      res.status(500).json({ error: 'Failed to list tools' });
+    }
+  }
+
   private async handleCallTool(req: express.Request, res: express.Response) {
     try {
       const { tool, arguments: args } = req.body;
@@ -646,7 +689,7 @@ export class HttpServer {
           socket.emit('agent:started', { name });
         } catch (error) {
           this.logger.error({ error, agent: name }, 'Failed to start agent');
-          socket.emit('agent:error', { name, error: error.message });
+          socket.emit('agent:error', { name, error: error instanceof Error ? error.message : String(error) });
         }
       });
 
@@ -656,7 +699,7 @@ export class HttpServer {
           socket.emit('agent:stopped', { name });
         } catch (error) {
           this.logger.error({ error, agent: name }, 'Failed to stop agent');
-          socket.emit('agent:error', { name, error: error.message });
+          socket.emit('agent:error', { name, error: error instanceof Error ? error.message : String(error) });
         }
       });
 
@@ -666,7 +709,7 @@ export class HttpServer {
           socket.emit('agent:restarted', { name });
         } catch (error) {
           this.logger.error({ error, agent: name }, 'Failed to restart agent');
-          socket.emit('agent:error', { name, error: error.message });
+          socket.emit('agent:error', { name, error: error instanceof Error ? error.message : String(error) });
         }
       });
     });
@@ -695,13 +738,8 @@ export class HttpServer {
 
   async start() {
     try {
-      // Connect to Redis
-      await this.redis.connect();
-      this.logger.info('Connected to Redis');
-      
-      // Test PostgreSQL connection
-      await this.postgres.query('SELECT NOW()');
-      this.logger.info('Connected to PostgreSQL');
+      // Start the orchestrator first
+      await this.orchestrator.start();
       
       // Start HTTP server
       const port = process.env.HTTP_PORT || 3000;
@@ -721,9 +759,8 @@ export class HttpServer {
   async shutdown() {
     this.logger.info('Shutting down HTTP server');
     
-    // Close database connections
-    await this.redis.quit();
-    await this.postgres.end();
+    // Shutdown orchestrator (which will close its connections)
+    await this.orchestrator.shutdown();
     
     this.logger.info('HTTP server shutdown complete');
   }

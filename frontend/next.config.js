@@ -8,6 +8,9 @@ const nextConfig = {
   // Enable SWC minification for better performance
   swcMinify: true,
   
+  // Enable module transpilation for specific packages
+  transpilePackages: ['@radix-ui', 'lucide-react'],
+  
   // Image optimization
   images: {
     domains: ['api.mapbox.com', 'tile.openstreetmap.org'],
@@ -16,13 +19,6 @@ const nextConfig = {
   
   // Webpack optimizations
   webpack: (config, { isServer }) => {
-    // Tree shaking optimizations
-    config.optimization = {
-      ...config.optimization,
-      usedExports: true,
-      sideEffects: false,
-    }
-    
     // Bundle analyzer (only in analyze mode)
     if (process.env.ANALYZE === 'true') {
       const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer')
@@ -41,9 +37,6 @@ const nextConfig = {
   experimental: {
     // Enable optimized CSS loading
     optimizeCss: true,
-    
-    // Enable module transpilation for specific packages
-    transpilePackages: ['@radix-ui', 'lucide-react'],
     
     // Server components optimization
     serverComponentsExternalPackages: ['pino', 'pino-pretty'],
