@@ -1,8 +1,10 @@
-import { BaseAgent } from '@passage-planner/shared/agents/BaseAgent';
-import { NOAAWeatherService } from '@passage-planner/shared/services/NOAAWeatherService';
-import { CacheManager } from '@passage-planner/shared/services/CacheManager';
+import { BaseAgent, NOAAWeatherService, CacheManager } from '@passage-planner/shared';
 import { Logger } from 'pino';
 import pino from 'pino';
+import { 
+  CallToolRequestSchema,
+  ListToolsRequestSchema 
+} from '@modelcontextprotocol/sdk/types.js';
 
 export class WeatherAgent extends BaseAgent {
   private weatherService: NOAAWeatherService;
@@ -19,7 +21,6 @@ export class WeatherAgent extends BaseAgent {
     
     super(
       {
-        id: 'weather-agent',
         name: 'Weather Analysis Agent',
         version: '2.0.0',
         description: 'Provides real-time marine weather forecasts and safety analysis using NOAA data',
@@ -34,11 +35,18 @@ export class WeatherAgent extends BaseAgent {
     this.setupTools();
   }
   
+  protected getAgentSpecificHealth(): any {
+    return {
+      weatherServiceActive: true,
+      cacheStatus: 'active',
+      lastForecastTime: new Date()
+    };
+  }
+  
   private setupTools() {
-    // Get weather forecast tool
-    this.server.setRequestHandler({
-      method: 'tools/list',
-      handler: async () => ({
+    // List available tools
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      return {
         tools: [
           {
             name: 'get_marine_weather',
@@ -87,38 +95,35 @@ export class WeatherAgent extends BaseAgent {
             }
           }
         ]
-      })
+      };
     });
     
-    // Tool call handler
-    this.server.setRequestHandler({
-      method: 'tools/call',
-      handler: async (request) => {
-        const { name, arguments: args } = request.params;
-        
-        try {
-          switch (name) {
-            case 'get_marine_weather':
-              return await this.getMarineWeather(args);
-              
-            case 'check_weather_safety':
-              return await this.checkWeatherSafety(args);
-              
-            case 'get_weather_windows':
-              return await this.getWeatherWindows(args);
-              
-            default:
-              throw new Error(`Unknown tool: ${name}`);
-          }
-        } catch (error) {
-          this.logger.error({ error, tool: name }, 'Tool execution failed');
-          throw error;
+    // Handle tool calls
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const { name, arguments: args } = request.params;
+      
+      try {
+        switch (name) {
+          case 'get_marine_weather':
+            return await this.getMarineWeather(args);
+            
+          case 'check_weather_safety':
+            return await this.checkWeatherSafety(args);
+            
+          case 'get_weather_windows':
+            return await this.getWeatherWindows(args);
+            
+          default:
+            throw new Error(`Unknown tool: ${name}`);
         }
+      } catch (error) {
+        this.logger.error({ error, tool: name }, 'Tool execution failed');
+        throw error;
       }
     });
   }
   
-  private async getMarineWeather(args: any) {
+  private async getMarineWeather(args: any): Promise<any> {
     const { latitude, longitude, days = 7 } = args;
     
     try {
@@ -128,7 +133,6 @@ export class WeatherAgent extends BaseAgent {
         days
       );
       
-      // Format the response for the orchestrator
       return {
         content: [
           {
@@ -146,14 +150,14 @@ export class WeatherAgent extends BaseAgent {
       return {
         content: [{
           type: 'text',
-          text: `Unable to retrieve weather forecast: ${error.message}`
+          text: `Unable to retrieve weather forecast: ${(error as Error).message}`
         }],
         isError: true
       };
     }
   }
   
-  private async checkWeatherSafety(args: any) {
+  private async checkWeatherSafety(args: any): Promise<any> {
     const {
       latitude,
       longitude,
@@ -191,14 +195,14 @@ export class WeatherAgent extends BaseAgent {
       return {
         content: [{
           type: 'text',
-          text: `Unable to check weather safety: ${error.message}`
+          text: `Unable to check weather safety: ${(error as Error).message}`
         }],
         isError: true
       };
     }
   }
   
-  private async getWeatherWindows(args: any) {
+  private async getWeatherWindows(args: any): Promise<any> {
     const {
       startLat,
       startLon,
@@ -211,13 +215,11 @@ export class WeatherAgent extends BaseAgent {
     } = args;
     
     try {
-      // Get weather for both start and end points
       const [startForecast, endForecast] = await Promise.all([
         this.weatherService.getMarineForecast(startLat, startLon, 7),
         this.weatherService.getMarineForecast(endLat, endLon, 7)
       ]);
       
-      // Find safe weather windows
       const windows = this.findSafeWindows(
         startForecast,
         endForecast,
@@ -248,7 +250,7 @@ export class WeatherAgent extends BaseAgent {
       return {
         content: [{
           type: 'text',
-          text: `Unable to find weather windows: ${error.message}`
+          text: `Unable to find weather windows: ${(error as Error).message}`
         }],
         isError: true
       };
@@ -262,18 +264,16 @@ export class WeatherAgent extends BaseAgent {
       ''
     ];
     
-    // Add any warnings
     if (forecast.warnings.length > 0) {
       lines.push('⚠️ **WEATHER WARNINGS:**');
-      forecast.warnings.forEach(w => {
+      forecast.warnings.forEach((w: any) => {
         lines.push(`- ${w.headline} (${w.severity})`);
       });
       lines.push('');
     }
     
-    // Add forecast periods
     lines.push('**Forecast:**');
-    forecast.periods.slice(0, 6).forEach(period => {
+    forecast.periods.slice(0, 6).forEach((period: any) => {
       lines.push(`${period.startTime.toLocaleDateString()} ${period.isDaytime ? '☀️' : '🌙'}: ${period.shortForecast}`);
       lines.push(`  Wind: ${period.windSpeed} ${period.windDirection}`);
       lines.push(`  Temp: ${period.temperature}°${period.temperatureUnit}`);
@@ -293,13 +293,11 @@ export class WeatherAgent extends BaseAgent {
     const endDate = new Date(departureDate);
     endDate.setDate(endDate.getDate() + 7);
     
-    // Check each 6-hour period
     const current = new Date(departureDate);
     while (current < endDate) {
       const windowEnd = new Date(current);
       windowEnd.setHours(windowEnd.getHours() + durationHours);
       
-      // Check if this window is safe
       const startSafe = this.isWindowSafe(startForecast, current, windowEnd, preferences);
       const endSafe = this.isWindowSafe(endForecast, current, windowEnd, preferences);
       
@@ -311,7 +309,6 @@ export class WeatherAgent extends BaseAgent {
         });
       }
       
-      // Move to next 6-hour period
       current.setHours(current.getHours() + 6);
     }
     
@@ -319,8 +316,7 @@ export class WeatherAgent extends BaseAgent {
   }
   
   private isWindowSafe(forecast: any, start: Date, end: Date, preferences: any): boolean {
-    // Check if any warnings overlap with this window
-    const activeWarnings = forecast.warnings.filter(w => 
+    const activeWarnings = forecast.warnings.filter((w: any) => 
       w.onset <= end && w.expires >= start &&
       (w.severity === 'extreme' || w.severity === 'severe')
     );
@@ -329,8 +325,12 @@ export class WeatherAgent extends BaseAgent {
       return false;
     }
     
-    // Check wind and wave conditions during the window
-    // This is simplified - in production would check actual time series data
     return true;
   }
+}
+
+// Start the agent if run directly
+if (require.main === module) {
+  const agent = new WeatherAgent();
+  agent.start().catch(console.error);
 } 

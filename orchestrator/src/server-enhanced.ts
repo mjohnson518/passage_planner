@@ -10,9 +10,7 @@ import { AuthService, FeatureGate, StripeService } from '@passage-planner/shared
 import { Pool } from 'pg';
 import { createClient } from 'redis';
 import pino from 'pino';
-import { InputValidation } from '@passage-planner/shared/middleware/InputValidation';
-import { SecurityHeaders } from '@passage-planner/shared/middleware/SecurityHeaders';
-import { RateLimiter } from '@passage-planner/shared/services/RateLimiter';
+import { InputValidation, SecurityHeaders, RateLimiter } from '@passage-planner/shared';
 
 // Extend Express Request type
 declare global {
