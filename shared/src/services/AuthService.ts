@@ -33,10 +33,10 @@ export class AuthService {
     };
     
     return jwt.sign(payload, this.jwtSecret, {
-      expiresIn: this.jwtExpiry,
+      expiresIn: this.jwtExpiry.toString(),
       issuer: 'passage-planner',
       audience: 'passage-planner-api',
-    });
+    } as any);
   }
   
   // Verify JWT token

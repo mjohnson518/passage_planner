@@ -19,7 +19,7 @@ export class StripeService {
   
   constructor(logger: Logger) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: '2023-10-16',
+      apiVersion: '2025-06-30.basil',
     });
     this.webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
     this.logger = logger;
@@ -156,8 +156,8 @@ export class StripeService {
       userId,
       tier,
       status: subscription.status,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      currentPeriodStart: (subscription as any).current_period_start ? new Date((subscription as any).current_period_start * 1000) : new Date(),
+      currentPeriodEnd: (subscription as any).current_period_end ? new Date((subscription as any).current_period_end * 1000) : new Date(),
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
     };
   }
@@ -175,7 +175,7 @@ export class StripeService {
   
   private async handlePaymentFailed(invoice: Stripe.Invoice) {
     const customerId = invoice.customer as string;
-    const subscription = invoice.subscription as string;
+    const subscription = (invoice as any).subscription as string;
     
     return {
       customerId,
@@ -196,7 +196,7 @@ export class StripeService {
   
   // Usage-based billing for API calls
   async reportUsage(subscriptionItemId: string, quantity: number, timestamp: number) {
-    await this.stripe.subscriptionItems.createUsageRecord(
+    await (this.stripe.subscriptionItems as any).createUsageRecord(
       subscriptionItemId,
       {
         quantity,

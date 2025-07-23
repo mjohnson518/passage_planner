@@ -63,7 +63,10 @@ export class RequestValidator {
   // Validate weather request
   validateWeatherRequest(data: any) {
     const schema = z.object({
-      coordinates: z.array(this.validateCoordinates),
+      coordinates: z.array(z.object({
+        latitude: z.number().min(-90).max(90),
+        longitude: z.number().min(-180).max(180),
+      })),
       days: z.number()
         .min(1, 'Minimum 1 day forecast')
         .max(14, 'Maximum 14 days forecast')

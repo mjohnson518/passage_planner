@@ -10,21 +10,21 @@ export class MetricsService {
   private logger: Logger;
   
   // Business metrics
-  private subscriptionCounter: Counter<string>;
-  private churnCounter: Counter<string>;
-  private revenueGauge: Gauge<string>;
-  private activeUsersGauge: Gauge<string>;
+  private subscriptionCounter!: Counter<string>;
+  private churnCounter!: Counter<string>;
+  private revenueGauge!: Gauge<string>;
+  private activeUsersGauge!: Gauge<string>;
   
   // Technical metrics
-  private requestCounter: Counter<string>;
-  private requestDuration: Histogram<string>;
-  private errorCounter: Counter<string>;
-  private agentLatency: Histogram<string>;
+  private requestCounter!: Counter<string>;
+  private requestDuration!: Histogram<string>;
+  private errorCounter!: Counter<string>;
+  private agentLatency!: Histogram<string>;
   
   // Usage metrics
-  private passagesCreated: Counter<string>;
-  private apiCallsCounter: Counter<string>;
-  private featureUsageCounter: Counter<string>;
+  private passagesCreated!: Counter<string>;
+  private apiCallsCounter!: Counter<string>;
+  private featureUsageCounter!: Counter<string>;
   
   constructor(logger: Logger) {
     this.logger = logger;
@@ -226,7 +226,7 @@ export class MetricsService {
       
       return {
         mrr: totalMRR,
-        activeUsers: activeUsersResult.rows.reduce((sum, row) => sum + row.count, 0),
+        activeUsers: activeUsersResult.rows.reduce((sum: number, row: any) => sum + row.count, 0),
         churnRate: churnResult.rows[0]?.churn_rate || 0,
       };
       

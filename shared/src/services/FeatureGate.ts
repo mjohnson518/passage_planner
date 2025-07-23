@@ -31,7 +31,7 @@ export class FeatureGate {
     enterprise: {
       passagesPerMonth: -1,
       apiCallsPerDay: -1,
-      exportFormats: '*',
+      exportFormats: ['*'],
       forecastDays: 14,
       agents: '*',
       support: 'dedicated',

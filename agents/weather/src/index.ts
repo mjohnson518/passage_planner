@@ -1,400 +1,336 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { 
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import axios from 'axios';
+import { BaseAgent } from '@passage-planner/shared/agents/BaseAgent';
+import { NOAAWeatherService } from '@passage-planner/shared/services/NOAAWeatherService';
+import { CacheManager } from '@passage-planner/shared/services/CacheManager';
+import { Logger } from 'pino';
 import pino from 'pino';
-import { z } from 'zod';
-import { 
-  AgentCapabilitySummary, 
-  CacheManager,
-  APIFallbackManager,
-  CoordinateSchema 
-} from '@passage-planner/shared';
 
-const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
-
-class WeatherAgent {
-  private server: Server;
-  private cacheManager: CacheManager;
-  private fallbackManager: APIFallbackManager;
+export class WeatherAgent extends BaseAgent {
+  private weatherService: NOAAWeatherService;
+  private cache: CacheManager;
   
   constructor() {
-    this.server = new Server(
-      {
-        name: 'weather-agent',
-        version: '1.0.0',
-      },
-      {
-        capabilities: {
-          tools: {},
-        },
+    const logger = pino({
+      level: process.env.LOG_LEVEL || 'info',
+      transport: {
+        target: 'pino-pretty',
+        options: { colorize: true }
       }
+    });
+    
+    super(
+      {
+        id: 'weather-agent',
+        name: 'Weather Analysis Agent',
+        version: '2.0.0',
+        description: 'Provides real-time marine weather forecasts and safety analysis using NOAA data',
+        healthCheckInterval: 30000,
+      },
+      logger
     );
     
-    this.cacheManager = new CacheManager();
-    this.fallbackManager = new APIFallbackManager([
-      { name: 'noaa', baseUrl: 'https://api.weather.gov', priority: 1 },
-      { name: 'openweather', baseUrl: 'https://api.openweathermap.org/data/2.5', priority: 2 }
-    ]);
+    this.cache = new CacheManager(logger);
+    this.weatherService = new NOAAWeatherService(this.cache, logger);
     
-    this.setupHandlers();
+    this.setupTools();
   }
   
-  private setupHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [
-        {
-          name: 'get_current_weather',
-          description: 'Get current weather conditions at a location',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              coordinates: {
-                type: 'object',
-                properties: {
-                  latitude: { type: 'number' },
-                  longitude: { type: 'number' }
-                },
-                required: ['latitude', 'longitude']
+  private setupTools() {
+    // Get weather forecast tool
+    this.server.setRequestHandler({
+      method: 'tools/list',
+      handler: async () => ({
+        tools: [
+          {
+            name: 'get_marine_weather',
+            description: 'Get comprehensive marine weather forecast for a location',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                latitude: { type: 'number', minimum: -90, maximum: 90 },
+                longitude: { type: 'number', minimum: -180, maximum: 180 },
+                days: { type: 'number', minimum: 1, maximum: 10, default: 7 }
               },
-              units: {
-                type: 'string',
-                enum: ['metric', 'imperial'],
-                default: 'metric'
-              }
-            },
-            required: ['coordinates']
-          }
-        },
-        {
-          name: 'get_marine_forecast',
-          description: 'Get marine weather forecast for a zone',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              zone: { type: 'string', description: 'Marine zone ID (e.g., ANZ250)' },
-              days: { type: 'number', minimum: 1, maximum: 7, default: 3 }
-            },
-            required: ['zone']
-          }
-        },
-        {
-          name: 'get_storm_warnings',
-          description: 'Get active storm warnings for an area',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              coordinates: {
-                type: 'object',
-                properties: {
-                  latitude: { type: 'number' },
-                  longitude: { type: 'number' }
-                },
-                required: ['latitude', 'longitude']
+              required: ['latitude', 'longitude']
+            }
+          },
+          {
+            name: 'check_weather_safety',
+            description: 'Check if weather conditions are safe for sailing',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                latitude: { type: 'number' },
+                longitude: { type: 'number' },
+                maxWindSpeed: { type: 'number', description: 'Maximum safe wind speed in knots' },
+                maxWaveHeight: { type: 'number', description: 'Maximum safe wave height in meters' },
+                minVisibility: { type: 'number', description: 'Minimum required visibility in nm' }
               },
-              radius: { type: 'number', description: 'Search radius in km', default: 100 }
-            },
-            required: ['coordinates']
+              required: ['latitude', 'longitude']
+            }
+          },
+          {
+            name: 'get_weather_windows',
+            description: 'Find safe weather windows for sailing',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                startLat: { type: 'number' },
+                startLon: { type: 'number' },
+                endLat: { type: 'number' },
+                endLon: { type: 'number' },
+                departureDate: { type: 'string', format: 'date' },
+                durationHours: { type: 'number' },
+                maxWindSpeed: { type: 'number' },
+                maxWaveHeight: { type: 'number' }
+              },
+              required: ['startLat', 'startLon', 'endLat', 'endLon', 'departureDate']
+            }
           }
-        }
-      ]
-    }));
+        ]
+      })
+    });
     
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
-      
-      try {
-        switch (name) {
-          case 'get_current_weather':
-            return await this.getCurrentWeather(args);
-          case 'get_marine_forecast':
-            return await this.getMarineForecast(args);
-          case 'get_storm_warnings':
-            return await this.getStormWarnings(args);
-          default:
-            throw new Error(`Unknown tool: ${name}`);
+    // Tool call handler
+    this.server.setRequestHandler({
+      method: 'tools/call',
+      handler: async (request) => {
+        const { name, arguments: args } = request.params;
+        
+        try {
+          switch (name) {
+            case 'get_marine_weather':
+              return await this.getMarineWeather(args);
+              
+            case 'check_weather_safety':
+              return await this.checkWeatherSafety(args);
+              
+            case 'get_weather_windows':
+              return await this.getWeatherWindows(args);
+              
+            default:
+              throw new Error(`Unknown tool: ${name}`);
+          }
+        } catch (error) {
+          this.logger.error({ error, tool: name }, 'Tool execution failed');
+          throw error;
         }
-      } catch (error) {
-        logger.error({ error, tool: name }, 'Tool execution failed');
-        throw error;
       }
     });
   }
   
-  private async getCurrentWeather(args: any) {
-    const { coordinates, units = 'metric' } = args;
-    const cacheKey = `weather:current:${coordinates.latitude},${coordinates.longitude}`;
-    
-    // Check cache
-    const cached = await this.cacheManager.get(cacheKey);
-    if (cached) {
-      return { content: [{ type: 'text', text: JSON.stringify(cached) }] };
-    }
+  private async getMarineWeather(args: any) {
+    const { latitude, longitude, days = 7 } = args;
     
     try {
-      // Try NOAA first
-      const gridPoint = await this.getNoaaGridPoint(coordinates);
-      const noaaData = await axios.get(`https://api.weather.gov/gridpoints/${gridPoint}/forecast`);
-      
-      const current = noaaData.data.properties.periods[0];
-      const weatherData = {
-        temperature: this.extractTemperature(current.temperature, current.temperatureUnit, units),
-        windSpeed: this.extractWindSpeed(current.windSpeed, units),
-        windDirection: current.windDirection,
-        conditions: current.shortForecast,
-        humidity: current.relativeHumidity?.value || null,
-        pressure: null, // NOAA doesn't provide pressure
-        visibility: null,
-        timestamp: new Date().toISOString()
-      };
-      
-      await this.cacheManager.set(cacheKey, weatherData, 900); // 15 minutes
-      return { content: [{ type: 'text', text: JSON.stringify(weatherData) }] };
-      
-    } catch (error) {
-      logger.warn({ error }, 'NOAA API failed, trying OpenWeather');
-      
-      // Fallback to OpenWeather
-      const owData = await axios.get(
-        `https://api.openweathermap.org/data/2.5/weather?lat=${coordinates.latitude}&lon=${coordinates.longitude}&units=${units}&appid=${process.env.OPENWEATHER_API_KEY}`
+      const forecast = await this.weatherService.getMarineForecast(
+        latitude, 
+        longitude, 
+        days
       );
       
-      const weatherData = {
-        temperature: owData.data.main.temp,
-        windSpeed: owData.data.wind.speed,
-        windDirection: this.degreesToCardinal(owData.data.wind.deg),
-        conditions: owData.data.weather[0].description,
-        humidity: owData.data.main.humidity,
-        pressure: owData.data.main.pressure,
-        visibility: owData.data.visibility,
-        timestamp: new Date().toISOString()
+      // Format the response for the orchestrator
+      return {
+        content: [
+          {
+            type: 'text',
+            text: this.formatWeatherSummary(forecast)
+          },
+          {
+            type: 'data',
+            data: forecast
+          }
+        ]
       };
-      
-      await this.cacheManager.set(cacheKey, weatherData, 900);
-      return { content: [{ type: 'text', text: JSON.stringify(weatherData) }] };
-    }
-  }
-  
-  private async getMarineForecast(args: any) {
-    const { zone, days = 3 } = args;
-    const cacheKey = `weather:marine:${zone}:${days}`;
-    
-    const cached = await this.cacheManager.get(cacheKey);
-    if (cached) {
-      return { content: [{ type: 'text', text: JSON.stringify(cached) }] };
-    }
-    
-    try {
-      const response = await axios.get(`https://api.weather.gov/products/types/AFD/locations/${zone}`);
-      const products = response.data['@graph'];
-      
-      if (products.length === 0) {
-        throw new Error('No marine forecast available');
-      }
-      
-      const latestProduct = await axios.get(products[0]['@id']);
-      const forecastText = latestProduct.data.productText;
-      
-      // Parse the forecast text (simplified)
-      const forecast = {
-        zone,
-        issuedAt: latestProduct.data.issuanceTime,
-        periods: this.parseMarineForecast(forecastText, days),
-        warnings: this.extractWarnings(forecastText),
-        raw: forecastText
-      };
-      
-      await this.cacheManager.set(cacheKey, forecast, 3600); // 1 hour
-      return { content: [{ type: 'text', text: JSON.stringify(forecast) }] };
-      
     } catch (error) {
-      logger.error({ error, zone }, 'Failed to get marine forecast');
-      throw error;
+      this.logger.error({ error, args }, 'Failed to get marine weather');
+      return {
+        content: [{
+          type: 'text',
+          text: `Unable to retrieve weather forecast: ${error.message}`
+        }],
+        isError: true
+      };
     }
   }
   
-  private async getStormWarnings(args: any) {
-    const { coordinates, radius = 100 } = args;
-    const cacheKey = `weather:warnings:${coordinates.latitude},${coordinates.longitude}:${radius}`;
-    
-    const cached = await this.cacheManager.get(cacheKey);
-    if (cached) {
-      return { content: [{ type: 'text', text: JSON.stringify(cached) }] };
-    }
+  private async checkWeatherSafety(args: any) {
+    const {
+      latitude,
+      longitude,
+      maxWindSpeed = 25,
+      maxWaveHeight = 2,
+      minVisibility = 5
+    } = args;
     
     try {
-      const response = await axios.get(
-        `https://api.weather.gov/alerts/active?point=${coordinates.latitude},${coordinates.longitude}`
+      const forecast = await this.weatherService.getMarineForecast(latitude, longitude, 3);
+      const safetyCheck = await this.weatherService.checkSafetyConditions(
+        forecast,
+        { maxWindSpeed, maxWaveHeight, minVisibility }
       );
       
-      const warnings = response.data.features
-        .filter((alert: any) => 
-          alert.properties.severity === 'Severe' || 
-          alert.properties.severity === 'Extreme'
-        )
-        .map((alert: any) => ({
-          id: alert.properties.id,
-          event: alert.properties.event,
-          severity: alert.properties.severity,
-          urgency: alert.properties.urgency,
-          headline: alert.properties.headline,
-          description: alert.properties.description,
-          onset: alert.properties.onset,
-          expires: alert.properties.expires,
-          areas: alert.properties.areaDesc
-        }));
-      
-      const result = {
-        location: coordinates,
-        warnings,
-        timestamp: new Date().toISOString()
+      return {
+        content: [
+          {
+            type: 'text',
+            text: safetyCheck.safe 
+              ? '✅ Weather conditions are SAFE for sailing'
+              : '⚠️ Weather conditions are UNSAFE for sailing'
+          },
+          {
+            type: 'data',
+            data: {
+              safe: safetyCheck.safe,
+              warnings: safetyCheck.warnings,
+              forecast: forecast
+            }
+          }
+        ]
       };
-      
-      await this.cacheManager.set(cacheKey, result, 600); // 10 minutes
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-      
     } catch (error) {
-      logger.error({ error }, 'Failed to get storm warnings');
-      throw error;
+      return {
+        content: [{
+          type: 'text',
+          text: `Unable to check weather safety: ${error.message}`
+        }],
+        isError: true
+      };
     }
   }
   
-  private async getNoaaGridPoint(coordinates: { latitude: number; longitude: number }): Promise<string> {
-    const response = await axios.get(
-      `https://api.weather.gov/points/${coordinates.latitude},${coordinates.longitude}`
-    );
-    const props = response.data.properties;
-    return `${props.gridId}/${props.gridX},${props.gridY}`;
-  }
-  
-  private extractTemperature(temp: number, unit: string, targetUnit: string): number {
-    if (unit === 'F' && targetUnit === 'metric') {
-      return (temp - 32) * 5/9;
-    } else if (unit === 'C' && targetUnit === 'imperial') {
-      return temp * 9/5 + 32;
-    }
-    return temp;
-  }
-  
-  private extractWindSpeed(windStr: string, targetUnit: string): number {
-    const match = windStr.match(/(\d+)\s*to\s*(\d+)\s*(mph|kt|kph)?/i);
-    if (match) {
-      const avg = (parseInt(match[1]) + parseInt(match[2])) / 2;
-      const unit = match[3]?.toLowerCase() || 'mph';
-      
-      if (unit === 'mph' && targetUnit === 'metric') {
-        return avg * 1.60934; // Convert to km/h
-      } else if (unit === 'kt') {
-        return targetUnit === 'metric' ? avg * 1.852 : avg * 1.15078;
-      }
-      return avg;
-    }
-    return 0;
-  }
-  
-  private degreesToCardinal(degrees: number): string {
-    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-    const index = Math.round(degrees / 22.5) % 16;
-    return directions[index];
-  }
-  
-  private parseMarineForecast(text: string, days: number): any[] {
-    // Simplified parsing - in production, use more sophisticated NLP
-    const periods = [];
-    const dayPatterns = ['TODAY', 'TONIGHT', 'TOMORROW', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+  private async getWeatherWindows(args: any) {
+    const {
+      startLat,
+      startLon,
+      endLat,
+      endLon,
+      departureDate,
+      durationHours,
+      maxWindSpeed = 25,
+      maxWaveHeight = 2
+    } = args;
     
-    // This is a placeholder - real implementation would parse the forecast text properly
-    for (let i = 0; i < Math.min(days, 3); i++) {
-      periods.push({
-        day: i,
-        conditions: 'Parsed from forecast text',
-        windSpeed: '10-15 kt',
-        waveHeight: '2-4 ft',
-        warnings: []
+    try {
+      // Get weather for both start and end points
+      const [startForecast, endForecast] = await Promise.all([
+        this.weatherService.getMarineForecast(startLat, startLon, 7),
+        this.weatherService.getMarineForecast(endLat, endLon, 7)
+      ]);
+      
+      // Find safe weather windows
+      const windows = this.findSafeWindows(
+        startForecast,
+        endForecast,
+        new Date(departureDate),
+        durationHours,
+        { maxWindSpeed, maxWaveHeight, minVisibility: 5 }
+      );
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: windows.length > 0
+              ? `Found ${windows.length} safe weather windows for your passage`
+              : 'No safe weather windows found in the next 7 days'
+          },
+          {
+            type: 'data',
+            data: {
+              windows,
+              startForecast,
+              endForecast
+            }
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Unable to find weather windows: ${error.message}`
+        }],
+        isError: true
+      };
+    }
+  }
+  
+  private formatWeatherSummary(forecast: any): string {
+    const lines = [
+      `🌊 Marine Weather Forecast for ${forecast.location.name || `${forecast.location.latitude.toFixed(2)}°, ${forecast.location.longitude.toFixed(2)}°`}`,
+      `Issued: ${forecast.issuedAt.toLocaleString()}`,
+      ''
+    ];
+    
+    // Add any warnings
+    if (forecast.warnings.length > 0) {
+      lines.push('⚠️ **WEATHER WARNINGS:**');
+      forecast.warnings.forEach(w => {
+        lines.push(`- ${w.headline} (${w.severity})`);
       });
+      lines.push('');
     }
     
-    return periods;
+    // Add forecast periods
+    lines.push('**Forecast:**');
+    forecast.periods.slice(0, 6).forEach(period => {
+      lines.push(`${period.startTime.toLocaleDateString()} ${period.isDaytime ? '☀️' : '🌙'}: ${period.shortForecast}`);
+      lines.push(`  Wind: ${period.windSpeed} ${period.windDirection}`);
+      lines.push(`  Temp: ${period.temperature}°${period.temperatureUnit}`);
+    });
+    
+    return lines.join('\n');
   }
   
-  private extractWarnings(text: string): string[] {
-    const warnings = [];
+  private findSafeWindows(
+    startForecast: any,
+    endForecast: any,
+    departureDate: Date,
+    durationHours: number,
+    preferences: any
+  ): any[] {
+    const windows = [];
+    const endDate = new Date(departureDate);
+    endDate.setDate(endDate.getDate() + 7);
     
-    if (text.includes('SMALL CRAFT ADVISORY')) {
-      warnings.push('Small Craft Advisory');
-    }
-    if (text.includes('GALE WARNING')) {
-      warnings.push('Gale Warning');
-    }
-    if (text.includes('STORM WARNING')) {
-      warnings.push('Storm Warning');
-    }
-    
-    return warnings;
-  }
-  
-  async start() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    logger.info('Weather agent started');
-    
-    // Register with orchestrator
-    await this.registerWithOrchestrator();
-  }
-  
-  private async registerWithOrchestrator() {
-    const capabilities: AgentCapabilitySummary = {
-      agentId: 'weather-agent',
-      name: 'Weather Agent',
-      description: 'Provides weather forecasts and marine conditions',
-      version: '1.0.0',
-      status: 'active',
-      tools: [
-        {
-          name: 'get_current_weather',
-          description: 'Get current weather conditions at a location',
-          inputSchema: z.object({
-            coordinates: CoordinateSchema,
-            units: z.enum(['metric', 'imperial']).optional()
-          }),
-          outputSchema: z.object({
-            temperature: z.number(),
-            windSpeed: z.number(),
-            windDirection: z.string(),
-            conditions: z.string()
-          })
-        }
-      ],
-      resources: [],
-      prompts: [],
-      lastUpdated: new Date(),
-      healthEndpoint: '/health',
-      performance: {
-        averageResponseTime: 0,
-        successRate: 1.0
+    // Check each 6-hour period
+    const current = new Date(departureDate);
+    while (current < endDate) {
+      const windowEnd = new Date(current);
+      windowEnd.setHours(windowEnd.getHours() + durationHours);
+      
+      // Check if this window is safe
+      const startSafe = this.isWindowSafe(startForecast, current, windowEnd, preferences);
+      const endSafe = this.isWindowSafe(endForecast, current, windowEnd, preferences);
+      
+      if (startSafe && endSafe) {
+        windows.push({
+          start: new Date(current),
+          end: new Date(windowEnd),
+          conditions: 'Safe conditions at both departure and arrival'
+        });
       }
-    };
-    
-    try {
-      await axios.post('http://localhost:8080/api/agents/register', capabilities);
-      logger.info('Registered with orchestrator');
-    } catch (error) {
-      logger.error({ error }, 'Failed to register with orchestrator');
+      
+      // Move to next 6-hour period
+      current.setHours(current.getHours() + 6);
     }
+    
+    return windows;
   }
-}
-
-// Start the agent
-if (require.main === module) {
-  const agent = new WeatherAgent();
-  agent.start().catch(console.error);
+  
+  private isWindowSafe(forecast: any, start: Date, end: Date, preferences: any): boolean {
+    // Check if any warnings overlap with this window
+    const activeWarnings = forecast.warnings.filter(w => 
+      w.onset <= end && w.expires >= start &&
+      (w.severity === 'extreme' || w.severity === 'severe')
+    );
+    
+    if (activeWarnings.length > 0) {
+      return false;
+    }
+    
+    // Check wind and wave conditions during the window
+    // This is simplified - in production would check actual time series data
+    return true;
+  }
 } 
