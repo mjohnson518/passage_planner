@@ -7,6 +7,8 @@ import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 import { OrchestratorService } from './index';
 import { AuthService, FeatureGate, StripeService } from '@passage-planner/shared';
+import { AuthMiddleware } from './middleware/auth';
+import { AgentManager } from './services/AgentManager';
 import { Pool } from 'pg';
 import { createClient } from 'redis';
 import pino from 'pino';
@@ -27,6 +29,8 @@ export class HttpServer {
   private io: SocketIOServer;
   private orchestrator: OrchestratorService;
   private authService: AuthService;
+  private authMiddleware: AuthMiddleware;
+  private agentManager: AgentManager;
   private stripeService: StripeService;
   private postgres: Pool;
   private redis: any;
@@ -55,6 +59,33 @@ export class HttpServer {
     this.redis = createClient({
       url: process.env.REDIS_URL,
     });
+    
+    this.authMiddleware = new AuthMiddleware(this.authService.verifyToken.bind(this.authService), this.logger);
+    
+    // AgentManager will be initialized after all agents are set up
+    // For now, create a placeholder that returns mock data
+    this.agentManager = {
+      getHealthSummary: async () => ({
+        timestamp: new Date(),
+        total: 6,
+        healthy: 6,
+        unhealthy: 0,
+        starting: 0,
+        maintenance: 0,
+        agents: []
+      }),
+      getAgentStatus: async (agentId: string) => ({
+        id: agentId,
+        status: 'active',
+        uptime: 3600000,
+        restartCount: 0,
+        lastHealthCheck: new Date(),
+        metrics: {}
+      }),
+      restartAgent: async (agentId: string) => {
+        this.logger.info({ agentId }, 'Agent restart requested (mock)');
+      }
+    } as any;
     
     this.setupMiddleware();
     this.setupRoutes();
@@ -253,6 +284,199 @@ export class HttpServer {
         } catch (error) {
           this.logger.error({ error }, 'Webhook processing failed');
           res.status(400).json({ error: 'Webhook error' });
+        }
+      }
+    );
+
+    // Fleet Management Routes (Pro tier only)
+    this.app.post('/api/fleet/create',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const { name, description } = req.body;
+          const userId = req.user!.userId;
+          
+          // Check subscription
+          const subscription = await this.getSubscription(userId);
+          if (!subscription || subscription.tier !== 'pro') {
+            return res.status(403).json({ error: 'Fleet management requires Pro subscription' });
+          }
+          
+          // Check if user already has a fleet
+          const existing = await this.postgres.query(
+            'SELECT id FROM fleets WHERE owner_id = $1',
+            [userId]
+          );
+          
+          if (existing.rows.length > 0) {
+            return res.status(400).json({ error: 'Fleet already exists' });
+          }
+          
+          const result = await this.postgres.query(
+            `INSERT INTO fleets (owner_id, name, description) 
+             VALUES ($1, $2, $3) 
+             RETURNING *`,
+            [userId, name, description]
+          );
+          
+          // Add owner as admin member
+          await this.postgres.query(
+            `INSERT INTO fleet_members (fleet_id, user_id, role) 
+             VALUES ($1, $2, 'admin')`,
+            [result.rows[0].id, userId]
+          );
+          
+          res.json(result.rows[0]);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to create fleet');
+          res.status(500).json({ error: 'Failed to create fleet' });
+        }
+      }
+    );
+
+    this.app.get('/api/fleet',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const userId = req.user!.userId;
+          
+          const result = await this.postgres.query(
+            `SELECT f.*, fm.role 
+             FROM fleets f
+             JOIN fleet_members fm ON f.id = fm.fleet_id
+             WHERE fm.user_id = $1`,
+            [userId]
+          );
+          
+          if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'No fleet found' });
+          }
+          
+          res.json(result.rows[0]);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to get fleet');
+          res.status(500).json({ error: 'Failed to get fleet' });
+        }
+      }
+    );
+
+    this.app.post('/api/fleet/:fleetId/vessels',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const { fleetId } = req.params;
+          const userId = req.user!.userId;
+          const vesselData = req.body;
+          
+          // Verify user has admin access
+          const access = await this.postgres.query(
+            `SELECT role FROM fleet_members 
+             WHERE fleet_id = $1 AND user_id = $2 AND role IN ('admin', 'captain')`,
+            [fleetId, userId]
+          );
+          
+          if (access.rows.length === 0) {
+            return res.status(403).json({ error: 'Access denied' });
+          }
+          
+          const result = await this.postgres.query(
+            `INSERT INTO fleet_vessels (fleet_id, name, type, length, beam, draft, registration, home_port) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+             RETURNING *`,
+            [fleetId, vesselData.name, vesselData.type, vesselData.length, vesselData.beam, 
+             vesselData.draft, vesselData.registration, vesselData.homePort]
+          );
+          
+          res.json(result.rows[0]);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to add vessel');
+          res.status(500).json({ error: 'Failed to add vessel' });
+        }
+      }
+    );
+
+    this.app.get('/api/fleet/:fleetId/analytics',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const { fleetId } = req.params;
+          const userId = req.user!.userId;
+          const { startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), endDate = new Date() } = req.query;
+          
+          // Verify access
+          const access = await this.postgres.query(
+            'SELECT role FROM fleet_members WHERE fleet_id = $1 AND user_id = $2',
+            [fleetId, userId]
+          );
+          
+          if (access.rows.length === 0) {
+            return res.status(403).json({ error: 'Access denied' });
+          }
+          
+          // Get fleet analytics
+          const analytics = await this.postgres.query(
+            `SELECT 
+               COUNT(DISTINCT fp.id) as total_passages,
+               COUNT(DISTINCT fp.vessel_id) as active_vessels,
+               AVG(fp.distance_nm) as avg_distance,
+               SUM(fp.distance_nm) as total_distance,
+               COUNT(DISTINCT fm.user_id) as active_members
+             FROM fleet_passages fp
+             JOIN fleet_members fm ON fm.fleet_id = fp.fleet_id
+             WHERE fp.fleet_id = $1 
+               AND fp.created_at BETWEEN $2 AND $3`,
+            [fleetId, startDate, endDate]
+          );
+          
+          res.json(analytics.rows[0]);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to get analytics');
+          res.status(500).json({ error: 'Failed to get analytics' });
+        }
+      }
+    );
+
+    // Agent Management Routes
+    this.app.get('/api/agents/health', async (req, res) => {
+      try {
+        const health = await this.agentManager.getHealthSummary();
+        res.json(health);
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to get health summary' });
+      }
+    });
+
+    this.app.get('/api/agents/:agentId/status', async (req, res) => {
+      try {
+        const { agentId } = req.params;
+        const status = await this.agentManager.getAgentStatus(agentId);
+        
+        if (!status) {
+          return res.status(404).json({ error: 'Agent not found' });
+        }
+        
+        res.json(status);
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to get agent status' });
+      }
+    });
+
+    this.app.post('/api/agents/:agentId/restart',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const { agentId } = req.params;
+          
+          // Check if user is admin
+          const userRole = await this.getUserRole(req.user!.userId);
+          if (userRole !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+          }
+          
+          await this.agentManager.restartAgent(agentId);
+          res.json({ message: `Agent ${agentId} restart initiated` });
+        } catch (error: any) {
+          res.status(500).json({ error: error.message || 'Failed to restart agent' });
         }
       }
     );
