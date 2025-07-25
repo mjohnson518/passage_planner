@@ -32,6 +32,7 @@
     "@tailwindcss/typography": "^0.5.16",
     "@tanstack/react-query": "^5.83.0",
     "@types/uuid": "^10.0.0",
+    "caniuse-lite": "^1.0.30001727",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.6",
