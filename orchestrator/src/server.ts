@@ -11,6 +11,7 @@ import { AuthMiddleware } from './middleware/auth';
 import { AgentManager } from './services/AgentManager';
 import { Pool } from 'pg';
 import { createClient } from 'redis';
+import * as crypto from 'crypto';
 import pino from 'pino';
 
 // Extend Express Request type
@@ -477,6 +478,144 @@ export class HttpServer {
           res.json({ message: `Agent ${agentId} restart initiated` });
         } catch (error: any) {
           res.status(500).json({ error: error.message || 'Failed to restart agent' });
+        }
+      }
+    );
+
+    // API Key Management
+    this.app.get('/api/user/api-key',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const userId = req.user!.userId;
+          
+          const result = await this.postgres.query(
+            'SELECT key FROM api_keys WHERE user_id = $1 AND active = true',
+            [userId]
+          );
+          
+          if (result.rows.length > 0) {
+            res.json({ apiKey: result.rows[0].key });
+          } else {
+            res.json({ apiKey: null });
+          }
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to fetch API key');
+          res.status(500).json({ error: 'Failed to fetch API key' });
+        }
+      }
+    );
+
+    this.app.post('/api/user/api-key/generate',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const userId = req.user!.userId;
+          
+          // Check subscription
+          const subscription = await this.getSubscription(userId);
+          if (!subscription || (subscription.tier !== 'pro' && subscription.tier !== 'enterprise')) {
+            return res.status(403).json({ error: 'API access requires Pro subscription' });
+          }
+          
+          // Deactivate existing keys
+          await this.postgres.query(
+            'UPDATE api_keys SET active = false WHERE user_id = $1',
+            [userId]
+          );
+          
+          // Generate new key
+          const apiKey = `pk_${Buffer.from(crypto.randomBytes(32)).toString('hex')}`;
+          
+          await this.postgres.query(
+            `INSERT INTO api_keys (user_id, key, name, scopes, rate_limit) 
+             VALUES ($1, $2, $3, $4, $5)`,
+            [userId, apiKey, 'Primary API Key', ['read', 'write'], 1000]
+          );
+          
+          res.json({ apiKey });
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to generate API key');
+          res.status(500).json({ error: 'Failed to generate API key' });
+        }
+      }
+    );
+
+    // Admin Routes
+    this.app.get('/api/admin/verify',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const userId = req.user!.userId;
+          
+          const result = await this.postgres.query(
+            'SELECT id, email, role, subscription_tier FROM users WHERE id = $1',
+            [userId]
+          );
+          
+          if (result.rows.length === 0 || result.rows[0].role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+          }
+          
+          res.json({ user: result.rows[0] });
+        } catch (error) {
+          res.status(500).json({ error: 'Failed to verify admin access' });
+        }
+      }
+    );
+
+    this.app.get('/api/admin/metrics/overview',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          // Mock data for now - would integrate with real metrics
+          const metrics = {
+            revenue: {
+              mrr: 12500,
+              arr: 150000,
+              growth: 15.5,
+              churn: 2.1
+            },
+            users: {
+              total: 450,
+              paid: 125,
+              trial: 45,
+              active: 320,
+              newThisMonth: 38,
+              churnedThisMonth: 5
+            },
+            usage: {
+              passagesPlanned: 1250,
+              apiCallsToday: 8500,
+              activeAgents: 6,
+              avgResponseTime: 245
+            },
+            health: {
+              uptime: 99.95,
+              errorRate: 0.12,
+              queueDepth: 15
+            }
+          };
+          
+          const revenueChart = [
+            { month: 'Jan', mrr: 8000, arr: 96000 },
+            { month: 'Feb', mrr: 9200, arr: 110400 },
+            { month: 'Mar', mrr: 10500, arr: 126000 },
+            { month: 'Apr', mrr: 11800, arr: 141600 },
+            { month: 'May', mrr: 12500, arr: 150000 }
+          ];
+          
+          const userChart = [
+            { month: 'Jan', new: 25, churned: 3 },
+            { month: 'Feb', new: 32, churned: 4 },
+            { month: 'Mar', new: 28, churned: 2 },
+            { month: 'Apr', new: 35, churned: 6 },
+            { month: 'May', new: 38, churned: 5 }
+          ];
+          
+          res.json({ metrics, revenueChart, userChart });
+        } catch (error) {
+          res.status(500).json({ error: 'Failed to fetch metrics' });
         }
       }
     );

@@ -1,0 +1,85 @@
+{
+  "zone": "passageplanner.ai",
+  "cdn_settings": {
+    "cache_level": "aggressive",
+    "browser_cache_ttl": 14400,
+    "always_online": "on",
+    "development_mode": "off",
+    "minify": {
+      "css": true,
+      "html": true,
+      "js": true
+    },
+    "polish": "lossless",
+    "webp": true,
+    "mirage": true,
+    "rocket_loader": true,
+    "auto_minify": true
+  },
+  "page_rules": [
+    {
+      "target": "*.passageplanner.ai/api/*",
+      "actions": {
+        "cache_level": "bypass",
+        "disable_apps": true,
+        "disable_performance": true
+      }
+    },
+    {
+      "target": "*.passageplanner.ai/_next/static/*",
+      "actions": {
+        "cache_level": "cache_everything",
+        "edge_cache_ttl": 31536000,
+        "browser_cache_ttl": 31536000
+      }
+    },
+    {
+      "target": "*.passageplanner.ai/images/*",
+      "actions": {
+        "cache_level": "cache_everything",
+        "edge_cache_ttl": 2678400,
+        "browser_cache_ttl": 2678400,
+        "polish": "lossless",
+        "format": "auto"
+      }
+    }
+  ],
+  "workers": {
+    "routes": [
+      {
+        "pattern": "api.passageplanner.ai/*",
+        "script": "api-router"
+      },
+      {
+        "pattern": "cdn.passageplanner.ai/*",
+        "script": "asset-optimizer"
+      }
+    ]
+  },
+  "argo": {
+    "smart_routing": true,
+    "tiered_caching": true
+  },
+  "firewall_rules": [
+    {
+      "description": "Block bad bots",
+      "expression": "(cf.client.bot) and not (cf.verified_bot)",
+      "action": "block"
+    },
+    {
+      "description": "Rate limit API",
+      "expression": "http.request.uri.path contains \"/api/\" and rate(1min) > 100",
+      "action": "challenge"
+    }
+  ],
+  "ssl": {
+    "mode": "full_strict",
+    "min_tls_version": "1.2",
+    "opportunistic_encryption": "on",
+    "automatic_https_rewrites": "on"
+  },
+  "analytics": {
+    "web_analytics": true,
+    "rum": true
+  }
+} 

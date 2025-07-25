@@ -51,7 +51,7 @@ export class RateLimiter {
       multi.expire(key, Math.ceil(options.windowMs / 1000));
       
       const results = await multi.exec();
-      const count = results[1] as number;
+      const count = Number(results[1]);
       
       const allowed = count < options.max;
       const remaining = Math.max(0, options.max - count - 1);

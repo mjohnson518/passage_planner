@@ -1,410 +1,440 @@
-import { EventEmitter } from 'events'
-import { spawn, ChildProcess } from 'child_process'
-import { Logger } from 'pino'
-import WebSocket from 'ws'
-import path from 'path'
-import fs from 'fs/promises'
+import { EventEmitter } from 'events';
+import { Logger } from 'pino';
+import { ChildProcess, spawn } from 'child_process';
+import { AgentCapabilitySummary, AgentStatus } from '../../shared/src/types/core';
+import { createClient, RedisClientType } from 'redis';
 
-interface AgentConfig {
-  name: string
-  path: string
-  command: string
-  args?: string[]
-  env?: Record<string, string>
-  healthCheckUrl?: string
-  healthCheckInterval?: number
-  maxRestarts?: number
-  restartDelay?: number
+interface AgentProcess {
+  id: string;
+  process: ChildProcess;
+  config: AgentConfig;
+  status: AgentStatus;
+  lastHealthCheck: Date;
+  restartCount: number;
+  startTime: Date;
 }
 
-interface AgentInstance {
-  config: AgentConfig
-  process?: ChildProcess
-  status: 'stopped' | 'starting' | 'running' | 'crashed' | 'stopping'
-  restartCount: number
-  lastStartTime?: Date
-  lastHealthCheck?: Date
-  healthStatus?: any
-  ws?: WebSocket
+interface AgentConfig {
+  id: string;
+  name: string;
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+  healthCheckInterval: number;
+  healthCheckTimeout: number;
+  maxRestarts: number;
+  restartDelay: number;
+}
+
+interface HealthCheckResult {
+  agentId: string;
+  status: 'healthy' | 'unhealthy' | 'timeout';
+  responseTime?: number;
+  error?: string;
+  metrics?: {
+    cpu: number;
+    memory: number;
+    requestsProcessed: number;
+    averageResponseTime: number;
+  };
 }
 
 export class AgentManager extends EventEmitter {
-  private agents: Map<string, AgentInstance> = new Map()
-  private logger: Logger
-  private healthCheckIntervals: Map<string, NodeJS.Timeout> = new Map()
-  private isShuttingDown = false
+  private agents: Map<string, AgentProcess> = new Map();
+  private healthCheckIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private redis: RedisClientType;
+  private logger: Logger;
+  private isShuttingDown = false;
 
-  constructor(logger: Logger) {
-    super()
-    this.logger = logger.child({ component: 'AgentManager' })
+  constructor(redis: RedisClientType, logger: Logger) {
+    super();
+    this.redis = redis;
+    this.logger = logger.child({ component: 'AgentManager' });
+  }
+
+  async initialize(agentConfigs: AgentConfig[]) {
+    this.logger.info(`Initializing ${agentConfigs.length} agents`);
     
-    // Handle process signals
-    process.on('SIGINT', () => this.shutdown())
-    process.on('SIGTERM', () => this.shutdown())
+    for (const config of agentConfigs) {
+      await this.startAgent(config);
+    }
+
+    // Start monitoring
+    this.startGlobalHealthMonitoring();
   }
 
-  /**
-   * Register an agent for management
-   */
-  async registerAgent(config: AgentConfig) {
-    if (this.agents.has(config.name)) {
-      throw new Error(`Agent ${config.name} is already registered`)
-    }
-
-    const agent: AgentInstance = {
-      config,
-      status: 'stopped',
-      restartCount: 0,
-    }
-
-    this.agents.set(config.name, agent)
-    this.logger.info({ agent: config.name }, 'Agent registered')
-  }
-
-  /**
-   * Start an agent
-   */
-  async startAgent(name: string): Promise<void> {
-    const agent = this.agents.get(name)
-    if (!agent) {
-      throw new Error(`Agent ${name} not found`)
-    }
-
-    if (agent.status === 'running' || agent.status === 'starting') {
-      this.logger.warn({ agent: name }, 'Agent is already running or starting')
-      return
-    }
-
-    agent.status = 'starting'
-    agent.lastStartTime = new Date()
-
+  private async startAgent(config: AgentConfig): Promise<void> {
     try {
-      // Spawn the agent process
-      const agentPath = path.resolve(agent.config.path)
-      const args = agent.config.args || []
-      
-      this.logger.info({ agent: name, path: agentPath }, 'Starting agent process')
-      
-      agent.process = spawn(agent.config.command, [...args, agentPath], {
-        env: {
-          ...process.env,
-          ...agent.config.env,
-          NODE_ENV: process.env.NODE_ENV || 'production',
-        },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
+      this.logger.info({ agentId: config.id }, 'Starting agent');
 
-      // Handle process output
-      agent.process.stdout?.on('data', (data) => {
-        this.logger.debug({ agent: name, output: data.toString() }, 'Agent stdout')
-      })
+      const env = {
+        ...process.env,
+        ...config.env,
+        AGENT_ID: config.id,
+        ORCHESTRATOR_URL: process.env.ORCHESTRATOR_URL || 'http://localhost:8080',
+      };
 
-      agent.process.stderr?.on('data', (data) => {
-        this.logger.error({ agent: name, error: data.toString() }, 'Agent stderr')
-      })
+      const agentProcess = spawn(config.command, config.args, {
+        env,
+        stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+      });
 
-      // Handle process exit
-      agent.process.on('exit', (code, signal) => {
-        this.handleAgentExit(name, code, signal)
-      })
+      const agent: AgentProcess = {
+        id: config.id,
+        process: agentProcess,
+        config,
+        status: 'starting',
+        lastHealthCheck: new Date(),
+        restartCount: 0,
+        startTime: new Date(),
+      };
 
-      agent.process.on('error', (error) => {
-        this.logger.error({ agent: name, error }, 'Agent process error')
-        agent.status = 'crashed'
-      })
+      this.agents.set(config.id, agent);
 
-      // Wait a bit for the process to stabilize
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Handle process events
+      agentProcess.on('error', (error) => {
+        this.logger.error({ agentId: config.id, error }, 'Agent process error');
+        this.handleAgentFailure(config.id);
+      });
 
-      if (agent.process && !agent.process.killed) {
-        agent.status = 'running'
-        this.logger.info({ agent: name, pid: agent.process.pid }, 'Agent started successfully')
-        
-        // Start health checks if configured
-        if (agent.config.healthCheckInterval) {
-          this.startHealthChecks(name)
-        }
-
-        // Set up WebSocket connection for real-time communication
-        if (agent.config.healthCheckUrl) {
-          this.connectWebSocket(name)
-        }
-
-        this.emit('agent:started', { name, pid: agent.process.pid })
-      } else {
-        throw new Error('Agent process died immediately after starting')
-      }
-    } catch (error) {
-      agent.status = 'crashed'
-      this.logger.error({ agent: name, error }, 'Failed to start agent')
-      throw error
-    }
-  }
-
-  /**
-   * Stop an agent
-   */
-  async stopAgent(name: string, force = false): Promise<void> {
-    const agent = this.agents.get(name)
-    if (!agent || !agent.process) {
-      return
-    }
-
-    agent.status = 'stopping'
-    this.stopHealthChecks(name)
-
-    // Close WebSocket
-    if (agent.ws) {
-      agent.ws.close()
-      agent.ws = undefined
-    }
-
-    // Try graceful shutdown first
-    if (!force) {
-      agent.process.kill('SIGTERM')
-      
-      // Wait for graceful shutdown
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => {
-          if (agent.process && !agent.process.killed) {
-            this.logger.warn({ agent: name }, 'Agent did not stop gracefully, forcing')
-            agent.process.kill('SIGKILL')
-          }
-          resolve()
-        }, 10000) // 10 second grace period
-
-        agent.process!.once('exit', () => {
-          clearTimeout(timeout)
-          resolve()
-        })
-      })
-    } else {
-      agent.process.kill('SIGKILL')
-    }
-
-    agent.status = 'stopped'
-    agent.process = undefined
-    this.logger.info({ agent: name }, 'Agent stopped')
-    this.emit('agent:stopped', { name })
-  }
-
-  /**
-   * Restart an agent
-   */
-  async restartAgent(name: string): Promise<void> {
-    await this.stopAgent(name)
-    await new Promise(resolve => setTimeout(resolve, 1000)) // Brief pause
-    await this.startAgent(name)
-  }
-
-  /**
-   * Handle agent process exit
-   */
-  private async handleAgentExit(name: string, code: number | null, signal: string | null) {
-    const agent = this.agents.get(name)
-    if (!agent) return
-
-    this.stopHealthChecks(name)
-    
-    if (agent.ws) {
-      agent.ws.close()
-      agent.ws = undefined
-    }
-
-    if (this.isShuttingDown || agent.status === 'stopping') {
-      agent.status = 'stopped'
-      return
-    }
-
-    agent.status = 'crashed'
-    this.logger.error(
-      { agent: name, code, signal },
-      'Agent process exited unexpectedly'
-    )
-
-    this.emit('agent:crashed', { name, code, signal })
-
-    // Auto-restart if configured
-    const maxRestarts = agent.config.maxRestarts || 3
-    const restartDelay = agent.config.restartDelay || 5000
-
-    if (agent.restartCount < maxRestarts) {
-      agent.restartCount++
-      this.logger.info(
-        { agent: name, attempt: agent.restartCount, maxRestarts },
-        'Attempting to restart agent'
-      )
-
-      setTimeout(() => {
+      agentProcess.on('exit', (code, signal) => {
+        this.logger.warn({ agentId: config.id, code, signal }, 'Agent process exited');
         if (!this.isShuttingDown) {
-          this.startAgent(name).catch((error) => {
-            this.logger.error({ agent: name, error }, 'Failed to restart agent')
-          })
+          this.handleAgentFailure(config.id);
         }
-      }, restartDelay)
-    } else {
-      this.logger.error(
-        { agent: name, restartCount: agent.restartCount },
-        'Agent exceeded maximum restart attempts'
-      )
-      this.emit('agent:failed', { name })
+      });
+
+      // Handle stdout/stderr
+      agentProcess.stdout?.on('data', (data) => {
+        this.logger.debug({ agentId: config.id, output: data.toString() }, 'Agent stdout');
+      });
+
+      agentProcess.stderr?.on('data', (data) => {
+        this.logger.error({ agentId: config.id, error: data.toString() }, 'Agent stderr');
+      });
+
+      // Handle IPC messages
+      agentProcess.on('message', (message: any) => {
+        this.handleAgentMessage(config.id, message);
+      });
+
+      // Start health monitoring for this agent
+      this.startHealthMonitoring(config.id);
+
+      // Wait for agent to be ready
+      await this.waitForAgentReady(config.id, 30000);
+
+      this.logger.info({ agentId: config.id }, 'Agent started successfully');
+      this.emit('agent:started', config.id);
+
+    } catch (error) {
+      this.logger.error({ agentId: config.id, error }, 'Failed to start agent');
+      throw error;
     }
   }
 
-  /**
-   * Start health checks for an agent
-   */
-  private startHealthChecks(name: string) {
-    const agent = this.agents.get(name)
-    if (!agent || !agent.config.healthCheckInterval) return
+  private async waitForAgentReady(agentId: string, timeout: number): Promise<void> {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeout) {
+      const health = await this.checkAgentHealth(agentId);
+      
+      if (health.status === 'healthy') {
+        const agent = this.agents.get(agentId);
+        if (agent) {
+          agent.status = 'active';
+        }
+        return;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    throw new Error(`Agent ${agentId} failed to become ready within ${timeout}ms`);
+  }
+
+  private startHealthMonitoring(agentId: string) {
+    const agent = this.agents.get(agentId);
+    if (!agent) return;
 
     const interval = setInterval(async () => {
-      try {
-        const health = await this.checkAgentHealth(name)
-        agent.lastHealthCheck = new Date()
-        agent.healthStatus = health
-
-        if (health.status === 'unhealthy') {
-          this.logger.warn({ agent: name, health }, 'Agent is unhealthy')
-          this.emit('agent:unhealthy', { name, health })
-          
-          // Restart if critically unhealthy
-          if (health.critical) {
-            this.logger.error({ agent: name }, 'Agent is critically unhealthy, restarting')
-            await this.restartAgent(name)
+      const health = await this.checkAgentHealth(agentId);
+      
+      if (health.status !== 'healthy') {
+        this.logger.warn({ agentId, health }, 'Agent health check failed');
+        
+        const currentAgent = this.agents.get(agentId);
+        if (currentAgent) {
+          currentAgent.status = 'error';
+        }
+        
+        // Trigger recovery
+        this.handleAgentFailure(agentId);
+      } else {
+        // Update metrics
+        if (health.metrics) {
+          await this.updateAgentMetrics(agentId, health.metrics);
+        }
+        
+        const currentAgent = this.agents.get(agentId);
+        if (currentAgent) {
+          currentAgent.lastHealthCheck = new Date();
+          if (currentAgent.status !== 'active') {
+            currentAgent.status = 'active';
+            this.emit('agent:recovered', agentId);
           }
         }
-      } catch (error) {
-        this.logger.error({ agent: name, error }, 'Health check failed')
       }
-    }, agent.config.healthCheckInterval)
+    }, agent.config.healthCheckInterval);
 
-    this.healthCheckIntervals.set(name, interval)
+    this.healthCheckIntervals.set(agentId, interval);
   }
 
-  /**
-   * Stop health checks for an agent
-   */
-  private stopHealthChecks(name: string) {
-    const interval = this.healthCheckIntervals.get(name)
+  private async checkAgentHealth(agentId: string): Promise<HealthCheckResult> {
+    const agent = this.agents.get(agentId);
+    if (!agent) {
+      return { agentId, status: 'unhealthy', error: 'Agent not found' };
+    }
+
+    try {
+      // Send health check via IPC
+      const startTime = Date.now();
+      
+      const healthPromise = new Promise<HealthCheckResult>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Health check timeout'));
+        }, agent.config.healthCheckTimeout);
+
+        const messageHandler = (message: any) => {
+          if (message.type === 'health-response') {
+            clearTimeout(timeout);
+            agent.process.removeListener('message', messageHandler);
+            
+            resolve({
+              agentId,
+              status: 'healthy',
+              responseTime: Date.now() - startTime,
+              metrics: message.metrics,
+            });
+          }
+        };
+
+        agent.process.on('message', messageHandler);
+        agent.process.send({ type: 'health-check' });
+      });
+
+      return await healthPromise;
+    } catch (error) {
+      return {
+        agentId,
+        status: 'timeout',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  private async handleAgentFailure(agentId: string) {
+    const agent = this.agents.get(agentId);
+    if (!agent || this.isShuttingDown) return;
+
+    this.logger.error({ agentId }, 'Handling agent failure');
+    
+    // Stop health monitoring
+    const interval = this.healthCheckIntervals.get(agentId);
     if (interval) {
-      clearInterval(interval)
-      this.healthCheckIntervals.delete(name)
-    }
-  }
-
-  /**
-   * Check agent health
-   */
-  private async checkAgentHealth(name: string): Promise<any> {
-    const agent = this.agents.get(name)
-    if (!agent || !agent.config.healthCheckUrl) {
-      return { status: 'unknown' }
+      clearInterval(interval);
+      this.healthCheckIntervals.delete(agentId);
     }
 
-    try {
-      const response = await fetch(agent.config.healthCheckUrl)
-      if (!response.ok) {
-        return { status: 'unhealthy', error: `HTTP ${response.status}` }
-      }
-      return await response.json()
-    } catch (error) {
-      return { status: 'unhealthy', error: error.message, critical: true }
-    }
-  }
-
-  /**
-   * Connect WebSocket for real-time agent communication
-   */
-  private connectWebSocket(name: string) {
-    const agent = this.agents.get(name)
-    if (!agent || !agent.config.healthCheckUrl) return
-
-    try {
-      const wsUrl = agent.config.healthCheckUrl.replace('http', 'ws')
-      agent.ws = new WebSocket(wsUrl)
-
-      agent.ws.on('open', () => {
-        this.logger.info({ agent: name }, 'WebSocket connected')
-      })
-
-      agent.ws.on('message', (data) => {
-        try {
-          const message = JSON.parse(data.toString())
-          this.emit('agent:message', { name, message })
-        } catch (error) {
-          this.logger.error({ agent: name, error }, 'Failed to parse WebSocket message')
+    // Kill the process if still running
+    if (!agent.process.killed) {
+      agent.process.kill('SIGTERM');
+      
+      // Force kill after 5 seconds
+      setTimeout(() => {
+        if (!agent.process.killed) {
+          agent.process.kill('SIGKILL');
         }
-      })
-
-      agent.ws.on('error', (error) => {
-        this.logger.error({ agent: name, error }, 'WebSocket error')
-      })
-
-      agent.ws.on('close', () => {
-        this.logger.info({ agent: name }, 'WebSocket disconnected')
-      })
-    } catch (error) {
-      this.logger.error({ agent: name, error }, 'Failed to connect WebSocket')
+      }, 5000);
     }
-  }
 
-  /**
-   * Get status of all agents
-   */
-  getAgentsStatus(): Record<string, any> {
-    const status: Record<string, any> = {}
-    
-    for (const [name, agent] of this.agents) {
-      status[name] = {
-        status: agent.status,
-        restartCount: agent.restartCount,
-        lastStartTime: agent.lastStartTime,
-        lastHealthCheck: agent.lastHealthCheck,
-        healthStatus: agent.healthStatus,
-        pid: agent.process?.pid,
+    // Check restart count
+    if (agent.restartCount >= agent.config.maxRestarts) {
+      this.logger.error(
+        { agentId, restartCount: agent.restartCount },
+        'Agent exceeded max restart attempts'
+      );
+      agent.status = 'maintenance';
+      this.emit('agent:failed', agentId);
+      return;
+    }
+
+    // Schedule restart
+    agent.restartCount++;
+    this.logger.info(
+      { agentId, restartCount: agent.restartCount, delay: agent.config.restartDelay },
+      'Scheduling agent restart'
+    );
+
+    setTimeout(async () => {
+      try {
+        await this.startAgent(agent.config);
+        this.emit('agent:restarted', agentId);
+      } catch (error) {
+        this.logger.error({ agentId, error }, 'Failed to restart agent');
+        this.emit('agent:failed', agentId);
       }
+    }, agent.config.restartDelay);
+  }
+
+  private handleAgentMessage(agentId: string, message: any) {
+    switch (message.type) {
+      case 'capability-update':
+        this.emit('agent:capability-update', agentId, message.capabilities);
+        break;
+      
+      case 'metrics':
+        this.updateAgentMetrics(agentId, message.data);
+        break;
+      
+      case 'log':
+        this.logger[message.level || 'info']({ agentId, ...message.data }, message.message);
+        break;
+      
+      default:
+        this.logger.debug({ agentId, message }, 'Received agent message');
     }
-    
-    return status
   }
 
-  /**
-   * Start all registered agents
-   */
-  async startAll(): Promise<void> {
-    const promises = Array.from(this.agents.keys()).map(name => 
-      this.startAgent(name).catch(error => {
-        this.logger.error({ agent: name, error }, 'Failed to start agent')
-      })
-    )
-    
-    await Promise.all(promises)
+  private async updateAgentMetrics(agentId: string, metrics: any) {
+    try {
+      await this.redis.hSet(
+        `agent:metrics:${agentId}`,
+        {
+          ...metrics,
+          lastUpdated: new Date().toISOString(),
+        }
+      );
+      
+      // Set expiry
+      await this.redis.expire(`agent:metrics:${agentId}`, 300); // 5 minutes
+      
+      this.emit('agent:metrics', agentId, metrics);
+    } catch (error) {
+      this.logger.error({ agentId, error }, 'Failed to update agent metrics');
+    }
   }
 
-  /**
-   * Graceful shutdown
-   */
-  async shutdown(): Promise<void> {
-    if (this.isShuttingDown) return
+  private startGlobalHealthMonitoring() {
+    // Monitor overall system health every 30 seconds
+    setInterval(async () => {
+      const summary = await this.getHealthSummary();
+      
+      this.logger.info(
+        {
+          totalAgents: summary.total,
+          healthyAgents: summary.healthy,
+          unhealthyAgents: summary.unhealthy,
+        },
+        'System health check'
+      );
+      
+      this.emit('system:health', summary);
+      
+      // Store in Redis for monitoring
+      await this.redis.set(
+        'system:health',
+        JSON.stringify(summary),
+        { EX: 60 }
+      );
+    }, 30000);
+  }
+
+  async getHealthSummary() {
+    const agents = Array.from(this.agents.values());
     
-    this.isShuttingDown = true
-    this.logger.info('Shutting down agent manager...')
+    return {
+      timestamp: new Date(),
+      total: agents.length,
+      healthy: agents.filter(a => a.status === 'active').length,
+      unhealthy: agents.filter(a => a.status === 'error').length,
+      starting: agents.filter(a => a.status === 'starting').length,
+      maintenance: agents.filter(a => a.status === 'maintenance').length,
+      agents: agents.map(a => ({
+        id: a.id,
+        status: a.status,
+        uptime: Date.now() - a.startTime.getTime(),
+        restartCount: a.restartCount,
+        lastHealthCheck: a.lastHealthCheck,
+      })),
+    };
+  }
+
+  async getAgentStatus(agentId: string): Promise<any> {
+    const agent = this.agents.get(agentId);
+    if (!agent) return null;
+
+    const metrics = await this.redis.hGetAll(`agent:metrics:${agentId}`);
     
+    return {
+      id: agent.id,
+      status: agent.status,
+      uptime: Date.now() - agent.startTime.getTime(),
+      restartCount: agent.restartCount,
+      lastHealthCheck: agent.lastHealthCheck,
+      metrics,
+    };
+  }
+
+  async restartAgent(agentId: string): Promise<void> {
+    const agent = this.agents.get(agentId);
+    if (!agent) {
+      throw new Error(`Agent ${agentId} not found`);
+    }
+
+    this.logger.info({ agentId }, 'Manual agent restart requested');
+    
+    // Reset restart count for manual restart
+    agent.restartCount = 0;
+    
+    await this.handleAgentFailure(agentId);
+  }
+
+  async shutdown() {
+    this.logger.info('Shutting down Agent Manager');
+    this.isShuttingDown = true;
+
     // Stop all health checks
-    for (const name of this.healthCheckIntervals.keys()) {
-      this.stopHealthChecks(name)
+    for (const interval of this.healthCheckIntervals.values()) {
+      clearInterval(interval);
     }
+    this.healthCheckIntervals.clear();
+
+    // Gracefully shutdown all agents
+    const shutdownPromises = Array.from(this.agents.values()).map(async (agent) => {
+      try {
+        agent.process.send({ type: 'shutdown' });
+        
+        // Wait for graceful shutdown
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            agent.process.kill('SIGKILL');
+            resolve();
+          }, 10000);
+
+          agent.process.once('exit', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+        });
+      } catch (error) {
+        this.logger.error({ agentId: agent.id, error }, 'Error during agent shutdown');
+      }
+    });
+
+    await Promise.all(shutdownPromises);
+    this.agents.clear();
     
-    // Stop all agents
-    const promises = Array.from(this.agents.keys()).map(name => 
-      this.stopAgent(name, false).catch(error => {
-        this.logger.error({ agent: name, error }, 'Error stopping agent')
-      })
-    )
-    
-    await Promise.all(promises)
-    
-    this.emit('shutdown')
+    this.logger.info('Agent Manager shutdown complete');
   }
 } 

@@ -1,42 +1,82 @@
-export const AGENT_CONFIGS = [
+export const agentConfigs = [
   {
-    name: 'weather',
-    path: './agents/weather/dist/index.js',
+    id: 'weather-agent',
+    name: 'Weather Agent',
     command: 'node',
-    healthCheckUrl: 'http://localhost:3001/health',
+    args: ['./agents/weather/dist/index.js'],
+    env: {
+      NOAA_API_KEY: process.env.NOAA_API_KEY!,
+      OPENWEATHER_API_KEY: process.env.OPENWEATHER_API_KEY!,
+    },
     healthCheckInterval: 30000, // 30 seconds
+    healthCheckTimeout: 5000, // 5 seconds
     maxRestarts: 3,
-    restartDelay: 5000,
-    env: {
-      PORT: '3001',
-      NOAA_API_KEY: process.env.NOAA_API_KEY,
-      OPENWEATHER_API_KEY: process.env.OPENWEATHER_API_KEY,
-    }
+    restartDelay: 5000, // 5 seconds
   },
   {
-    name: 'tidal',
-    path: './agents/tidal/dist/index.js',
+    id: 'tidal-agent',
+    name: 'Tidal Agent',
     command: 'node',
-    healthCheckUrl: 'http://localhost:3002/health',
+    args: ['./agents/tidal/dist/index.js'],
+    env: {
+      NOAA_API_KEY: process.env.NOAA_API_KEY!,
+    },
     healthCheckInterval: 30000,
+    healthCheckTimeout: 5000,
     maxRestarts: 3,
     restartDelay: 5000,
-    env: {
-      PORT: '3002',
-      NOAA_TIDES_API_KEY: process.env.NOAA_TIDES_API_KEY,
-    }
   },
   {
-    name: 'port',
-    path: './agents/port/dist/index.js',
+    id: 'port-agent',
+    name: 'Port Agent',
     command: 'node',
-    healthCheckUrl: 'http://localhost:3003/health',
+    args: ['./agents/port/dist/index.js'],
+    env: {
+      DATABASE_URL: process.env.DATABASE_URL!,
+    },
     healthCheckInterval: 30000,
+    healthCheckTimeout: 5000,
     maxRestarts: 3,
     restartDelay: 5000,
+  },
+  {
+    id: 'safety-agent',
+    name: 'Safety Agent',
+    command: 'node',
+    args: ['./agents/safety/dist/index.js'],
     env: {
-      PORT: '3003',
-      NAVIONICS_API_KEY: process.env.NAVIONICS_API_KEY,
-    }
-  }
-] 
+      USCG_API_KEY: process.env.USCG_API_KEY!,
+    },
+    healthCheckInterval: 30000,
+    healthCheckTimeout: 5000,
+    maxRestarts: 3,
+    restartDelay: 5000,
+  },
+  {
+    id: 'route-agent',
+    name: 'Route Agent',
+    command: 'node',
+    args: ['./agents/route/dist/index.js'],
+    env: {
+      OPENSEA_MAP_API_KEY: process.env.OPENSEA_MAP_API_KEY!,
+    },
+    healthCheckInterval: 30000,
+    healthCheckTimeout: 5000,
+    maxRestarts: 3,
+    restartDelay: 5000,
+  },
+  {
+    id: 'wind-agent',
+    name: 'Wind Agent',
+    command: 'node',
+    args: ['./agents/wind/dist/index.js'],
+    env: {
+      WINDFINDER_API_KEY: process.env.WINDFINDER_API_KEY!,
+      NOAA_API_KEY: process.env.NOAA_API_KEY!,
+    },
+    healthCheckInterval: 30000,
+    healthCheckTimeout: 5000,
+    maxRestarts: 3,
+    restartDelay: 5000,
+  },
+]; 

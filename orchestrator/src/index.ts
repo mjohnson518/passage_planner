@@ -1,14 +1,14 @@
 // orchestrator/src/index.ts
 // Complete Orchestrator Implementation
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
 import { 
   CallToolRequestSchema,
   ListToolsRequestSchema,
   McpError,
   ErrorCode 
-} from '@modelcontextprotocol/sdk/types.js';
+} from '@modelcontextprotocol/sdk/types';
 import { createClient, RedisClientType } from 'redis';
 import { Pool } from 'pg';
 import { EventEmitter } from 'events';

@@ -4,7 +4,7 @@ import pino from 'pino';
 import { 
   CallToolRequestSchema,
   ListToolsRequestSchema 
-} from '@modelcontextprotocol/sdk/types.js';
+} from '@modelcontextprotocol/sdk/types';
 
 export class TidalAgent extends BaseAgent {
   private tidalService: NOAATidalService;
