@@ -16,14 +16,14 @@ import { Checkbox } from '../ui/checkbox'
 import { ScrollArea } from '../ui/scroll-area'
 import { Share2, Route, Calendar, Ship, Users } from 'lucide-react'
 import { toast } from 'sonner'
-import type { FleetVessel, FleetMember } from '@passage-planner/shared'
+import type { FleetVessel, CrewMember } from '@passage-planner/shared'
 
 interface SharePassageDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   fleetId: string
   vessels: FleetVessel[]
-  members: FleetMember[]
+  members: CrewMember[]
 }
 
 interface UserPassage {
@@ -196,7 +196,7 @@ export function SharePassageDialog({
                         }}
                       />
                       <Label htmlFor={`vessel-${vessel.id}`} className="font-normal cursor-pointer">
-                        {vessel.name} ({vessel.type})
+                        {vessel.name} {vessel.callSign && `(${vessel.callSign})`}
                       </Label>
                     </div>
                   ))}

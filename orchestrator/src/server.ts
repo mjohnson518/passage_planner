@@ -227,13 +227,24 @@ export class HttpServer {
           // Track usage
           await this.trackUsage(req.user.id, 'passage_planned');
           
-          // TODO: Implement orchestrator tool call handling
-          const result = {
-            success: false,
-            message: 'Tool call functionality not yet implemented'
-          };
-          
-          res.json(result);
+          // Orchestrate the passage planning request through agents
+          try {
+            const result = await this.orchestrator.handleRequest({
+              tool: tool,
+              arguments: args
+            });
+            
+            res.json({
+              success: true,
+              result: result
+            });
+          } catch (error: any) {
+            this.logger.error({ error, tool, args }, 'Orchestration failed');
+            res.json({
+              success: false,
+              error: error.message || 'Failed to process request'
+            });
+          }
         } catch (error) {
           this.logger.error({ error }, 'Tool call failed');
           res.status(500).json({ error: 'Tool call failed' });

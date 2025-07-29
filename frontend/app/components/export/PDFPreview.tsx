@@ -13,7 +13,7 @@ interface PDFPreviewProps {
   onClose?: () => void
 }
 
-export function PDFPreview({ passage, onClose }: PDFPreviewProps) {
+export default function PDFPreview({ passage, onClose }: PDFPreviewProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [pageCount, setPageCount] = useState(0)

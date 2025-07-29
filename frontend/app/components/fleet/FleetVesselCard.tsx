@@ -10,6 +10,7 @@ import {
   Navigation
 } from 'lucide-react'
 import type { FleetVessel } from '@passage-planner/shared'
+import { toRelativeTime } from '../../lib/utils'
 
 interface FleetVesselCardProps {
   vessel: FleetVessel
@@ -59,7 +60,7 @@ export function FleetVesselCard({ vessel }: FleetVesselCardProps) {
               {vessel.currentLocation.lat.toFixed(4)}°, {vessel.currentLocation.lng.toFixed(4)}°
             </span>
             <span className="text-xs text-muted-foreground">
-              {new Date(vessel.currentLocation.lastUpdated).toRelativeTime()}
+              {toRelativeTime(vessel.currentLocation.lastUpdated)}
             </span>
           </div>
         )}

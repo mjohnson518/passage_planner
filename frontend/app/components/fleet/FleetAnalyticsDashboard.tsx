@@ -26,7 +26,7 @@ interface FleetAnalyticsDashboardProps {
 
 const COLORS = ['#0ea5e9', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444']
 
-export function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashboardProps) {
+export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashboardProps) {
   const [analytics, setAnalytics] = useState<FleetAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
 
