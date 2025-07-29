@@ -94,7 +94,7 @@ export class OrchestratorService extends EventEmitter {
     this.responseAggregator = new ResponseAggregator(this.logger);
     this.sessionManager = new SessionManager(this.redis, this.logger);
     this.metricsCollector = new MetricsCollector(this.logger);
-    this.agentManager = new AgentManager(this.logger);
+    this.agentManager = new AgentManager(this.redis, this.logger);
     
     this.setupMcpHandlers();
     this.setupEventHandlers();
@@ -678,14 +678,15 @@ export class HttpServer {
       });
 
       // Agent management handlers
-      socket.on('agents:status', () => {
-        const status = this.orchestrator['agentManager'].getAgentsStatus();
+      socket.on('agents:status', async () => {
+        const status = await this.orchestrator['agentManager'].getHealthSummary();
         socket.emit('agents:status', status);
       });
 
       socket.on('agent:start', async ({ name }: { name: string }) => {
         try {
-          await this.orchestrator['agentManager'].startAgent(name);
+          // AgentManager doesn't have a public startAgent method, use restart instead
+          await this.orchestrator['agentManager'].restartAgent(name);
           socket.emit('agent:started', { name });
         } catch (error) {
           this.logger.error({ error, agent: name }, 'Failed to start agent');
@@ -695,8 +696,8 @@ export class HttpServer {
 
       socket.on('agent:stop', async ({ name }: { name: string }) => {
         try {
-          await this.orchestrator['agentManager'].stopAgent(name);
-          socket.emit('agent:stopped', { name });
+          // AgentManager doesn't have a public stopAgent method
+          socket.emit('agent:error', { name, error: 'Stop functionality not implemented' });
         } catch (error) {
           this.logger.error({ error, agent: name }, 'Failed to stop agent');
           socket.emit('agent:error', { name, error: error instanceof Error ? error.message : String(error) });

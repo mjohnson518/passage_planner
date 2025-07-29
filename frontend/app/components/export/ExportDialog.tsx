@@ -22,7 +22,19 @@ import {
   Loader2
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Passage, ExportFormat, ExportOptions } from '../../../shared/src/types/passage'
+import type { Passage } from '@passage-planner/shared'
+
+type ExportFormat = 'gpx' | 'kml' | 'csv' | 'pdf'
+
+interface ExportOptions {
+  includeWeather?: boolean
+  includeTides?: boolean
+  includeWaypoints?: boolean
+  includePorts?: boolean
+  includeSafety?: boolean
+  includeNotes?: boolean
+  format?: ExportFormat
+}
 import { downloadGPX } from '../../lib/export/gpx'
 import { downloadKML } from '../../lib/export/kml'
 import { downloadCSV } from '../../lib/export/csv'
@@ -68,8 +80,7 @@ export function ExportDialog({ open, onOpenChange, passage }: ExportDialogProps)
     includeWeather: true,
     includeTides: true,
     includeNotes: true,
-    includeSafety: true,
-    waypointDetails: 'detailed'
+    includeSafety: true
   })
   const [exporting, setExporting] = useState(false)
 

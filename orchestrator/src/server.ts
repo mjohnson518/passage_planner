@@ -61,7 +61,7 @@ export class HttpServer {
       url: process.env.REDIS_URL,
     });
     
-    this.authMiddleware = new AuthMiddleware(this.authService.verifyToken.bind(this.authService), this.logger);
+    this.authMiddleware = new AuthMiddleware(this.postgres, this.logger);
     
     // AgentManager will be initialized after all agents are set up
     // For now, create a placeholder that returns mock data
@@ -227,11 +227,11 @@ export class HttpServer {
           // Track usage
           await this.trackUsage(req.user.id, 'passage_planned');
           
-          // Call orchestrator
-          const result = await this.orchestrator.handleToolCall({
-            name: tool,
-            arguments: { ...args, userId: req.user.id },
-          });
+          // TODO: Implement orchestrator tool call handling
+          const result = {
+            success: false,
+            message: 'Tool call functionality not yet implemented'
+          };
           
           res.json(result);
         } catch (error) {
@@ -468,9 +468,13 @@ export class HttpServer {
         try {
           const { agentId } = req.params;
           
-          // Check if user is admin
-          const userRole = await this.getUserRole(req.user!.userId);
-          if (userRole !== 'admin') {
+          // Check if user is admin by querying the database
+          const userResult = await this.postgres.query(
+            'SELECT role FROM users WHERE id = $1',
+            [req.user!.id]
+          );
+          
+          if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
             return res.status(403).json({ error: 'Admin access required' });
           }
           

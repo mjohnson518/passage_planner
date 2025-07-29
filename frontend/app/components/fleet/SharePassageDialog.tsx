@@ -16,7 +16,7 @@ import { Checkbox } from '../ui/checkbox'
 import { ScrollArea } from '../ui/scroll-area'
 import { Share2, Route, Calendar, Ship, Users } from 'lucide-react'
 import { toast } from 'sonner'
-import type { FleetVessel, FleetMember } from '../../../shared/src/types/fleet'
+import type { FleetVessel, FleetMember } from '@passage-planner/shared'
 
 interface SharePassageDialogProps {
   open: boolean

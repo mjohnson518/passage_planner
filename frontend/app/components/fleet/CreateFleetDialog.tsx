@@ -16,7 +16,7 @@ import { Textarea } from '../ui/textarea'
 import { Switch } from '../ui/switch'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Fleet } from '../../../shared/src/types/fleet'
+import type { Fleet } from '@passage-planner/shared'
 
 interface CreateFleetDialogProps {
   open: boolean

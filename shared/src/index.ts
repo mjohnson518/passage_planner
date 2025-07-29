@@ -1,5 +1,14 @@
 // Export all types
 export * from './types/core';
+export { 
+  Passage,
+  WeatherSegment,
+  TidalEvent,
+  RouteSegment,
+  SafetyInfo
+} from './types/passage';
+export * from './types/boat';
+export * from './types/fleet';
 
 // Export agents
 export * from './agents/BaseAgent';

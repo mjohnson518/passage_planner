@@ -9,7 +9,7 @@ import {
   Wrench,
   Navigation
 } from 'lucide-react'
-import type { FleetVessel } from '../../../shared/src/types/fleet'
+import type { FleetVessel } from '@passage-planner/shared'
 
 interface FleetVesselCardProps {
   vessel: FleetVessel

@@ -202,14 +202,35 @@ export default function APIDocsPage() {
       return
     }
 
-    // Check if user has Pro tier
-    if (user.subscription_tier !== 'pro' && user.subscription_tier !== 'enterprise') {
-      router.push('/pricing?feature=api')
-      return
-    }
-
-    fetchApiKey()
+    // Check if user has Pro tier by fetching user's subscription data
+    checkProAccess()
   }, [user, router])
+
+  const checkProAccess = async () => {
+    try {
+      const response = await fetch('/api/user/subscription', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        const hasProAccess = data.tier === 'pro' || data.tier === 'enterprise'
+        
+        if (!hasProAccess) {
+          router.push('/pricing?feature=api')
+          return
+        }
+      } else {
+        // If we can't verify subscription, redirect to pricing
+        router.push('/pricing?feature=api')
+      }
+    } catch (error) {
+      console.error('Failed to check subscription:', error)
+      router.push('/pricing?feature=api')
+    }
+  }
 
   const fetchApiKey = async () => {
     try {

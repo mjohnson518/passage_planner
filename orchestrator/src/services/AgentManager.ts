@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { Logger } from 'pino';
 import { ChildProcess, spawn } from 'child_process';
-import { AgentCapabilitySummary, AgentStatus } from '../../shared/src/types/core';
+import { AgentCapabilitySummary, AgentStatus } from '@passage-planner/shared';
 import { createClient, RedisClientType } from 'redis';
 
 interface AgentProcess {
@@ -298,7 +298,16 @@ export class AgentManager extends EventEmitter {
         break;
       
       case 'log':
-        this.logger[message.level || 'info']({ agentId, ...message.data }, message.message);
+        const logLevel = message.level || 'info';
+        if (logLevel === 'info') {
+          this.logger.info({ agentId, ...message.data }, message.message);
+        } else if (logLevel === 'warn') {
+          this.logger.warn({ agentId, ...message.data }, message.message);
+        } else if (logLevel === 'error') {
+          this.logger.error({ agentId, ...message.data }, message.message);
+        } else {
+          this.logger.info({ agentId, ...message.data }, message.message);
+        }
         break;
       
       default:

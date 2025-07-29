@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Skeleton } from '../ui/skeleton'
 import { FileText, Download, Eye, X } from 'lucide-react'
-import type { Passage } from '../../../shared/src/types/passage'
+import type { Passage } from '@passage-planner/shared'
 import { generatePassagePDF } from '../../lib/export/pdf'
 
 interface PDFPreviewProps {

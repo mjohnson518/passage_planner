@@ -436,3 +436,17 @@ export interface BusinessMetrics {
   cac: number;
   trialConversionRate: number;
 } 
+
+// Stripe Integration Types
+export interface CreateCheckoutSessionParams {
+  userId: string;
+  priceId: string;
+  successUrl: string;
+  cancelUrl: string;
+  customerEmail?: string;
+}
+
+export interface CreatePortalSessionParams {
+  customerId: string;
+  returnUrl: string;
+} 

@@ -15,7 +15,7 @@ import {
   UserCheck,
   UserX
 } from 'lucide-react'
-import type { CrewMember } from '../../../shared/src/types/fleet'
+import type { CrewMember } from '@passage-planner/shared'
 
 interface CrewListProps {
   crew: CrewMember[]

@@ -5,19 +5,6 @@ import crypto from 'crypto';
 import { CreateCheckoutSessionParams, CreatePortalSessionParams } from '@passage-planner/shared';
 import { emailService } from './EmailService';
 
-export interface CreateCheckoutSessionParams {
-  userId: string;
-  priceId: string;
-  successUrl: string;
-  cancelUrl: string;
-  customerEmail?: string;
-}
-
-export interface CreatePortalSessionParams {
-  customerId: string;
-  returnUrl: string;
-}
-
 export class StripeService {
   private stripe: Stripe;
   private db: Pool;
@@ -34,7 +21,7 @@ export class StripeService {
 
   constructor(db: Pool, logger: Logger) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: '2023-10-16',
+      apiVersion: '2025-06-30.basil',
     });
     this.db = db;
     this.logger = logger.child({ service: 'stripe' });
@@ -341,11 +328,7 @@ export class StripeService {
 
     // Send trial ending email
     try {
-      await emailService.sendTrialEndingEmail(
-        user.email,
-        user.name || 'Captain',
-        daysRemaining
-      );
+      await emailService.sendTrialEndingReminders();
     } catch (error) {
       this.logger.error({ error, userId }, 'Failed to send trial ending email');
     }

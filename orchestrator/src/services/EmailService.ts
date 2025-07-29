@@ -156,9 +156,9 @@ export class EmailService {
 
     const stats = {
       passagesPlanned: passages?.length || 0,
-      totalDistance: passages?.reduce((sum, p) => sum + (p.distance_nm || 0), 0) || 0,
-      portsVisited: new Set(passages?.flatMap(p => [p.start_port, p.end_port]) || []).size,
-      hoursAtSea: passages?.reduce((sum, p) => {
+      totalDistance: passages?.reduce((sum: number, p: any) => sum + (p.distance_nm || 0), 0) || 0,
+      portsVisited: new Set(passages?.flatMap((p: any) => [p.start_port, p.end_port]) || []).size,
+      hoursAtSea: passages?.reduce((sum: number, p: any) => {
         if (p.departure_time && p.arrival_time) {
           const hours = (new Date(p.arrival_time).getTime() - new Date(p.departure_time).getTime()) / (1000 * 60 * 60)
           return sum + hours
