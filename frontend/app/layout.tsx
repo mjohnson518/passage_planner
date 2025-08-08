@@ -8,15 +8,23 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Passage Planner - AI-Powered Sailing Route Planning',
-  description: 'Plan your sailing passages with AI-powered weather routing, tidal predictions, and comprehensive safety briefings.',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'),
+  title: 'Helmwise - Sailing Route Planning',
+  description: 'Plan your sailing passages with weather routing, tidal predictions, and comprehensive safety briefings.',
   manifest: '/manifest.json',
   themeColor: '#0ea5e9',
   viewport: 'width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover',
+  alternates: {
+    canonical: '/',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Passage Planner'
+    title: 'Helmwise'
   },
   formatDetection: {
     telephone: false

@@ -19,7 +19,7 @@ interface WelcomeEmailProps {
   loginUrl?: string
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://passageplanner.com'
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'
 
 export const WelcomeEmail = ({
   userName = 'there',

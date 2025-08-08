@@ -34,7 +34,7 @@ interface UsageReportEmailProps {
   remainingPassages?: number
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://passageplanner.com'
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'
 
 export const UsageReportEmail = ({
   userName = 'Captain',
