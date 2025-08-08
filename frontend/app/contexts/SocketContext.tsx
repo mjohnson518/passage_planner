@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { config } from '@/config'
-import { AgentStatus, ProcessingUpdate, PassagePlan } from '@/types'
+import { AgentStatus } from '@/types'
 import { useAuth } from './AuthContext'
 
 interface SocketContextType {
@@ -57,10 +57,12 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     })
 
     // Agent status updates
-    socketInstance.on('agent:status', (status: AgentStatus) => {
+    socketInstance.on('agent:status', (payload: any) => {
+      const { name, status } = payload || {}
+      if (!name) return
       setAgentStatus(prev => ({
         ...prev,
-        [status.agentId]: status,
+        [name]: status,
       }))
     })
 
@@ -74,7 +76,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     })
 
     // Processing updates
-    socketInstance.on('processing:update', (update: ProcessingUpdate) => {
+    socketInstance.on('processing:update', (update: any) => {
       // Handle processing updates (could trigger UI updates)
       console.log('Processing update:', update)
     })

@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'),
-  title: 'Helmwise - Sailing Route Planning',
+  title: 'Helmwise - Sailing Passage Planning',
   description: 'Plan your sailing passages with weather routing, tidal predictions, and comprehensive safety briefings.',
   manifest: '/manifest.json',
   themeColor: '#0ea5e9',

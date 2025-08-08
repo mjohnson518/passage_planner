@@ -1,97 +1,105 @@
-import { Card } from '../../ui/card'
-import { Button } from '../../ui/button'
-import { ArrowLeft, ArrowRight, MapPin, Calendar, Settings, Download } from 'lucide-react'
+'use client'
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card'
+import { Map, MessageSquare, FileDown, Users, BarChart3, Zap } from 'lucide-react'
+
+const features = [
+  {
+    icon: MessageSquare,
+    title: 'Natural Language Planning',
+    description: 'Simply describe your sailing plans in plain English, and our AI agents will handle the rest.',
+    example: '"Plan a passage from Boston to Portland next Tuesday"',
+  },
+  {
+    icon: Map,
+    title: 'Interactive Route Map',
+    description: 'View your planned route on an interactive map with weather overlays and waypoint details.',
+    example: 'Drag waypoints to adjust your route',
+  },
+  {
+    icon: FileDown,
+    title: 'Export to Navigation Apps',
+    description: 'Download your passage plan as GPX or KML files for use in chartplotters and navigation apps.',
+    example: 'Compatible with Navionics, OpenCPN, and more',
+  },
+  {
+    icon: Users,
+    title: 'Fleet Management (Pro)',
+    description: 'Manage multiple vessels and share passage plans with your crew.',
+    example: 'Perfect for sailing clubs and charter companies',
+  },
+  {
+    icon: BarChart3,
+    title: 'Weather Analytics',
+    description: 'Get detailed weather forecasts with wind, wave, and current predictions.',
+    example: '7-day forecasts with 3-hour intervals',
+  },
+  {
+    icon: Zap,
+    title: 'Real-time Updates',
+    description: 'Receive alerts about weather changes and safety notices for your planned routes.',
+    example: 'Push notifications for significant changes',
+  },
+]
 
 interface TutorialStepProps {
-  onNext: () => void
-  onPrevious: () => void
+  onNext?: () => void
+  onPrevious?: () => void
 }
 
 export function TutorialStep({ onNext, onPrevious }: TutorialStepProps) {
-  const steps = [
-    {
-      icon: MapPin,
-      number: '1',
-      title: 'Enter your route',
-      description: 'Simply type your departure and destination ports. You can also add waypoints for specific routes.'
-    },
-    {
-      icon: Calendar,
-      number: '2',
-      title: 'Choose departure time',
-      description: 'Select when you want to leave. We\'ll check weather, tides, and daylight for the best conditions.'
-    },
-    {
-      icon: Settings,
-      number: '3',
-      title: 'Review & adjust',
-      description: 'See your complete passage plan with weather, waypoints, and timing. Make adjustments as needed.'
-    },
-    {
-      icon: Download,
-      number: '4',
-      title: 'Export & go',
-      description: 'Download your plan as GPX for your chartplotter, or PDF for printing. Share with your crew.'
-    }
-  ]
-
   return (
-    <Card className="p-8">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-2">How to plan a passage</h2>
-        <p className="text-muted-foreground">
-          Planning a safe passage is easy with our intelligent system
-        </p>
-      </div>
-
-      <div className="space-y-4 mb-8">
-        {steps.map((step, index) => (
-          <div key={index} className="flex gap-4 p-4 rounded-lg bg-muted/30">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <step.icon className="h-5 w-5 text-primary" />
-              </div>
-            </div>
-            <div>
-              <h3 className="font-semibold flex items-center gap-2">
-                <span className="text-primary">Step {step.number}:</span>
-                {step.title}
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                {step.description}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold mb-2">💡 Pro Tips</h4>
-        <ul className="text-sm space-y-1">
-          <li>• Check weather 24-48 hours before departure for the most accurate forecast</li>
-          <li>• Save frequently used routes as templates for quick planning</li>
-          <li>• Use the "avoid night sailing" option if you prefer daylight arrivals</li>
-          <li>• Share your plan with someone ashore for safety</li>
-        </ul>
-      </div>
-
+    <div className="space-y-6">
       <div className="text-center mb-6">
-        <p className="text-sm text-muted-foreground">
-          After setup, we'll show you a demo passage so you can see everything in action!
+        <h2 className="text-2xl font-bold mb-2">Key Features</h2>
+        <p className="text-muted-foreground">
+          Here's what you can do with Passage Planner
         </p>
       </div>
 
-      {/* Navigation buttons */}
-      <div className="flex justify-between">
-        <Button onClick={onPrevious} variant="outline">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-        <Button onClick={onNext}>
-          Continue
-          <ArrowRight className="h-4 w-4 ml-2" />
-        </Button>
+      <div className="grid gap-4 md:grid-cols-2">
+        {features.map((feature, index) => {
+          const Icon = feature.icon
+          return (
+            <Card key={index} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Icon className="h-6 w-6 text-primary" />
+                  </div>
+                  <CardTitle className="text-lg">{feature.title}</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-2">
+                  {feature.description}
+                </p>
+                <p className="text-xs italic text-muted-foreground">
+                  {feature.example}
+                </p>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
-    </Card>
+
+      <Card className="bg-primary/5 border-primary/20">
+        <CardHeader>
+          <CardTitle className="text-center">Pro Tip</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center text-sm">
+            Start by planning a familiar route to see how the AI agents work together 
+            to create your perfect passage plan. You can always adjust the suggestions!
+          </p>
+        </CardContent>
+      </Card>
+      {(onPrevious || onNext) && (
+        <div className="flex justify-between pt-4">
+          <button className="btn btn-outline" onClick={onPrevious} disabled={!onPrevious}>Back</button>
+          <button className="btn btn-primary" onClick={onNext} disabled={!onNext}>Continue</button>
+        </div>
+      )}
+    </div>
   )
 } 

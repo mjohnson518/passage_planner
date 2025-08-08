@@ -34,7 +34,7 @@ export function Header() {
     { name: 'Docs', href: '/docs', requireAuth: false },
   ]
 
-  const activeAgents = Object.values(agentStatus).filter(a => a.status === 'active').length
+  const activeAgents = Object.keys(agentStatus).length
 
   return (
     <header className={cn(

@@ -10,6 +10,7 @@ import { AuthService, FeatureGate, StripeService } from '@passage-planner/shared
 import { AuthMiddleware } from './middleware/auth';
 import { AgentManager } from './services/AgentManager';
 import { RateLimiter } from './middleware/rateLimiter';
+import { createAdminGuard } from './middleware/adminGuard';
 import { Pool } from 'pg';
 import { createClient } from 'redis';
 import * as crypto from 'crypto';
@@ -579,8 +580,11 @@ export class HttpServer {
     );
 
     // Admin Routes
+    const adminGuard = createAdminGuard(this.logger)
+
     this.app.get('/api/admin/verify',
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      adminGuard,
       async (req, res) => {
         try {
           const userId = req.user!.userId;
@@ -603,6 +607,7 @@ export class HttpServer {
 
     this.app.get('/api/admin/metrics/overview',
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      adminGuard,
       async (req, res) => {
         try {
           // Mock data for now - would integrate with real metrics

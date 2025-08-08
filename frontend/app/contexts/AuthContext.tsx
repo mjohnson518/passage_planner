@@ -83,10 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error
 
-      toast({
-        title: 'Account created!',
+      toast.success('Account created!', {
         description: 'Please check your email to verify your account.',
-        variant: 'success',
       })
 
       // Create user profile
@@ -101,11 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
       }
     } catch (error: any) {
-      toast({
-        title: 'Signup failed',
-        description: error.message,
-        variant: 'destructive',
-      })
+      toast.error('Signup failed', { description: error.message })
       throw error
     }
   }
@@ -119,17 +113,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error
 
-      toast({
-        title: 'Welcome back!',
-        description: 'You have successfully signed in.',
-        variant: 'success',
-      })
+      toast.success('Welcome back!', { description: 'You have successfully signed in.' })
     } catch (error: any) {
-      toast({
-        title: 'Login failed',
-        description: error.message,
-        variant: 'destructive',
-      })
+      toast.error('Login failed', { description: error.message })
       throw error
     }
   }
@@ -139,16 +125,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
 
-      toast({
-        title: 'Signed out',
-        description: 'You have been signed out successfully.',
-      })
+      toast('Signed out', { description: 'You have been signed out successfully.' })
     } catch (error: any) {
-      toast({
-        title: 'Error signing out',
-        description: error.message,
-        variant: 'destructive',
-      })
+      toast.error('Error signing out', { description: error.message })
     }
   }
 
@@ -160,17 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error
 
-      toast({
-        title: 'Password reset email sent',
-        description: 'Check your email for the password reset link.',
-        variant: 'success',
-      })
+      toast.success('Password reset email sent', { description: 'Check your email for the password reset link.' })
     } catch (error: any) {
-      toast({
-        title: 'Password reset failed',
-        description: error.message,
-        variant: 'destructive',
-      })
+      toast.error('Password reset failed', { description: error.message })
       throw error
     }
   }
@@ -183,17 +154,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error
 
-      toast({
-        title: 'Profile updated',
-        description: 'Your profile has been updated successfully.',
-        variant: 'success',
-      })
+      toast.success('Profile updated', { description: 'Your profile has been updated successfully.' })
     } catch (error: any) {
-      toast({
-        title: 'Update failed',
-        description: error.message,
-        variant: 'destructive',
-      })
+      toast.error('Update failed', { description: error.message })
       throw error
     }
   }

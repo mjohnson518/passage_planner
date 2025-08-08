@@ -156,7 +156,7 @@ export function Toaster() {
 }
 
 // Toast hook
-import { useReducer, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
@@ -320,19 +320,18 @@ function toast({ ...props }: Toast) {
 }
 
 function useToast() {
-  const [state, setState] = useReducer(reducer, {
-    toasts: [],
-  })
+  const [state, setState] = useState<State>(memoryState)
 
   useEffect(() => {
-    listeners.push(setState)
+    const listener = (s: State) => setState(s)
+    listeners.push(listener)
     return () => {
-      const index = listeners.indexOf(setState)
+      const index = listeners.indexOf(listener)
       if (index > -1) {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+  }, [])
 
   return {
     ...state,

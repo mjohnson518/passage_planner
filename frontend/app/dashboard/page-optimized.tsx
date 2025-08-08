@@ -12,9 +12,10 @@ import { useAnalytics, ANALYTICS_EVENTS } from '../hooks/useAnalytics'
 import { preloadCriticalResources, deduplicatedFetch } from '../lib/performance'
 
 // Lazy load heavy components
-const DemoPassage = lazy(() => import('../components/demo/DemoPassage'))
-const WeatherWidget = lazy(() => import('../components/widgets/WeatherWidget'))
-const RecentPassages = lazy(() => import('../components/passages/RecentPassages'))
+const DemoPassage = lazy(async () => ({ default: (await import('../components/demo/DemoPassage')).DemoPassage }))
+// Fallback to simple inline placeholders when widgets are unavailable
+const WeatherWidget = lazy(async () => ({ default: () => <div className="h-48 w-full rounded-md glass flex items-center justify-center text-sm text-muted-foreground">Weather widget coming soon</div> }))
+const RecentPassages = lazy(async () => ({ default: () => <div className="h-64 w-full rounded-md glass flex items-center justify-center text-sm text-muted-foreground">Recent passages coming soon</div> }))
 
 // Loading skeletons
 function DemoPassageSkeleton() {
