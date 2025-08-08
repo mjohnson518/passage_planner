@@ -396,7 +396,7 @@ export default function APIDocsPage() {
               style={vscDarkPlus}
               customStyle={{ borderRadius: '0.5rem' }}
             >
-              {`curl -X GET "https://api.passageplanner.ai/api/passages" \\
+              {`curl -X GET "${process.env.NEXT_PUBLIC_API_URL}/api/passages" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json"`}
             </SyntaxHighlighter>
@@ -404,7 +404,7 @@ export default function APIDocsPage() {
               size="sm"
               variant="ghost"
               className="absolute top-2 right-2"
-              onClick={() => copyToClipboard(`curl -X GET "https://api.passageplanner.ai/api/passages" \\
+              onClick={() => copyToClipboard(`curl -X GET "${process.env.NEXT_PUBLIC_API_URL}/api/passages" \\
   -H "Authorization: Bearer ${apiKey || 'YOUR_API_KEY'}" \\
   -H "Content-Type: application/json"`)}
             >

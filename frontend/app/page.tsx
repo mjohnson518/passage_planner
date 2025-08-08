@@ -25,14 +25,13 @@ export default function HomePage() {
         <div className="relative mx-auto max-w-7xl">
           <div className="text-center">
             <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-              <span className="text-gradient">AI-Powered</span> Passage Planning
+              Plan Smarter with <span className="text-gradient">Helmwise</span>
               <br />
-              for Modern Sailors
+              Passage Planning for Modern Sailors
             </h1>
             
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              Plan your sailing passages with confidence using real-time weather data, 
-              tidal predictions, and intelligent route optimization. 
+              helmwise helps you plan safer passages with real‑time weather, tidal predictions, and intelligent route optimization.
               Built by sailors, for sailors.
             </p>
             
@@ -161,8 +160,8 @@ export default function HomePage() {
           <h2 className="text-3xl font-bold tracking-tight text-primary-foreground sm:text-4xl">
             Ready to Plan Your Next Adventure?
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
-            Join thousands of sailors who trust Passage Planner for their voyages
+             <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
+            Join thousands of sailors who trust helmwise for their voyages
           </p>
           <div className="mt-10">
             <Link href="/signup">

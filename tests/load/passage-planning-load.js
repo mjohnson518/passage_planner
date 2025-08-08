@@ -27,7 +27,7 @@ export const options = {
 };
 
 // Test data
-const BASE_URL = __ENV.BASE_URL || 'https://api.passageplanner.ai';
+const BASE_URL = __ENV.BASE_URL || 'https://api.helmwise.co';
 const API_KEY = __ENV.API_KEY;
 
 const DEPARTURE_PORTS = [

@@ -1,6 +1,10 @@
-# Passage Planner - Production-Ready SaaS Maritime Navigation System
+# Helmwise - Production-Ready SaaS Maritime Navigation System
 
 A production-ready SaaS passage planning system built with the Model Context Protocol (MCP) that orchestrates specialized AI agents to provide comprehensive sailing route planning. The system features a complete business infrastructure including authentication, subscription billing, analytics, and real-time monitoring.
+
+Production URLs:
+- App: https://helmwise.co
+- API: https://api.helmwise.co
 
 ## 🌟 Key Features
 
@@ -271,5 +275,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 For questions and support:
 - Free tier: GitHub issues
-- Premium tier: Email support (support@passageplanner.com)
+- Premium tier: Email support (support@helmwise.co)
 - Pro tier: Priority support with SLA

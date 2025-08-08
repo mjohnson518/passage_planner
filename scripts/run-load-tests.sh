@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-BASE_URL="${BASE_URL:-https://api.passageplanner.ai}"
+BASE_URL="${BASE_URL:-https://api.helmwise.co}"
 API_KEY="${API_KEY:-}"
 OUTPUT_DIR="load-test-results"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
