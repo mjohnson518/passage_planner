@@ -300,8 +300,8 @@ export class HttpServer {
           const session = await this.stripeService.createCheckoutSession(
             req.user.id,
             priceId,
-            `${process.env.NEXT_PUBLIC_API_URL}/profile?success=true`,
-            `${process.env.NEXT_PUBLIC_API_URL}/profile?canceled=true`,
+            `${process.env.NEXT_PUBLIC_APP_URL}/profile?success=true`,
+            `${process.env.NEXT_PUBLIC_APP_URL}/profile?canceled=true`,
             req.user.email
           );
           
@@ -313,8 +313,7 @@ export class HttpServer {
       }
     );
 
-    // Stripe webhook (registered early as well, this is a safeguard if early registration changes)
-    this.registerStripeWebhookEarly();
+    // Stripe webhook is registered early in constructor to ensure raw body is available
 
     // Fleet Management Routes (Pro tier only)
     this.app.post('/api/fleet/create',
