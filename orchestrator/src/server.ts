@@ -9,6 +9,7 @@ import { OrchestratorService } from './index';
 import { AuthService, FeatureGate, StripeService } from '@passage-planner/shared';
 import { AuthMiddleware } from './middleware/auth';
 import { AgentManager } from './services/AgentManager';
+import { RateLimiter } from './middleware/rateLimiter';
 import { Pool } from 'pg';
 import { createClient } from 'redis';
 import * as crypto from 'crypto';
@@ -35,6 +36,7 @@ export class HttpServer {
   private stripeService: StripeService;
   private postgres: Pool;
   private redis: any;
+  private rateLimiter?: RateLimiter;
   private logger = pino({
     level: process.env.LOG_LEVEL || 'info',
   });
@@ -137,6 +139,9 @@ export class HttpServer {
       }, 'HTTP request');
       next();
     });
+
+    // Initialize rate limiter
+    this.rateLimiter = new RateLimiter(this.redis, this.logger);
   }
 
   private async authenticateToken(req: Request, res: Response, next: NextFunction) {
@@ -241,6 +246,7 @@ export class HttpServer {
     this.app.post('/api/mcp/tools/call', 
       this.authenticateToken.bind(this),
       this.checkSubscription.bind(this),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
           const { tool, arguments: args } = req.body;
@@ -292,6 +298,7 @@ export class HttpServer {
     // Subscription routes
     this.app.post('/api/subscription/create-checkout-session',
       this.authenticateToken.bind(this),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
           const { tier, period = 'monthly' } = req.body;
