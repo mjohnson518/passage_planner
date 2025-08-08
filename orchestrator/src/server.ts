@@ -44,7 +44,7 @@ export class HttpServer {
     this.httpServer = createServer(this.app);
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
+        origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
         credentials: true,
       },
     });
@@ -89,16 +89,42 @@ export class HttpServer {
     } as any;
     
     this.setupMiddleware();
+    // Register webhook route BEFORE JSON parser to preserve raw body for Stripe signature verification
+    this.registerStripeWebhookEarly();
     this.setupRoutes();
     this.setupWebSocket();
   }
 
+  private registerStripeWebhookEarly() {
+    // Ensure raw body is available for signature verification
+    this.app.post('/api/stripe/webhook',
+      express.raw({ type: 'application/json' }),
+      async (req, res) => {
+        const signature = req.headers['stripe-signature'] as string;
+        try {
+          const result = await this.stripeService.handleWebhook(
+            signature,
+            req.body as Buffer
+          );
+          if (result) {
+            await this.updateSubscription(result);
+          }
+          res.json({ received: true });
+        } catch (error) {
+          this.logger.error({ error }, 'Webhook processing failed');
+          res.status(400).json({ error: 'Webhook error' });
+        }
+      }
+    );
+  }
+
   private setupMiddleware() {
     this.app.use(cors({
-      origin: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
+      origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
       credentials: true,
     }));
     
+    // NOTE: JSON parser is registered AFTER the early Stripe webhook route
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
     
@@ -151,6 +177,17 @@ export class HttpServer {
           postgres: true,
         },
       });
+    });
+
+    // WebSocket health check
+    this.app.get('/healthz/ws', (req, res) => {
+      try {
+        const engine = (this.io as any).engine;
+        const clients = engine && engine.clientsCount ? engine.clientsCount : 0;
+        res.json({ status: 'ok', clients });
+      } catch {
+        res.status(500).json({ status: 'error' });
+      }
     });
 
     // Authentication routes
@@ -276,29 +313,8 @@ export class HttpServer {
       }
     );
 
-    // Stripe webhook
-    this.app.post('/api/stripe/webhook', 
-      express.raw({ type: 'application/json' }),
-      async (req, res) => {
-        const signature = req.headers['stripe-signature'] as string;
-        
-        try {
-          const result = await this.stripeService.handleWebhook(
-            signature,
-            req.body as Buffer
-          );
-          
-          if (result) {
-            await this.updateSubscription(result);
-          }
-          
-          res.json({ received: true });
-        } catch (error) {
-          this.logger.error({ error }, 'Webhook processing failed');
-          res.status(400).json({ error: 'Webhook error' });
-        }
-      }
-    );
+    // Stripe webhook (registered early as well, this is a safeguard if early registration changes)
+    this.registerStripeWebhookEarly();
 
     // Fleet Management Routes (Pro tier only)
     this.app.post('/api/fleet/create',
