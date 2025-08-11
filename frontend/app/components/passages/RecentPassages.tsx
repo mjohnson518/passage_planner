@@ -69,50 +69,22 @@ export function RecentPassages() {
         60000 // Cache for 1 minute
       )
       
-      // For now, use mock data until the API is implemented
-      const mockPassages: Passage[] = [
-        {
-          id: '1',
-          name: 'Summer Cruise to Nantucket',
-          departure: 'Boston, MA',
-          destination: 'Nantucket, MA',
-          departureDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          distanceNm: 87,
-          estimatedDuration: '14-16 hours',
-          status: 'planned',
-          weatherSummary: 'Fair conditions, SW 10-15 kts',
-          createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: '2',
-          name: 'Weekend Trip to Block Island',
-          departure: 'Newport, RI',
-          destination: 'Block Island, RI',
-          departureDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          distanceNm: 23,
-          estimatedDuration: '4-5 hours',
-          status: 'draft',
-          weatherSummary: 'Moderate conditions, W 15-20 kts',
-          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: '3',
-          name: 'Maine Coast Adventure',
-          departure: 'Portland, ME',
-          destination: 'Bar Harbor, ME',
-          departureDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          distanceNm: 105,
-          estimatedDuration: '18-20 hours',
-          status: 'completed',
-          weatherSummary: 'Good conditions, SW 8-12 kts',
-          createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-        }
-      ]
+      // Transform snake_case from DB to camelCase for frontend
+      const transformedPassages = (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        departure: p.departure,
+        destination: p.destination,
+        departureDate: p.departure_date,
+        distanceNm: p.distance_nm,
+        estimatedDuration: p.estimated_duration,
+        status: p.status,
+        weatherSummary: p.weather_summary,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at
+      }))
       
-      setPassages(mockPassages)
+      setPassages(transformedPassages)
     } catch (error) {
       console.error('Failed to load passages:', error)
       setPassages([])

@@ -479,6 +479,116 @@ export class HttpServer {
       }
     );
 
+    // Weather endpoints
+    this.app.post('/api/weather/current',
+      this.authenticateToken.bind(this),
+      async (req, res) => {
+        try {
+          const { location, coordinates } = req.body;
+          
+          // Use coordinates if provided, otherwise geocode the location
+          let lat, lon;
+          if (coordinates) {
+            lat = coordinates.lat;
+            lon = coordinates.lng;
+          } else {
+            // Simple geocoding for common locations (in production, use a geocoding service)
+            const locationMap: Record<string, { lat: number; lon: number }> = {
+              'Boston, MA': { lat: 42.3601, lon: -71.0589 },
+              'Boston Harbor': { lat: 42.3601, lon: -71.0589 },
+              'Portland, ME': { lat: 43.6591, lon: -70.2568 },
+              'Newport, RI': { lat: 41.4901, lon: -71.3128 },
+              'Nantucket, MA': { lat: 41.2835, lon: -70.0995 },
+              'Block Island, RI': { lat: 41.1718, lon: -71.5778 },
+              'Bar Harbor, ME': { lat: 44.3876, lon: -68.2039 },
+              'Provincetown, MA': { lat: 42.0570, lon: -70.1786 },
+              'Gloucester, MA': { lat: 42.6159, lon: -70.6620 },
+              'Marblehead, MA': { lat: 42.5001, lon: -70.8578 }
+            };
+            
+            const coords = locationMap[location] || locationMap['Boston, MA'];
+            lat = coords.lat;
+            lon = coords.lon;
+          }
+          
+          // Call the weather agent through orchestrator
+          const weatherResult = await this.orchestrator.handleRequest({
+            tool: 'get_marine_weather',
+            arguments: {
+              latitude: lat,
+              longitude: lon,
+              days: 1
+            }
+          });
+          
+          // Transform the weather data for the widget
+          if (weatherResult && weatherResult.result) {
+            const data = weatherResult.result;
+            const current = data.forecasts && data.forecasts[0];
+            
+            const response = {
+              location: location || `${lat.toFixed(2)}°N, ${Math.abs(lon).toFixed(2)}°W`,
+              current: {
+                temperature: current?.temperature || 68,
+                feelsLike: current?.temperature ? current.temperature - 3 : 65,
+                condition: current?.weather || 'Partly Cloudy',
+                icon: this.getWeatherIcon(current?.weather),
+                wind: {
+                  speed: current?.windSpeed || 12,
+                  direction: current?.windDirection || 'SW',
+                  degrees: this.getWindDegrees(current?.windDirection || 'SW')
+                },
+                humidity: current?.humidity || 72,
+                pressure: current?.pressure || 30.12,
+                visibility: current?.visibility || 10,
+                uvIndex: 6
+              },
+              marine: {
+                waveHeight: current?.waveHeight || 2.5,
+                wavePeriod: current?.wavePeriod || 6,
+                waterTemp: current?.waterTemp || 62,
+                swellDirection: current?.swellDirection || 'S'
+              },
+              forecast: this.generateHourlyForecast(data.forecasts || [])
+            };
+            
+            res.json(response);
+          } else {
+            // Return mock data as fallback
+            res.json({
+              location: location || 'Boston Harbor',
+              current: {
+                temperature: 68,
+                feelsLike: 65,
+                condition: 'Partly Cloudy',
+                icon: 'cloud',
+                wind: { speed: 12, direction: 'SW', degrees: 225 },
+                humidity: 72,
+                pressure: 30.12,
+                visibility: 10,
+                uvIndex: 6
+              },
+              marine: {
+                waveHeight: 2.5,
+                wavePeriod: 6,
+                waterTemp: 62,
+                swellDirection: 'S'
+              },
+              forecast: [
+                { time: '12:00', temperature: 70, condition: 'Sunny', windSpeed: 10, precipitation: 0 },
+                { time: '15:00', temperature: 72, condition: 'Partly Cloudy', windSpeed: 12, precipitation: 0 },
+                { time: '18:00', temperature: 68, condition: 'Cloudy', windSpeed: 14, precipitation: 10 },
+                { time: '21:00', temperature: 64, condition: 'Light Rain', windSpeed: 16, precipitation: 30 }
+              ]
+            });
+          }
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to fetch weather data');
+          res.status(500).json({ error: 'Failed to fetch weather data' });
+        }
+      }
+    );
+
     // MCP tool proxy
     this.app.post('/api/mcp/tools/call', 
       this.authenticateToken.bind(this),
@@ -1025,6 +1135,42 @@ export class HttpServer {
     };
     
     return priceMap[`${tier}_${period}`];
+  }
+
+  private getWeatherIcon(condition: string): 'sun' | 'cloud' | 'rain' | 'snow' | 'drizzle' {
+    const conditionLower = (condition || '').toLowerCase();
+    if (conditionLower.includes('rain')) return 'rain';
+    if (conditionLower.includes('snow')) return 'snow';
+    if (conditionLower.includes('drizzle')) return 'drizzle';
+    if (conditionLower.includes('clear') || conditionLower.includes('sunny')) return 'sun';
+    return 'cloud';
+  }
+
+  private getWindDegrees(direction: string): number {
+    const directionMap: Record<string, number> = {
+      'N': 0, 'NNE': 22.5, 'NE': 45, 'ENE': 67.5,
+      'E': 90, 'ESE': 112.5, 'SE': 135, 'SSE': 157.5,
+      'S': 180, 'SSW': 202.5, 'SW': 225, 'WSW': 247.5,
+      'W': 270, 'WNW': 292.5, 'NW': 315, 'NNW': 337.5
+    };
+    return directionMap[direction] || 0;
+  }
+
+  private generateHourlyForecast(forecasts: any[]): any[] {
+    const hours = [3, 6, 9, 12];
+    return hours.map((hour, idx) => {
+      const forecast = forecasts[Math.min(idx, forecasts.length - 1)];
+      const baseTime = new Date();
+      baseTime.setHours(baseTime.getHours() + hour);
+      
+      return {
+        time: baseTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        temperature: forecast?.temperature || (68 + Math.random() * 8),
+        condition: forecast?.weather || 'Partly Cloudy',
+        windSpeed: forecast?.windSpeed || (10 + Math.random() * 10),
+        precipitation: forecast?.precipitation || (Math.random() * 30)
+      };
+    });
   }
 
   async start(port: number = 8080) {

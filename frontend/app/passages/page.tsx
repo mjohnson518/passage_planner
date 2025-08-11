@@ -95,81 +95,23 @@ export default function PassagesPage() {
         30000 // Cache for 30 seconds
       )
       
-      // Mock data for now
-      const mockPassages: Passage[] = [
-        {
-          id: '1',
-          name: 'Summer Cruise to Nantucket',
-          departure: 'Boston, MA',
-          destination: 'Nantucket, MA',
-          departureDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          distanceNm: 87,
-          estimatedDuration: '14-16 hours',
-          status: 'planned',
-          weatherSummary: 'Fair conditions, SW 10-15 kts',
-          boatName: 'Sea Dream',
-          createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: '2',
-          name: 'Weekend Trip to Block Island',
-          departure: 'Newport, RI',
-          destination: 'Block Island, RI',
-          departureDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          distanceNm: 23,
-          estimatedDuration: '4-5 hours',
-          status: 'draft',
-          weatherSummary: 'Moderate conditions, W 15-20 kts',
-          boatName: 'Sea Dream',
-          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: '3',
-          name: 'Maine Coast Adventure',
-          departure: 'Portland, ME',
-          destination: 'Bar Harbor, ME',
-          departureDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          distanceNm: 105,
-          estimatedDuration: '18-20 hours',
-          status: 'completed',
-          weatherSummary: 'Good conditions, SW 8-12 kts',
-          boatName: 'Sea Dream',
-          createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: '4',
-          name: 'Overnight to Provincetown',
-          departure: 'Boston, MA',
-          destination: 'Provincetown, MA',
-          departureDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-          distanceNm: 45,
-          estimatedDuration: '8-10 hours',
-          status: 'completed',
-          weatherSummary: 'Light winds, motor sailing',
-          boatName: 'Sea Dream',
-          createdAt: new Date(Date.now() - 75 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: '5',
-          name: 'Spring Shakedown Cruise',
-          departure: 'Marblehead, MA',
-          destination: 'Gloucester, MA',
-          departureDate: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(),
-          distanceNm: 12,
-          estimatedDuration: '2-3 hours',
-          status: 'draft',
-          weatherSummary: 'Variable conditions',
-          boatName: 'Sea Dream',
-          createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
-        }
-      ]
+      // Transform snake_case from DB to camelCase for frontend
+      const transformedPassages: Passage[] = (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        departure: p.departure,
+        destination: p.destination,
+        departureDate: p.departure_date,
+        distanceNm: p.distance_nm,
+        estimatedDuration: p.estimated_duration,
+        status: p.status,
+        weatherSummary: p.weather_summary,
+        boatName: p.boat_name,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at
+      }))
       
-      setPassages(mockPassages)
+      setPassages(transformedPassages)
     } catch (error) {
       console.error('Failed to load passages:', error)
       setPassages([])

@@ -95,39 +95,7 @@ export function WeatherWidget() {
         300000 // Cache for 5 minutes
       )
       
-      // For now, use mock data until the weather API is implemented
-      const mockData: WeatherData = {
-        location: 'Boston Harbor',
-        current: {
-          temperature: 68,
-          feelsLike: 65,
-          condition: 'Partly Cloudy',
-          icon: 'cloud',
-          wind: {
-            speed: 12,
-            direction: 'SW',
-            degrees: 225
-          },
-          humidity: 72,
-          pressure: 30.12,
-          visibility: 10,
-          uvIndex: 6
-        },
-        marine: {
-          waveHeight: 2.5,
-          wavePeriod: 6,
-          waterTemp: 62,
-          swellDirection: 'S'
-        },
-        forecast: [
-          { time: '12:00', temperature: 70, condition: 'Sunny', windSpeed: 10, precipitation: 0 },
-          { time: '15:00', temperature: 72, condition: 'Partly Cloudy', windSpeed: 12, precipitation: 0 },
-          { time: '18:00', temperature: 68, condition: 'Cloudy', windSpeed: 14, precipitation: 10 },
-          { time: '21:00', temperature: 64, condition: 'Light Rain', windSpeed: 16, precipitation: 30 }
-        ]
-      }
-      
-      setWeather(mockData)
+      setWeather(data)
       setLastUpdate(new Date())
     } catch (err) {
       console.error('Weather data error:', err)
