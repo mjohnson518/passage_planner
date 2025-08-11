@@ -243,6 +243,242 @@ export class HttpServer {
       }
     });
 
+    // Dashboard stats endpoint
+    this.app.get('/api/dashboard/stats',
+      this.authenticateToken.bind(this),
+      async (req, res) => {
+        try {
+          const userId = req.user.id;
+          
+          // Get total passages
+          const totalPassagesResult = await this.postgres.query(
+            'SELECT COUNT(*) as count FROM passages WHERE user_id = $1',
+            [userId]
+          );
+          const totalPassages = parseInt(totalPassagesResult.rows[0]?.count || '0');
+          
+          // Get monthly passages
+          const startOfMonth = new Date();
+          startOfMonth.setDate(1);
+          startOfMonth.setHours(0, 0, 0, 0);
+          
+          const monthlyPassagesResult = await this.postgres.query(
+            'SELECT COUNT(*) as count FROM passages WHERE user_id = $1 AND created_at >= $2',
+            [userId, startOfMonth]
+          );
+          const monthlyPassages = parseInt(monthlyPassagesResult.rows[0]?.count || '0');
+          
+          // Get total miles from all passages
+          const totalMilesResult = await this.postgres.query(
+            'SELECT COALESCE(SUM(distance_nm), 0) as total FROM passages WHERE user_id = $1',
+            [userId]
+          );
+          const totalMiles = Math.round(parseFloat(totalMilesResult.rows[0]?.total || '0'));
+          
+          // Get favorite port (most visited destination)
+          const favoritePortResult = await this.postgres.query(
+            `SELECT destination, COUNT(*) as visit_count 
+             FROM passages 
+             WHERE user_id = $1 AND destination IS NOT NULL
+             GROUP BY destination 
+             ORDER BY visit_count DESC 
+             LIMIT 1`,
+            [userId]
+          );
+          const favoritePort = favoritePortResult.rows[0]?.destination || 'N/A';
+          
+          // Calculate weather score (percentage of passages with favorable weather)
+          // This is a simplified calculation - in production you'd analyze actual weather data
+          const weatherScoreResult = await this.postgres.query(
+            `SELECT 
+               COUNT(CASE WHEN max_wind_speed <= 25 AND max_wave_height <= 2 THEN 1 END) * 100.0 / 
+               NULLIF(COUNT(*), 0) as score
+             FROM passages 
+             WHERE user_id = $1`,
+            [userId]
+          );
+          const weatherScore = Math.round(parseFloat(weatherScoreResult.rows[0]?.score || '75'));
+          
+          res.json({
+            totalPassages,
+            monthlyPassages,
+            totalMiles,
+            favoritePort,
+            weatherScore
+          });
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to fetch dashboard stats');
+          res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+        }
+      }
+    );
+
+    // Passages endpoints
+    this.app.get('/api/passages',
+      this.authenticateToken.bind(this),
+      async (req, res) => {
+        try {
+          const userId = req.user.id;
+          
+          const result = await this.postgres.query(
+            `SELECT 
+               p.*,
+               b.name as boat_name
+             FROM passages p
+             LEFT JOIN boats b ON p.boat_id = b.id
+             WHERE p.user_id = $1
+             ORDER BY p.departure_date DESC`,
+            [userId]
+          );
+          
+          res.json(result.rows);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to fetch passages');
+          res.status(500).json({ error: 'Failed to fetch passages' });
+        }
+      }
+    );
+
+    this.app.get('/api/passages/recent',
+      this.authenticateToken.bind(this),
+      async (req, res) => {
+        try {
+          const userId = req.user.id;
+          const limit = parseInt(req.query.limit as string) || 5;
+          
+          const result = await this.postgres.query(
+            `SELECT 
+               p.*,
+               b.name as boat_name
+             FROM passages p
+             LEFT JOIN boats b ON p.boat_id = b.id
+             WHERE p.user_id = $1
+             ORDER BY p.created_at DESC
+             LIMIT $2`,
+            [userId, limit]
+          );
+          
+          res.json(result.rows);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to fetch recent passages');
+          res.status(500).json({ error: 'Failed to fetch recent passages' });
+        }
+      }
+    );
+
+    this.app.post('/api/passages',
+      this.authenticateToken.bind(this),
+      this.checkSubscription.bind(this),
+      async (req, res) => {
+        try {
+          const userId = req.user.id;
+          const passageData = req.body;
+          
+          // Check passage limits
+          const canCreate = await FeatureGate.canUseFeature(
+            userId,
+            'create_passage',
+            req.subscription
+          );
+          
+          if (!canCreate) {
+            return res.status(403).json({
+              error: 'Passage limit reached',
+              upgradeUrl: '/pricing',
+            });
+          }
+          
+          const result = await this.postgres.query(
+            `INSERT INTO passages (
+               user_id, name, departure, destination, departure_date,
+               distance_nm, estimated_duration, status, weather_summary,
+               boat_id, route_data
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             RETURNING *`,
+            [
+              userId,
+              passageData.name,
+              passageData.departure,
+              passageData.destination,
+              passageData.departureDate,
+              passageData.distanceNm,
+              passageData.estimatedDuration,
+              passageData.status || 'draft',
+              passageData.weatherSummary,
+              passageData.boatId,
+              JSON.stringify(passageData.routeData || {})
+            ]
+          );
+          
+          // Track usage
+          await this.trackUsage(userId, 'passage_created', {
+            passageId: result.rows[0].id,
+            distance: passageData.distanceNm
+          });
+          
+          res.json(result.rows[0]);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to create passage');
+          res.status(500).json({ error: 'Failed to create passage' });
+        }
+      }
+    );
+
+    this.app.get('/api/passages/:passageId',
+      this.authenticateToken.bind(this),
+      async (req, res) => {
+        try {
+          const userId = req.user.id;
+          const { passageId } = req.params;
+          
+          const result = await this.postgres.query(
+            `SELECT 
+               p.*,
+               b.name as boat_name,
+               b.type as boat_type,
+               b.length as boat_length
+             FROM passages p
+             LEFT JOIN boats b ON p.boat_id = b.id
+             WHERE p.id = $1 AND p.user_id = $2`,
+            [passageId, userId]
+          );
+          
+          if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Passage not found' });
+          }
+          
+          res.json(result.rows[0]);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to fetch passage');
+          res.status(500).json({ error: 'Failed to fetch passage' });
+        }
+      }
+    );
+
+    this.app.delete('/api/passages/:passageId',
+      this.authenticateToken.bind(this),
+      async (req, res) => {
+        try {
+          const userId = req.user.id;
+          const { passageId } = req.params;
+          
+          const result = await this.postgres.query(
+            'DELETE FROM passages WHERE id = $1 AND user_id = $2 RETURNING id',
+            [passageId, userId]
+          );
+          
+          if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Passage not found' });
+          }
+          
+          res.json({ success: true, deletedId: passageId });
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to delete passage');
+          res.status(500).json({ error: 'Failed to delete passage' });
+        }
+      }
+    );
+
     // MCP tool proxy
     this.app.post('/api/mcp/tools/call', 
       this.authenticateToken.bind(this),

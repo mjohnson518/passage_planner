@@ -13,9 +13,8 @@ import { preloadCriticalResources, deduplicatedFetch } from '../lib/performance'
 
 // Lazy load heavy components
 const DemoPassage = lazy(async () => ({ default: (await import('../components/demo/DemoPassage')).DemoPassage }))
-// Fallback to simple inline placeholders when widgets are unavailable
-const WeatherWidget = lazy(async () => ({ default: () => <div className="h-48 w-full rounded-md glass flex items-center justify-center text-sm text-muted-foreground">Weather widget coming soon</div> }))
-const RecentPassages = lazy(async () => ({ default: () => <div className="h-64 w-full rounded-md glass flex items-center justify-center text-sm text-muted-foreground">Recent passages coming soon</div> }))
+const WeatherWidget = lazy(async () => ({ default: (await import('../components/weather/WeatherWidget')).WeatherWidget }))
+const RecentPassages = lazy(async () => ({ default: (await import('../components/passages/RecentPassages')).RecentPassages }))
 
 // Loading skeletons
 function DemoPassageSkeleton() {
@@ -48,7 +47,7 @@ function StatsSkeleton() {
 }
 
 export default function OptimizedDashboardPage() {
-  const { user } = useAuth()
+  const { user, session } = useAuth()
   const router = useRouter()
   const { track, trackFeature } = useAnalytics()
   const [stats, setStats] = useState<any>(null)
@@ -61,7 +60,7 @@ export default function OptimizedDashboardPage() {
     }
 
     // Track page view
-    track(ANALYTICS_EVENTS.PAGE_VIEW, { page: 'dashboard' })
+    track('page_view', { page: 'dashboard' })
     
     // Preload critical resources
     preloadCriticalResources()
@@ -77,7 +76,7 @@ export default function OptimizedDashboardPage() {
         async () => {
           const response = await fetch('/api/dashboard/stats', {
             headers: {
-              'Authorization': `Bearer ${await user?.getIdToken()}`
+              'Authorization': `Bearer ${session?.access_token}`
             }
           })
           return response.json()
