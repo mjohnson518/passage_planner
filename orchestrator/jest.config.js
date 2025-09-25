@@ -10,6 +10,6 @@ module.exports = {
     '!src/**/__tests__/**',
   ],
   coverageDirectory: 'coverage',
-  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
   testTimeout: 10000,
 } 
