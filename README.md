@@ -119,14 +119,19 @@ Production URLs:
    npm install
    ```
 
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   ```
 
+   Refer to `docs/docker-dev.md` for Docker-specific defaults and required keys.
 
 4. **Start infrastructure**
    ```bash
    docker-compose up -d --build
    ```
 
-5. **Run database migrations**
+5. **Run database migrations (if needed)**
    ```bash
    npm run db:migrate
    ```
@@ -153,12 +158,12 @@ passage-planner/
 │   ├── hooks/             # Custom React hooks
 │   └── lib/               # Utilities and services
 ├── orchestrator/          # MCP orchestrator service
-│   ├── services/          # Core services (Stripe, Email, Analytics)
-│   └── config/            # Configuration files
+│   ├── services/          # Core orchestrator services and agent orchestration
+│   └── Dockerfile         # Orchestrator container build
 ├── agents/                # Specialized agent implementations
 ├── shared/                # Shared types and utilities
 ├── emails/                # React Email templates
-├── infrastructure/        # Docker, Kubernetes configs
+├── infrastructure/        # Docker, Kubernetes configs and SQL seeds
 └── tests/                 # Integration and E2E tests
 ```
 
