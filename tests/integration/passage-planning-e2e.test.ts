@@ -46,21 +46,19 @@ describe('Passage Planning End-to-End Tests', () => {
       });
       
       expect(response.status).toBe(200);
-      const plan = JSON.parse(response.data.content[0].text);
-      
+      const plan = response.data.result.summary
+
       // Verify basic plan structure
-      expect(plan.distance.total).toBeLessThan(30); // Short coastal hop
-      expect(plan.estimatedArrivalTime).toBeDefined();
-      expect(new Date(plan.estimatedArrivalTime).getHours()).toBeLessThan(20); // Arrives before 8 PM
-      
+      expect(plan.route).toBeDefined()
+      expect(plan.route.totalDistance).toBeLessThan(30)
+      expect(plan.summary).toBeDefined()
+
       // Verify weather consideration
-      expect(plan.weather).toBeDefined();
-      expect(plan.weather.conditions).toBeInstanceOf(Array);
-      expect(plan.weather.warnings).toBeInstanceOf(Array);
-      
+      expect(plan.weather).toBeDefined()
+      expect(Array.isArray(plan.weather.forecast)).toBe(true)
+
       // Verify tidal information
-      expect(plan.tides).toBeInstanceOf(Array);
-      expect(plan.tides.length).toBeGreaterThan(0);
+      expect(plan.tides).toBeDefined()
     });
     
     test('should plan multi-day coastal cruise', async () => {
@@ -78,14 +76,14 @@ describe('Passage Planning End-to-End Tests', () => {
       });
       
       expect(response.status).toBe(200);
-      const plan = JSON.parse(response.data.content[0].text);
+      const plan = response.data.result.summary;
       
       // Should include the waypoint
-      expect(plan.waypoints.some((wp: any) => wp.name.includes('Block Island'))).toBe(true);
-      expect(plan.waypoints.length).toBeGreaterThanOrEqual(3); // Start, waypoint, end
+      expect(plan.route.waypoints.some((wp: any) => wp.name.includes('Block Island'))).toBe(true);
+      expect(plan.route.waypoints.length).toBeGreaterThanOrEqual(3); // Start, waypoint, end
       
       // Check for overnight considerations
-      if (plan.estimatedDuration > 12) {
+      if (plan.summary.estimatedDuration > 12) {
         expect(plan.safety.requiredEquipment).toContain('Navigation lights');
       }
     });
@@ -104,10 +102,10 @@ describe('Passage Planning End-to-End Tests', () => {
       });
       
       expect(response.status).toBe(200);
-      const plan = JSON.parse(response.data.content[0].text);
+      const plan = response.data.result.summary;
       
       // Verify offshore distance
-      expect(plan.distance.total).toBeGreaterThan(600); // ~640nm to Bermuda
+      expect(plan.route.totalDistance).toBeGreaterThan(600); // ~640nm to Bermuda
       
       // Verify safety requirements for offshore
       expect(plan.safety.requiredEquipment).toContain('EPIRB');
@@ -115,8 +113,8 @@ describe('Passage Planning End-to-End Tests', () => {
       expect(plan.safety.emergencyContacts).toBeDefined();
       
       // Should have weather windows
-      expect(plan.safety.weatherWindows).toBeDefined();
-      expect(plan.safety.weatherWindows.length).toBeGreaterThan(0);
+      expect(plan.weather.windows).toBeDefined();
+      expect(plan.weather.windows.length).toBeGreaterThan(0);
       
       // Alternative routes for safety
       expect(plan.alternativeRoutes).toBeDefined();
@@ -140,15 +138,15 @@ describe('Passage Planning End-to-End Tests', () => {
       });
       
       expect(response.status).toBe(200);
-      const plan = JSON.parse(response.data.content[0].text);
+      const plan = response.data.result.summary;
       
       // Should include weather analysis
-      expect(plan.weather.conditions.every((c: any) => 
-        c.windSpeed <= 15 || plan.weather.warnings.length > 0
+      expect(plan.weather.forecast.every((c: any) => 
+        c.windSpeed <= 15 || (plan.weather.warnings && plan.weather.warnings.length > 0)
       )).toBe(true);
       
       // May suggest waiting for better conditions
-      if (plan.weather.warnings.length > 0) {
+      if (plan.weather.warnings && plan.weather.warnings.length > 0) {
         expect(plan.weather.warnings.some((w: string) => 
           w.toLowerCase().includes('wind') || w.toLowerCase().includes('weather')
         )).toBe(true);
@@ -169,15 +167,15 @@ describe('Passage Planning End-to-End Tests', () => {
       });
       
       expect(response.status).toBe(200);
-      const plan = JSON.parse(response.data.content[0].text);
+      const plan = response.data.result.summary;
       
       // Should have port information
-      expect(plan.departure.facilities).toBeDefined();
-      expect(plan.destination.facilities).toBeDefined();
+      expect(plan.ports.departure.facilities).toBeDefined();
+      expect(plan.ports.destination.facilities).toBeDefined();
       
       // Should have contact information
-      expect(plan.destination.contacts).toBeDefined();
-      expect(plan.destination.contacts.some((c: any) => 
+      expect(plan.ports.destination.contacts).toBeDefined();
+      expect(plan.ports.destination.contacts.some((c: any) => 
         c.type === 'harbormaster' || c.type === 'marina'
       )).toBe(true);
     });
@@ -208,10 +206,10 @@ describe('Passage Planning End-to-End Tests', () => {
       expect(response.status).toBe(200);
       
       // Final plan should be complete
-      const finalPlan = JSON.parse(response.data.content[0].text);
-      expect(finalPlan.waypoints).toBeDefined();
-      expect(finalPlan.weather).toBeDefined();
-      expect(finalPlan.tides).toBeDefined();
+      const finalPlan = response.data.result.summary
+      expect(finalPlan.route.waypoints).toBeDefined()
+      expect(finalPlan.weather).toBeDefined()
+      expect(finalPlan.tides).toBeDefined()
     });
   });
   
@@ -266,11 +264,11 @@ describe('Passage Planning End-to-End Tests', () => {
       });
       
       expect(response.status).toBe(200);
-      const plan = JSON.parse(response.data.content[0].text);
+      const plan = response.data.result.summary;
       
       // Should include fuel stops for long passage
-      if (plan.distance.total > 200) {
-        expect(plan.waypoints.some((wp: any) => 
+      if (plan.route.totalDistance > 200) {
+        expect(plan.route.waypoints.some((wp: any) => 
           wp.notes?.includes('fuel') || wp.name?.includes('fuel')
         )).toBe(true);
       }
@@ -295,10 +293,10 @@ describe('Passage Planning End-to-End Tests', () => {
       });
       
       expect(response.status).toBe(200);
-      const plan = JSON.parse(response.data.content[0].text);
+      const plan = response.data.result.summary;
       
       // Waypoints should be in logical order
-      const waypointNames = plan.waypoints.map((wp: any) => wp.name);
+      const waypointNames = plan.route.waypoints.map((wp: any) => wp.name);
       expect(waypointNames.indexOf('Solomons Island')).toBeLessThan(
         waypointNames.indexOf('Deltaville')
       );

@@ -1,103 +1,89 @@
-import { Logger } from 'pino';
+import { Logger } from 'pino'
+
+interface MetricEntry {
+  method: string
+  success: boolean
+  duration: number
+  timestamp: number
+}
+
+interface EventEntry {
+  event: string
+  metadata: Record<string, any>
+  timestamp: number
+}
 
 export class MetricsCollector {
-  private requestCounts = new Map<string, number>();
-  private responseTimes = new Map<string, number[]>();
-  private errorCounts = new Map<string, number>();
-  
+  private entries: MetricEntry[] = []
+  private events: EventEntry[] = []
+
   constructor(private logger: Logger) {}
-  
+
+  async record(event: string, metadata: Record<string, any>) {
+    this.logger.debug({ event, metadata }, 'Metric recorded')
+    this.events.push({ event, metadata, timestamp: Date.now() })
+    if (this.events.length > 100) {
+      this.events.shift()
+    }
+  }
+
   recordRequest(method: string, duration: number, success: boolean): void {
-    // Update request count
-    const currentCount = this.requestCounts.get(method) || 0;
-    this.requestCounts.set(method, currentCount + 1);
-    
-    // Update response times
-    const times = this.responseTimes.get(method) || [];
-    times.push(duration);
-    if (times.length > 100) {
-      times.shift(); // Keep only last 100
+    this.entries.push({ method, duration, success, timestamp: Date.now() })
+
+    if (this.entries.length > 1000) {
+      this.entries.shift()
     }
-    this.responseTimes.set(method, times);
-    
-    // Update error count if failed
-    if (!success) {
-      const errorCount = this.errorCounts.get(method) || 0;
-      this.errorCounts.set(method, errorCount + 1);
-    }
-    
-    this.logger.debug({ method, duration, success }, 'Request recorded');
+
+    this.logger.debug({ method, duration, success }, 'Request recorded')
   }
-  
+
   getAverageResponseTime(method?: string): number {
-    if (method) {
-      const times = this.responseTimes.get(method) || [];
-      return times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
-    }
-    
-    // Overall average
-    let totalTime = 0;
-    let totalCount = 0;
-    
-    for (const times of this.responseTimes.values()) {
-      totalTime += times.reduce((a, b) => a + b, 0);
-      totalCount += times.length;
-    }
-    
-    return totalCount > 0 ? totalTime / totalCount : 0;
+    const filtered = method ? this.entries.filter((e) => e.method === method) : this.entries
+    if (filtered.length === 0) return 0
+    return filtered.reduce((sum, entry) => sum + entry.duration, 0) / filtered.length
   }
-  
+
   getMetrics(): Record<string, any> {
     const metrics: Record<string, any> = {
       requests: {},
       responseTimes: {},
       errorRates: {},
       overall: {
-        totalRequests: 0,
+        totalRequests: this.entries.length,
         averageResponseTime: this.getAverageResponseTime(),
-        errorRate: 0
-      }
-    };
-    
-    let totalRequests = 0;
-    let totalErrors = 0;
-    
-    for (const [method, count] of this.requestCounts.entries()) {
-      metrics.requests[method] = count;
-      totalRequests += count;
-      
-      const times = this.responseTimes.get(method) || [];
-      metrics.responseTimes[method] = {
-        average: times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0,
-        min: times.length > 0 ? Math.min(...times) : 0,
-        max: times.length > 0 ? Math.max(...times) : 0,
-        p95: this.calculatePercentile(times, 0.95),
-        p99: this.calculatePercentile(times, 0.99)
-      };
-      
-      const errors = this.errorCounts.get(method) || 0;
-      totalErrors += errors;
-      metrics.errorRates[method] = count > 0 ? errors / count : 0;
+        errorRate: 0,
+      },
+      recentEvents: this.events,
     }
-    
-    metrics.overall.totalRequests = totalRequests;
-    metrics.overall.errorRate = totalRequests > 0 ? totalErrors / totalRequests : 0;
-    
-    return metrics;
+
+    const grouped = new Map<string, MetricEntry[]>()
+    for (const entry of this.entries) {
+      if (!grouped.has(entry.method)) {
+        grouped.set(entry.method, [])
+      }
+      grouped.get(entry.method)!.push(entry)
+    }
+
+    let totalErrors = 0
+    for (const [method, entries] of grouped.entries()) {
+      const requestCount = entries.length
+      const errorCount = entries.filter((e) => !e.success).length
+      totalErrors += errorCount
+
+      metrics.requests[method] = requestCount
+      metrics.responseTimes[method] = {
+        average: entries.reduce((sum, entry) => sum + entry.duration, 0) / requestCount,
+      }
+      metrics.errorRates[method] = requestCount > 0 ? errorCount / requestCount : 0
+    }
+
+    metrics.overall.errorRate = this.entries.length > 0 ? totalErrors / this.entries.length : 0
+    return metrics
   }
-  
-  private calculatePercentile(values: number[], percentile: number): number {
-    if (values.length === 0) return 0;
-    
-    const sorted = [...values].sort((a, b) => a - b);
-    const index = Math.ceil(sorted.length * percentile) - 1;
-    return sorted[index] || 0;
-  }
-  
+
   reset(): void {
-    this.requestCounts.clear();
-    this.responseTimes.clear();
-    this.errorCounts.clear();
-    this.logger.info('Metrics reset');
+    this.entries = []
+    this.events = []
+    this.logger.info('Metrics reset')
   }
-} 
+}
