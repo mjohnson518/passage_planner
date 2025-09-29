@@ -1,17 +1,9 @@
 import { Logger } from 'pino'
 import type { RedisClientType } from 'redis'
 
-import { BaseAgent } from './BaseAgent'
+import { BaseAgent, type AgentCapabilitySummary } from './BaseAgent'
+export type { AgentCapabilitySummary } from './BaseAgent'
 import { getMockAgents } from './agentMocks'
-
-export interface AgentCapabilitySummary {
-  agentId: string
-  name: string
-  description: string
-  version: string
-  status: 'active' | 'idle' | 'error'
-  tools: { name: string; description: string }[]
-}
 
 export class AgentRegistry {
   private readonly agents = new Map<string, BaseAgent>()
@@ -40,7 +32,9 @@ export class AgentRegistry {
   async registerAgentInstance(agent: BaseAgent): Promise<void> {
     this.agents.set(agent.id, agent)
     await this.persistCapability(agent.summary)
-    await agent.register()
+    await agent.register(async (summary) => {
+      await this.persistCapability(summary)
+    })
     this.logger.info({ agentId: agent.id }, 'Agent instance registered')
   }
 
@@ -57,7 +51,7 @@ export class AgentRegistry {
     await this.persistCapability(summary)
     this.logger.info({ agentId: summary.agentId }, 'Agent registered')
   }
-
+  
   async getHealthyAgentCount(): Promise<number> {
     return this.capabilities.length
   }
@@ -65,4 +59,4 @@ export class AgentRegistry {
   getCapabilities(): AgentCapabilitySummary[] {
     return this.capabilities
   }
-}
+} 

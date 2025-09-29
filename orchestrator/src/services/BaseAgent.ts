@@ -1,13 +1,20 @@
 import type { RedisClientType } from 'redis'
 import type pino from 'pino'
 
-import type { AgentCapabilitySummary } from './AgentRegistry'
-
 export interface AgentContext {
   requestId: string
   userId?: string
   sessionId?: string
   metadata?: Record<string, unknown>
+}
+
+export interface AgentCapabilitySummary {
+  agentId: string
+  name: string
+  description: string
+  version: string
+  status: 'active' | 'idle' | 'error'
+  tools: { name: string; description: string }[]
 }
 
 export abstract class BaseAgent {
@@ -29,10 +36,12 @@ export abstract class BaseAgent {
     return this.capability
   }
 
-  async register(): Promise<void> {
-    if (this.redis) {
+  async register(capabilityStore?: (summary: AgentCapabilitySummary) => Promise<void>): Promise<void> {
+    if (capabilityStore) {
+      await capabilityStore(this.capability)
+    } else if (this.redis && (this.redis as any).isOpen) {
       await this.redis.hSet(
-        `agent:capabilities`,
+        'agent:capabilities',
         this.capability.agentId,
         JSON.stringify(this.capability)
       )

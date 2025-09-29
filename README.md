@@ -119,19 +119,11 @@ Production URLs:
    npm install
    ```
 
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   # Required variables:
-   # - SUPABASE_URL, SUPABASE_ANON_KEY
-   # - STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
-   # - RESEND_API_KEY
-   # - Weather API keys
-   ```
+
 
 4. **Start infrastructure**
    ```bash
-   docker-compose up -d
+   docker-compose up -d --build
    ```
 
 5. **Run database migrations**

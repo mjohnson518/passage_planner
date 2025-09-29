@@ -51,5 +51,6 @@ next-env.d.ts
 # Misc
 .cache/
 .temp/
-.tmp/ 
+.tmp/
+passage-planner-tech-spec.md
 passage-planner-tech-spec.md

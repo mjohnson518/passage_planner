@@ -1,4 +1,6 @@
-import type { AgentCapabilitySummary } from './AgentRegistry'
+import type { RedisClientType } from 'redis'
+import type pino from 'pino'
+
 import { BaseAgent, type AgentContext } from './BaseAgent'
 
 class PortAgent extends BaseAgent {
