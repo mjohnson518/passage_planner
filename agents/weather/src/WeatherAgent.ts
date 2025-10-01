@@ -1,4 +1,4 @@
-import { BaseAgent } from '../../base/BaseAgent.js';
+import { BaseAgent } from '../../base/BaseAgent';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
 
