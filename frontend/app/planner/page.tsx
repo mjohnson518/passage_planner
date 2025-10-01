@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -14,11 +14,15 @@ import {
   Compass, 
   Loader2,
   Plus,
-  X
+  X,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { useSocket } from '../contexts/SocketContext'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { planPassage, PassagePlanRequest } from '@/lib/orchestratorApi'
 
 interface Waypoint {
   id: string
@@ -29,17 +33,47 @@ interface Waypoint {
 
 export default function PlannerPage() {
   const { user } = useAuth()
+  const { connected, agentStatuses, subscribe, unsubscribe } = useSocket()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('route')
+  const [passagePlan, setPassagePlan] = useState<any>(null)
   
   const [formData, setFormData] = useState({
     departure: '',
     destination: '',
     departureDate: new Date(),
     boat: '',
+    cruiseSpeed: 6,
+    maxSpeed: 8,
     waypoints: [] as Waypoint[]
   })
+
+  // Subscribe to WebSocket updates
+  useEffect(() => {
+    const handleUpdate = (update: any) => {
+      switch (update.type) {
+        case 'planning_started':
+          toast.info('Planning started - AI agents are working on your passage plan');
+          break;
+        case 'agent_active':
+          toast.info(`${update.agent}: ${update.status}`);
+          break;
+        case 'planning_completed':
+          setPassagePlan(update.plan);
+          setLoading(false);
+          toast.success('Passage plan complete!');
+          break;
+        case 'planning_error':
+          setLoading(false);
+          toast.error(`Planning failed: ${update.error}`);
+          break;
+      }
+    };
+
+    subscribe(handleUpdate);
+    return () => unsubscribe(handleUpdate);
+  }, [subscribe, unsubscribe])
 
   const addWaypoint = () => {
     const newWaypoint: Waypoint = {
@@ -75,16 +109,40 @@ export default function PlannerPage() {
     }
 
     setLoading(true)
+    setPassagePlan(null);
+    
     try {
-      // TODO: Call orchestrator API
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // For now, use hardcoded coordinates - in production, geocode the port names
+      const departureCoords = { latitude: 42.3601, longitude: -71.0589 }; // Boston
+      const destinationCoords = { latitude: 43.6591, longitude: -70.2568 }; // Portland
       
-      toast.success('Passage plan created successfully!')
-      router.push('/passages/new-plan-id')
-    } catch (error) {
-      toast.error('Failed to create passage plan')
-    } finally {
-      setLoading(false)
+      const planRequest: PassagePlanRequest = {
+        departure: {
+          port: formData.departure,
+          latitude: departureCoords.latitude,
+          longitude: departureCoords.longitude,
+          time: formData.departureDate.toISOString()
+        },
+        destination: {
+          port: formData.destination,
+          latitude: destinationCoords.latitude,
+          longitude: destinationCoords.longitude
+        },
+        vessel: {
+          type: formData.boat || 'sailboat',
+          cruiseSpeed: formData.cruiseSpeed,
+          maxSpeed: formData.maxSpeed
+        },
+        userId: user?.id
+      };
+
+      const result = await planPassage(planRequest);
+      console.log('Planning started:', result.planningId);
+      
+      // WebSocket will handle the rest via planning_completed event
+    } catch (error: any) {
+      setLoading(false);
+      toast.error(error.message || 'Failed to create passage plan')
     }
   }
 
@@ -96,6 +154,86 @@ export default function PlannerPage() {
           Enter your route details and we'll create a comprehensive passage plan
         </p>
       </div>
+
+      {/* Agent Status Display */}
+      {loading && (
+        <Card className="mb-6 border-blue-200 bg-blue-50">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Planning in Progress
+            </CardTitle>
+            <CardDescription>
+              WebSocket: {connected ? '🟢 Connected' : '🔴 Disconnected'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {Object.entries(agentStatuses).map(([agentName, status]) => (
+                <div key={agentName} className="flex items-center gap-2 text-sm">
+                  {status.status === 'active' ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  )}
+                  <span className="font-medium capitalize">{agentName}:</span>
+                  <span className="text-muted-foreground">{status.message}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Passage Plan Results */}
+      {passagePlan && (
+        <Card className="mb-6 border-green-200 bg-green-50">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              Passage Plan Ready
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Distance</p>
+                <p className="text-xl font-bold">{passagePlan.summary.totalDistance.toFixed(1)} nm</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Estimated Duration</p>
+                <p className="text-xl font-bold">{passagePlan.summary.estimatedDuration.toFixed(1)} hrs</p>
+              </div>
+            </div>
+            
+            {passagePlan.summary.warnings?.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-orange-700">⚠️ Warnings:</p>
+                <ul className="text-sm space-y-1">
+                  {passagePlan.summary.warnings.map((warning: string, idx: number) => (
+                    <li key={idx} className="text-orange-700">• {warning}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {passagePlan.summary.recommendations?.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">💡 Recommendations:</p>
+                <ul className="text-sm space-y-1">
+                  {passagePlan.summary.recommendations.map((rec: string, idx: number) => (
+                    <li key={idx} className="text-muted-foreground">• {rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            <Button onClick={() => router.push(`/passages/${passagePlan.id}`)} className="w-full">
+              View Full Plan Details
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Mobile-optimized tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -216,16 +354,44 @@ export default function PlannerPage() {
               </div>
 
               <div>
-                <Label htmlFor="boat">Select Boat *</Label>
+                <Label htmlFor="boat">Boat Type *</Label>
                 <select
                   id="boat"
                   value={formData.boat}
                   onChange={(e) => setFormData(prev => ({ ...prev, boat: e.target.value }))}
                   className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <option value="">Choose your boat...</option>
-                  <option value="default">My Default Boat</option>
+                  <option value="">Choose boat type...</option>
+                  <option value="sailboat">Sailboat</option>
+                  <option value="powerboat">Powerboat</option>
+                  <option value="catamaran">Catamaran</option>
+                  <option value="trimaran">Trimaran</option>
                 </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="cruise-speed">Cruise Speed (kts)</Label>
+                  <Input
+                    id="cruise-speed"
+                    type="number"
+                    min="1"
+                    max="30"
+                    value={formData.cruiseSpeed}
+                    onChange={(e) => setFormData(prev => ({ ...prev, cruiseSpeed: parseFloat(e.target.value) || 6 }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="max-speed">Max Speed (kts)</Label>
+                  <Input
+                    id="max-speed"
+                    type="number"
+                    min="1"
+                    max="40"
+                    value={formData.maxSpeed}
+                    onChange={(e) => setFormData(prev => ({ ...prev, maxSpeed: parseFloat(e.target.value) || 8 }))}
+                  />
+                </div>
               </div>
             </CardContent>
           </TabsContent>

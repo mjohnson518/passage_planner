@@ -456,6 +456,43 @@ export class Orchestrator {
   private setupHttpServer() {
     this.app.use(express.json());
     
+    // CORS for frontend
+    this.app.use((req, res, next) => {
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'https://helmwise.co',
+        'https://helmwise.pages.dev'
+      ];
+      const origin = req.headers.origin;
+      if (origin && allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+      }
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      
+      if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+      }
+      next();
+    });
+    
+    // REST endpoint for passage planning
+    this.app.post('/api/plan', async (req, res) => {
+      try {
+        const result = await this.planPassage(req.body);
+        // Extract the plan from MCP response format
+        const planText = result.content[0].text;
+        const plan = JSON.parse(planText);
+        res.json({ success: true, plan });
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+    
     // Health check endpoint
     this.app.get('/health', async (req, res) => {
       try {

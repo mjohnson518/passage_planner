@@ -1,122 +1,132 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { io, Socket } from 'socket.io-client'
-import { config } from '@/config'
-import { AgentStatus } from '@/types'
+import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react'
 import { useAuth } from './AuthContext'
 
+interface PlanningUpdate {
+  type: 'planning_started' | 'agent_active' | 'planning_completed' | 'planning_error';
+  planningId: string;
+  agent?: string;
+  status?: string;
+  plan?: any;
+  error?: string;
+  request?: any;
+}
+
+interface AgentStatus {
+  name: string;
+  status: string;
+  message?: string;
+}
+
 interface SocketContextType {
-  socket: Socket | null
   connected: boolean
-  agentStatus: Record<string, AgentStatus>
-  activeRequests: string[]
-  subscribe: (event: string, handler: (data: any) => void) => void
-  unsubscribe: (event: string, handler: (data: any) => void) => void
-  emit: (event: string, data: any) => void
+  agentStatuses: Record<string, AgentStatus>
+  currentPlanningId: string | null
+  subscribe: (handler: (update: PlanningUpdate) => void) => void
+  unsubscribe: (handler: (update: PlanningUpdate) => void) => void
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined)
 
 export function SocketProvider({ children }: { children: ReactNode }) {
-  const [socket, setSocket] = useState<Socket | null>(null)
+  const [ws, setWs] = useState<WebSocket | null>(null)
   const [connected, setConnected] = useState(false)
-  const [agentStatus, setAgentStatus] = useState<Record<string, AgentStatus>>({})
-  const [activeRequests, setActiveRequests] = useState<string[]>([])
-  const { session } = useAuth()
+  const [agentStatuses, setAgentStatuses] = useState<Record<string, AgentStatus>>({})
+  const [currentPlanningId, setCurrentPlanningId] = useState<string | null>(null)
+  const handlersRef = useRef<Set<(update: PlanningUpdate) => void>>(new Set())
 
   useEffect(() => {
-    if (!session?.access_token) {
-      return
-    }
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080';
+    const websocket = new WebSocket(wsUrl);
 
-    // Initialize socket connection
-    const socketInstance = io(config.api.wsUrl, {
-      auth: {
-        token: session.access_token,
-      },
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
-    })
+    websocket.onopen = () => {
+      console.log('WebSocket connected to orchestrator');
+      setConnected(true);
+    };
 
-    // Connection handlers
-    socketInstance.on('connect', () => {
-      console.log('Socket connected')
-      setConnected(true)
-    })
+    websocket.onclose = () => {
+      console.log('WebSocket disconnected');
+      setConnected(false);
+    };
 
-    socketInstance.on('disconnect', () => {
-      console.log('Socket disconnected')
-      setConnected(false)
-    })
+    websocket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
 
-    socketInstance.on('connect_error', (error) => {
-      console.error('Socket connection error:', error)
-    })
+    websocket.onmessage = (event) => {
+      try {
+        const update: PlanningUpdate = JSON.parse(event.data);
+        
+        // Handle different update types
+        switch (update.type) {
+          case 'planning_started':
+            setCurrentPlanningId(update.planningId);
+            setAgentStatuses({});
+            break;
+            
+          case 'agent_active':
+            if (update.agent) {
+              setAgentStatuses(prev => ({
+                ...prev,
+                [update.agent!]: {
+                  name: update.agent!,
+                  status: 'active',
+                  message: update.status
+                }
+              }));
+            }
+            break;
+            
+          case 'planning_completed':
+            if (update.planningId === currentPlanningId) {
+              // Mark all agents as complete
+              setAgentStatuses(prev => {
+                const updated = { ...prev };
+                Object.keys(updated).forEach(key => {
+                  updated[key].status = 'complete';
+                });
+                return updated;
+              });
+            }
+            break;
+            
+          case 'planning_error':
+            setAgentStatuses({});
+            break;
+        }
+        
+        // Notify all subscribed handlers
+        handlersRef.current.forEach(handler => handler(update));
+        
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    };
 
-    // Agent status updates
-    socketInstance.on('agent:status', (payload: any) => {
-      const { name, status } = payload || {}
-      if (!name) return
-      setAgentStatus(prev => ({
-        ...prev,
-        [name]: status,
-      }))
-    })
+    setWs(websocket);
 
-    // Request tracking
-    socketInstance.on('request:start', (requestId: string) => {
-      setActiveRequests(prev => [...prev, requestId])
-    })
-
-    socketInstance.on('request:complete', (requestId: string) => {
-      setActiveRequests(prev => prev.filter(id => id !== requestId))
-    })
-
-    // Processing updates
-    socketInstance.on('processing:update', (update: any) => {
-      // Handle processing updates (could trigger UI updates)
-      console.log('Processing update:', update)
-    })
-
-    setSocket(socketInstance)
-
-    // Cleanup on unmount
     return () => {
-      socketInstance.close()
-    }
-  }, [session])
+      websocket.close();
+    };
+  }, []);
 
-  const subscribe = (event: string, handler: (data: any) => void) => {
-    if (socket) {
-      socket.on(event, handler)
-    }
-  }
+  const subscribe = (handler: (update: PlanningUpdate) => void) => {
+    handlersRef.current.add(handler);
+  };
 
-  const unsubscribe = (event: string, handler: (data: any) => void) => {
-    if (socket) {
-      socket.off(event, handler)
-    }
-  }
-
-  const emit = (event: string, data: any) => {
-    if (socket && connected) {
-      socket.emit(event, data)
-    }
-  }
+  const unsubscribe = (handler: (update: PlanningUpdate) => void) => {
+    handlersRef.current.delete(handler);
+  };
 
   return (
     <SocketContext.Provider
       value={{
-        socket,
         connected,
-        agentStatus,
-        activeRequests,
+        agentStatuses,
+        currentPlanningId,
         subscribe,
         unsubscribe,
-        emit,
       }}
     >
       {children}
