@@ -15,11 +15,12 @@ For Docker compose the following keys are required (values shown are suggested d
 | Variable | Suggested Value | Notes |
 | --- | --- | --- |
 | `APP_URL` | `http://localhost:3000` | Frontend base URL |
-| `API_URL` | `http://localhost:8080` | Orchestrator HTTP URL |
-| `DATABASE_URL` | `postgresql://admin:secure_password@postgres:5432/passage_planner` | Reuses credentials defined in `docker-compose.yml` |
-| `REDIS_URL` | `redis://redis:6379` | Points to the compose Redis service |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Passed into the frontend build |
-| `NEXT_PUBLIC_WS_URL` | `ws://localhost:8081` | WebSocket endpoint for orchestrator |
+| `API_URL` | `http://localhost:8080` | Orchestrator REST URL |
+| `MCP_WS_URL` | `ws://localhost:8081` | Orchestrator MCP/WebSocket endpoint |
+| `DATABASE_URL` | `postgresql://postgres:postgres@postgres:5432/postgres` | Matches compose defaults |
+| `REDIS_URL` | `redis://redis:6379` | Compose Redis service |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Frontend fetch base |
+| `NEXT_PUBLIC_WS_URL` | `ws://localhost:8081` | Frontend WebSocket base |
 
 You will also need API keys/secrets for integrations; placeholder values in `.env.example` indicate what to provide:
 
