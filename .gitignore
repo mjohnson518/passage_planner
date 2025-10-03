@@ -46,6 +46,10 @@ docker-compose.override.yml
 *.d.ts.map
 *.js.map
 
+# Compiled agent files (keep config JS files)
+agents/**/*.js
+!agents/**/jest.config.js
+
 # Next.js
 .next/
 out/
