@@ -587,24 +587,3 @@ export class Orchestrator {
   }
 }
 
-// Start orchestrator if run directly
-if (require.main === module) {
-  const orchestrator = new Orchestrator();
-  
-  orchestrator.start().catch((error) => {
-    console.error('Failed to start orchestrator:', error);
-    process.exit(1);
-  });
-  
-  // Graceful shutdown
-  process.on('SIGINT', async () => {
-    await orchestrator.shutdown();
-    process.exit(0);
-  });
-  
-  process.on('SIGTERM', async () => {
-    await orchestrator.shutdown();
-    process.exit(0);
-  });
-}
-

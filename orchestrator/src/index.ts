@@ -1,140 +1,35 @@
-// orchestrator/src/index.ts
-// Complete Orchestrator Implementation
+// Entry point for orchestrator
+import { Orchestrator } from './Orchestrator';
 
-import { EventEmitter } from 'events'
-import { Pool } from 'pg'
-import { RedisClientType, createClient } from 'redis'
-import pino from 'pino'
+const orchestrator = new Orchestrator();
 
-import { AgentCapabilitySummary, AgentRegistry } from './services/AgentRegistry'
-import { RequestRouter, OrchestrationPlan } from './services/RequestRouter'
-import { ResponseAggregator } from './services/ResponseAggregator'
-import { SessionManager } from './services/SessionManager'
-import { MetricsCollector } from './services/MetricsCollector'
-import { PassagePlanner } from './services/PassagePlanner'
-
-interface ToolCallRequest {
-  tool: string
-  arguments: Record<string, unknown>
-}
-
-interface PlanningResponse {
-  success: boolean
-  planId: string
-  summary: Record<string, unknown>
-}
-
-export class OrchestratorService extends EventEmitter {
-  private readonly redis: RedisClientType
-  private readonly postgres: Pool
-  private readonly logger = pino({ enabled: process.env.NODE_ENV !== 'test' })
-
-  private readonly tools = [
-    {
-      name: 'plan_passage',
-      description: 'Plan a sailing passage using onboard agents',
-    },
-  ]
-
-  private readonly agentRegistry: AgentRegistry
-  private readonly requestRouter: RequestRouter
-  private readonly aggregator: ResponseAggregator
-  private readonly sessionManager: SessionManager
-  private readonly metrics: MetricsCollector
-  private readonly planner: PassagePlanner
+orchestrator.start().catch((error) => {
+  console.error('Failed to start orchestrator:', error);
+      process.exit(1);
+});
   
-  constructor() {
-    super()
+  // Graceful shutdown
+  process.on('SIGINT', async () => {
+  console.log('\nReceived SIGINT, shutting down gracefully...');
+    await orchestrator.shutdown();
+    process.exit(0);
+  });
+  
+  process.on('SIGTERM', async () => {
+  console.log('\nReceived SIGTERM, shutting down gracefully...');
+    await orchestrator.shutdown();
+    process.exit(0);
+  });
+  
+// Handle uncaught errors
+process.on('uncaughtException', async (error) => {
+  console.error('Uncaught exception:', error);
+  await orchestrator.shutdown();
+  process.exit(1);
+});
 
-    this.redis = createClient({ url: process.env.REDIS_URL ?? 'redis://localhost:6379' })
-    this.postgres = new Pool({ connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/postgres' })
-
-    this.agentRegistry = new AgentRegistry(this.logger, this.redis)
-    this.requestRouter = new RequestRouter(this.logger)
-    this.aggregator = new ResponseAggregator(this.logger)
-    this.sessionManager = new SessionManager(null, this.logger)
-    this.metrics = new MetricsCollector(this.logger)
-    this.planner = new PassagePlanner({
-      agentRegistry: this.agentRegistry,
-      aggregator: this.aggregator,
-      persistence: {
-        savePassagePlan: async (plan: Record<string, unknown>) => ({
-          id: (plan.requestId as string) ?? `plan-${Date.now()}`
-        })
-      },
-      metrics: this.metrics,
-      emitter: this,
-      logger: this.logger
-    })
-
-    this.setupHandlers()
-  }
-
-  private setupHandlers() {
-    this.on('agent:register', async (summary: AgentCapabilitySummary) => {
-      await this.agentRegistry.registerAgent(summary)
-      this.logger.debug({ agentId: summary.agentId }, 'agent registered')
-    })
-  }
-
-  private generateRequestId() {
-    return `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-  }
-
-  async handleRequest(request: ToolCallRequest): Promise<{ success: boolean; result: PlanningResponse }> {
-    if (request.tool !== 'plan_passage') {
-      throw new Error(`Unsupported tool ${request.tool}`)
-    }
-
-    const requestId = this.generateRequestId()
-    const userId = (request.arguments.userId as string) ?? 'anonymous-user'
-
-    const plan: OrchestrationPlan = await this.requestRouter.createPlan({
-      requestId,
-      userId,
-      departure: request.arguments.departure,
-      destination: request.arguments.destination
-    })
-
-    const sessionId = await this.sessionManager.createSession({
-      requestId,
-      userId,
-      createdAt: new Date().toISOString()
-    })
-
-    try {
-      const result = await this.planner.run(plan, request.arguments)
-      await this.sessionManager.endSession(sessionId)
-      return { success: true, result }
-    } catch (error) {
-      await this.sessionManager.endSession(sessionId)
-      throw error
-    }
-  }
-
-  async listTools() {
-    return this.tools
-  }
-
-  getAgentCapabilities() {
-    return this.agentRegistry.getCapabilities()
-  }
-
-  async start() {
-    await this.redis.connect()
-    await this.postgres.connect()
-    this.logger.info('Orchestrator started')
-  }
-
-  async shutdown() {
-    await this.redis.quit()
-    await this.postgres.end()
-    this.logger.info('Orchestrator stopped')
-  }
-}
-
-export class HttpServer {
-  constructor(_orchestrator: OrchestratorService) {
-    throw new Error('HttpServer is not implemented in Phase 1')
-  }
-} 
+process.on('unhandledRejection', async (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  await orchestrator.shutdown();
+  process.exit(1);
+});
