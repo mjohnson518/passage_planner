@@ -42,6 +42,9 @@ docker-compose.override.yml
 
 # TypeScript
 *.tsbuildinfo
+*.d.ts
+*.d.ts.map
+*.js.map
 
 # Next.js
 .next/
