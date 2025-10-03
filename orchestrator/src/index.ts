@@ -1,7 +1,7 @@
 // Entry point for orchestrator
-import { Orchestrator } from './Orchestrator';
+import { SimpleOrchestrator } from './SimpleOrchestrator';
 
-const orchestrator = new Orchestrator();
+const orchestrator = new SimpleOrchestrator();
 
 orchestrator.start().catch((error) => {
   console.error('Failed to start orchestrator:', error);
