@@ -2,7 +2,8 @@
 import Redis from 'ioredis';
 import { WeatherAgent } from '../../agents/weather/src/WeatherAgent';
 import { TidalAgent } from '../../agents/tidal/src/TidalAgent';
-import { RouteAgent } from '../../agents/route/src/RouteAgent';
+// Temporarily skip RouteAgent due to Turf.js ESM issues
+// import { RouteAgent } from '../../agents/route/src/RouteAgent';
 import { BaseAgent } from '../../agents/base/BaseAgent';
 import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
@@ -38,7 +39,7 @@ export class SimpleOrchestrator {
   private async initializeAgents() {
     console.log('Initializing agents...');
     
-    // Initialize all agents
+    // Initialize weather and tidal agents only (RouteAgent has Turf.js ESM issues)
     this.agents['weather'] = new WeatherAgent(
       process.env.REDIS_URL || 'redis://localhost:6379',
       process.env.NOAA_API_KEY || '',
@@ -48,10 +49,6 @@ export class SimpleOrchestrator {
     this.agents['tidal'] = new TidalAgent(
       process.env.REDIS_URL || 'redis://localhost:6379',
       process.env.NOAA_API_KEY || ''
-    );
-    
-    this.agents['route'] = new RouteAgent(
-      process.env.REDIS_URL || 'redis://localhost:6379'
     );
     
     // Initialize all agents
@@ -80,7 +77,7 @@ export class SimpleOrchestrator {
     console.log(`Planning passage ${planningId}...`);
     
     try {
-      // Step 1: Calculate base route
+      // Step 1: Calculate base route (using mock data for now)
       this.broadcastUpdate({
         type: 'agent_active',
         planningId,
@@ -89,13 +86,28 @@ export class SimpleOrchestrator {
       });
       
       console.log('Step 1: Calculating route...');
-      const route = await this.agents['route'].handleToolCall('calculate_route', {
-        departure: request.departure,
-        destination: request.destination,
-        vessel_speed: request.vessel?.cruiseSpeed || 5,
-        optimization: 'distance'
-      });
-      console.log(`✓ Route calculated: ${route.totalDistance} nm`);
+      // Mock route calculation (Turf.js ESM issues prevent real RouteAgent)
+      const distance = this.calculateSimpleDistance(
+        request.departure.latitude,
+        request.departure.longitude,
+        request.destination.latitude,
+        request.destination.longitude
+      );
+      const cruiseSpeed = request.vessel?.cruiseSpeed || 5;
+      const route = {
+        waypoints: [request.departure, request.destination],
+        segments: [{
+          from: request.departure,
+          to: request.destination,
+          distance,
+          bearing: 180,
+          estimatedTime: distance / cruiseSpeed
+        }],
+        totalDistance: distance,
+        estimatedDuration: distance / cruiseSpeed,
+        optimized: false
+      };
+      console.log(`✓ Route calculated: ${route.totalDistance.toFixed(1)} nm`);
       
       // Step 2: Get weather along route
       this.broadcastUpdate({
@@ -375,6 +387,18 @@ export class SimpleOrchestrator {
         resolve();
       });
     });
+  }
+
+  private calculateSimpleDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    // Haversine formula for distance in nautical miles
+    const R = 3440.1; // Earth radius in nautical miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
   }
 }
 
