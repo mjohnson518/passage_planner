@@ -44,6 +44,7 @@ jest.mock('express', () => {
   const mockApp = {
     use: jest.fn(),
     get: jest.fn(),
+    post: jest.fn(),
     listen: jest.fn((port: number, callback: Function) => callback()),
   };
   const expressFn: any = jest.fn(() => mockApp);

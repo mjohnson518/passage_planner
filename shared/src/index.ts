@@ -38,4 +38,24 @@ export * from './services/SafetyService';
 
 // Export middleware
 export * from './middleware/InputValidation';
-export * from './middleware/SecurityHeaders'; 
+export * from './middleware/SecurityHeaders';
+
+// Export new Phase 1 enhancements - avoid duplicates with SafetyService
+export type { 
+  RestrictedArea,
+  SafetyMargin,
+  CrewExperience,
+  SafetyRecommendation,
+  WeatherHazardAssessment,
+  MarineConditions,
+  SafetyOverride,
+  SafetyAuditLog,
+  DepthCalculation,
+  SevereWeatherPattern
+} from './types/safety';
+// Note: Waypoint, SafetyHazard, SafetyWarning, GeographicBounds, WeatherHazard already exported
+export * from './types/errors';
+export * from './services/retry';
+export * from './services/circuit-breaker';
+export * from './services/api-client';
+export * from './services/data-freshness'; 
