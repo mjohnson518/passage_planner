@@ -52,10 +52,13 @@ describe('WeatherAgent', () => {
 
     it('should return weather tools', () => {
       const tools = weatherAgent.getTools();
-      expect(tools).toHaveLength(3);
+      expect(tools).toHaveLength(6); // 3 original + 3 new Phase 2 tools
       expect(tools.map(t => t.name)).toContain('get_marine_forecast');
       expect(tools.map(t => t.name)).toContain('get_weather_warnings');
       expect(tools.map(t => t.name)).toContain('get_grib_data');
+      expect(tools.map(t => t.name)).toContain('check_tropical_cyclones');
+      expect(tools.map(t => t.name)).toContain('find_weather_window');
+      expect(tools.map(t => t.name)).toContain('analyze_sea_state');
     });
   });
 

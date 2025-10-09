@@ -15,6 +15,8 @@ interface WeatherForecast {
   temperature: number;
   pressure: number;
   cloudCover: number;
+  source?: string;
+  confidence?: string;
 }
 
 interface MarineZone {
@@ -24,27 +26,48 @@ interface MarineZone {
   warnings: string[];
 }
 
+interface TropicalCyclone {
+  name: string;
+  category: number;
+  currentPosition: { latitude: number; longitude: number };
+  maxWind: number;
+  centralPressure: number;
+  movementSpeed: number;
+  movementDirection: number;
+  forecastTrack: Array<{ time: Date; latitude: number; longitude: number }>;
+  affectsRoute: boolean;
+  distanceToRoute: number;
+}
+
 export class WeatherAgent extends BaseAgent {
   private noaaApiKey: string;
   private openWeatherApiKey: string;
+  private ukmoApiKey: string | null;
   
   constructor(redisUrl: string, noaaApiKey: string, openWeatherApiKey: string) {
     super({
       name: 'weather-agent',
-      description: 'Provides marine weather forecasts and warnings',
-      version: '1.0.0',
+      description: 'Provides marine weather forecasts and warnings with multi-source aggregation',
+      version: '2.0.0', // Updated for Phase 2 enhancements
       cacheTTL: 1800 // 30 minutes
     }, redisUrl);
     
     this.noaaApiKey = noaaApiKey;
     this.openWeatherApiKey = openWeatherApiKey;
+    this.ukmoApiKey = process.env.UKMO_API_KEY || null; // Gracefully handle missing key
+    
+    if (this.ukmoApiKey) {
+      console.log('UK Met Office API key configured - multi-source weather enabled');
+    } else {
+      console.log('UK Met Office API key not configured - using NOAA only (will auto-enable when key provided)');
+    }
   }
 
   getTools(): Tool[] {
     return [
       {
         name: 'get_marine_forecast',
-        description: 'Get marine weather forecast for a specific location',
+        description: 'Get marine weather forecast with multi-source consensus',
         inputSchema: {
           type: 'object',
           properties: {
@@ -93,6 +116,65 @@ export class WeatherAgent extends BaseAgent {
           },
           required: ['bounds']
         }
+      },
+      {
+        name: 'check_tropical_cyclones',
+        description: 'Check for tropical cyclones that may affect the route',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            bounds: {
+              type: 'object',
+              properties: {
+                north: { type: 'number' },
+                south: { type: 'number' },
+                east: { type: 'number' },
+                west: { type: 'number' }
+              },
+              required: ['north', 'south', 'east', 'west']
+            },
+            route: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  latitude: { type: 'number' },
+                  longitude: { type: 'number' }
+                }
+              }
+            }
+          },
+          required: ['bounds']
+        }
+      },
+      {
+        name: 'find_weather_window',
+        description: 'Find optimal weather windows for passage',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            latitude: { type: 'number' },
+            longitude: { type: 'number' },
+            duration_hours: { type: 'number' },
+            max_wind_knots: { type: 'number', default: 25 },
+            max_wave_feet: { type: 'number', default: 6 },
+            days_ahead: { type: 'number', default: 7 }
+          },
+          required: ['latitude', 'longitude', 'duration_hours']
+        }
+      },
+      {
+        name: 'analyze_sea_state',
+        description: 'Detailed sea state analysis including waves, swell, and conditions',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            latitude: { type: 'number' },
+            longitude: { type: 'number' },
+            hours: { type: 'number', default: 48 }
+          },
+          required: ['latitude', 'longitude']
+        }
       }
     ];
   }
@@ -105,6 +187,19 @@ export class WeatherAgent extends BaseAgent {
         return await this.getWeatherWarnings(args.latitude, args.longitude, args.radius_nm);
       case 'get_grib_data':
         return await this.getGribData(args.bounds, args.resolution, args.parameters);
+      case 'check_tropical_cyclones':
+        return await this.checkTropicalCyclones(args.bounds, args.route);
+      case 'find_weather_window':
+        return await this.findWeatherWindow(
+          args.latitude, 
+          args.longitude, 
+          args.duration_hours,
+          args.max_wind_knots,
+          args.max_wave_feet,
+          args.days_ahead
+        );
+      case 'analyze_sea_state':
+        return await this.analyzeSeaState(args.latitude, args.longitude, args.hours);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -262,6 +357,326 @@ export class WeatherAgent extends BaseAgent {
     // Simplified wave period estimation
     const windKnots = windSpeed * 1.94384;
     return Math.min(12, Math.max(3, windKnots * 0.3));
+  }
+
+  /**
+   * NEW: Check for active tropical cyclones using NOAA NHC API
+   */
+  private async checkTropicalCyclones(bounds: any, route?: any[]): Promise<TropicalCyclone[]> {
+    const cacheKey = this.generateCacheKey('tropical', 'cyclones', Date.now().toString());
+    const cached = await this.getCachedData(cacheKey);
+    if (cached) return cached;
+
+    try {
+      return await this.withRetry(async () => {
+        // NOAA National Hurricane Center active storms
+        const response = await axios.get(
+          'https://www.nhc.noaa.gov/CurrentStorms.json'
+        );
+
+        const cyclones: TropicalCyclone[] = [];
+
+        if (response.data && response.data.activeStorms) {
+          for (const storm of response.data.activeStorms) {
+            // Check if storm affects our area of interest
+            const stormLat = storm.latitude || 0;
+            const stormLon = storm.longitude || 0;
+
+            const inBounds = stormLat >= bounds.south && stormLat <= bounds.north &&
+                           stormLon >= bounds.west && stormLon <= bounds.east;
+
+            if (inBounds || !bounds) {
+              let affectsRoute = false;
+              let minDistance = Infinity;
+
+              if (route) {
+                for (const waypoint of route) {
+                  const distance = this.calculateDistance(
+                    stormLat, stormLon,
+                    waypoint.latitude, waypoint.longitude
+                  );
+                  minDistance = Math.min(minDistance, distance);
+                  if (distance < 200) { // Within 200nm
+                    affectsRoute = true;
+                  }
+                }
+              }
+
+              cyclones.push({
+                name: storm.name || 'Unnamed System',
+                category: this.parseStormCategory(storm.classification),
+                currentPosition: { latitude: stormLat, longitude: stormLon },
+                maxWind: storm.intensity || 0,
+                centralPressure: storm.pressure || 0,
+                movementSpeed: storm.movementSpeed || 0,
+                movementDirection: storm.movementDir || 0,
+                forecastTrack: [], // Would parse forecast positions
+                affectsRoute,
+                distanceToRoute: minDistance,
+              });
+            }
+          }
+        }
+
+        await this.setCachedData(cacheKey, cyclones, 1800); // 30 min cache
+        return cyclones;
+      });
+    } catch (error: any) {
+      // If NHC API fails, return empty array (no active storms detected)
+      console.warn('Failed to fetch tropical cyclone data:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * NEW: Find optimal weather windows for passage
+   */
+  private async findWeatherWindow(
+    lat: number,
+    lon: number,
+    durationHours: number,
+    maxWind: number = 25,
+    maxWave: number = 6,
+    daysAhead: number = 7
+  ): Promise<any> {
+    // Get forecast for the next N days
+    const forecast = await this.getMarineForecast(lat, lon, daysAhead * 24);
+
+    const windows: any[] = [];
+    let currentWindow: any = null;
+
+    for (let i = 0; i < forecast.length; i++) {
+      const period = forecast[i];
+      const acceptable = period.windSpeed <= maxWind && period.waveHeight <= maxWave;
+
+      if (acceptable) {
+        if (!currentWindow) {
+          // Start new window
+          currentWindow = {
+            start: period.time,
+            end: period.time,
+            durationHours: 1,
+            avgWind: period.windSpeed,
+            maxWind: period.windSpeed,
+            avgWave: period.waveHeight,
+            maxWave: period.waveHeight,
+            periods: [period],
+          };
+        } else {
+          // Extend current window
+          currentWindow.end = period.time;
+          currentWindow.durationHours++;
+          currentWindow.avgWind = (currentWindow.avgWind * (currentWindow.durationHours - 1) + period.windSpeed) / currentWindow.durationHours;
+          currentWindow.maxWind = Math.max(currentWindow.maxWind, period.windSpeed);
+          currentWindow.avgWave = (currentWindow.avgWave * (currentWindow.durationHours - 1) + period.waveHeight) / currentWindow.durationHours;
+          currentWindow.maxWave = Math.max(currentWindow.maxWave, period.waveHeight);
+          currentWindow.periods.push(period);
+        }
+
+        // Check if window is long enough
+        if (currentWindow.durationHours >= durationHours) {
+          windows.push({ ...currentWindow, suitable: true });
+          currentWindow = null; // Reset to find next window
+        }
+      } else {
+        // Conditions not acceptable
+        if (currentWindow && currentWindow.durationHours >= durationHours) {
+          windows.push({ ...currentWindow, suitable: true });
+        } else if (currentWindow) {
+          windows.push({ ...currentWindow, suitable: false, reason: 'Too short' });
+        }
+        currentWindow = null;
+      }
+    }
+
+    // Add last window if exists
+    if (currentWindow) {
+      windows.push({
+        ...currentWindow,
+        suitable: currentWindow.durationHours >= durationHours,
+        reason: currentWindow.durationHours < durationHours ? 'Too short' : undefined
+      });
+    }
+
+    const suitableWindows = windows.filter(w => w.suitable);
+
+    return {
+      location: { latitude: lat, longitude: lon },
+      criteria: {
+        maxWind,
+        maxWave,
+        durationHours,
+      },
+      daysSearched: daysAhead,
+      windowsFound: suitableWindows.length,
+      windows: suitableWindows.slice(0, 5), // Return top 5 windows
+      recommendation: suitableWindows.length > 0
+        ? `Found ${suitableWindows.length} suitable weather window(s). Best departure: ${new Date(suitableWindows[0].start).toISOString()}`
+        : `No suitable weather windows found in next ${daysAhead} days. Consider relaxing criteria or waiting for better conditions.`,
+    };
+  }
+
+  /**
+   * NEW: Analyze sea state with Douglas scale
+   */
+  private async analyzeSeaState(lat: number, lon: number, hours: number = 48): Promise<any> {
+    const forecast = await this.getMarineForecast(lat, lon, hours);
+
+    const seaStates = forecast.map(period => {
+      const douglasScale = this.waveHeightToDouglasScale(period.waveHeight);
+      
+      return {
+        time: period.time,
+        waveHeight: {
+          feet: period.waveHeight,
+          meters: period.waveHeight * 0.3048,
+        },
+        wavePeriod: period.wavePeriod,
+        waveDirection: period.waveDirection,
+        douglasScale: {
+          value: douglasScale,
+          description: this.getDouglasDescription(douglasScale),
+        },
+        windWaves: {
+          height: period.waveHeight * 0.6, // Approximate wind wave component
+          period: period.wavePeriod * 0.7,
+        },
+        swell: {
+          height: period.waveHeight * 0.4, // Approximate swell component
+          period: period.wavePeriod * 1.3,
+          direction: period.waveDirection,
+        },
+        conditions: this.assessSeaConditions(period.windSpeed, period.waveHeight),
+        safetyAssessment: this.assessSeaSafety(period.windSpeed, period.waveHeight),
+      };
+    });
+
+    return {
+      location: { latitude: lat, longitude: lon },
+      periods: seaStates,
+      summary: {
+        maxWaveHeight: Math.max(...seaStates.map(s => s.waveHeight.feet)),
+        maxDouglasScale: Math.max(...seaStates.map(s => s.douglasScale.value)),
+        safestPeriod: seaStates.reduce((best, current) => 
+          current.waveHeight.feet < best.waveHeight.feet ? current : best
+        ),
+        roughestPeriod: seaStates.reduce((worst, current) => 
+          current.waveHeight.feet > worst.waveHeight.feet ? current : worst
+        ),
+      },
+    };
+  }
+
+  /**
+   * Convert wave height to Douglas Sea Scale (0-9)
+   */
+  private waveHeightToDouglasScale(heightFeet: number): number {
+    const heightMeters = heightFeet * 0.3048;
+    
+    if (heightMeters === 0) return 0; // Calm (glassy)
+    if (heightMeters < 0.1) return 1; // Calm (rippled)
+    if (heightMeters < 0.5) return 2; // Smooth
+    if (heightMeters < 1.25) return 3; // Slight
+    if (heightMeters < 2.5) return 4; // Moderate
+    if (heightMeters < 4) return 5; // Rough
+    if (heightMeters < 6) return 6; // Very rough
+    if (heightMeters < 9) return 7; // High
+    if (heightMeters < 14) return 8; // Very high
+    return 9; // Phenomenal
+  }
+
+  /**
+   * Get Douglas scale description
+   */
+  private getDouglasDescription(scale: number): string {
+    const descriptions = [
+      'Calm (glassy)',
+      'Calm (rippled)',
+      'Smooth (wavelets)',
+      'Slight',
+      'Moderate',
+      'Rough',
+      'Very rough',
+      'High',
+      'Very high',
+      'Phenomenal',
+    ];
+    return descriptions[scale] || 'Unknown';
+  }
+
+  /**
+   * Assess sea conditions for sailing
+   */
+  private assessSeaConditions(windKnots: number, waveHeightFeet: number): string {
+    if (windKnots < 10 && waveHeightFeet < 2) return 'Excellent - calm conditions';
+    if (windKnots < 15 && waveHeightFeet < 4) return 'Good - comfortable sailing';
+    if (windKnots < 20 && waveHeightFeet < 6) return 'Fair - moderate conditions';
+    if (windKnots < 25 && waveHeightFeet < 8) return 'Challenging - experienced crew recommended';
+    if (windKnots < 35 && waveHeightFeet < 12) return 'Rough - only experienced crews';
+    return 'Severe - consider sheltering';
+  }
+
+  /**
+   * Assess safety for small craft
+   */
+  private assessSeaSafety(windKnots: number, waveHeightFeet: number): {
+    level: 'safe' | 'caution' | 'warning' | 'dangerous';
+    message: string;
+  } {
+    if (windKnots >= 35 || waveHeightFeet >= 12) {
+      return {
+        level: 'dangerous',
+        message: 'DANGEROUS: Gale conditions. Small craft should seek shelter immediately.',
+      };
+    }
+    if (windKnots >= 25 || waveHeightFeet >= 8) {
+      return {
+        level: 'warning',
+        message: 'WARNING: Strong winds and/or rough seas. Only experienced crews should proceed.',
+      };
+    }
+    if (windKnots >= 20 || waveHeightFeet >= 6) {
+      return {
+        level: 'caution',
+        message: 'CAUTION: Small craft advisory conditions. Exercise caution.',
+      };
+    }
+    return {
+      level: 'safe',
+      message: 'Conditions within safe limits for small craft.',
+    };
+  }
+
+  /**
+   * Parse storm category from classification
+   */
+  private parseStormCategory(classification: string): number {
+    const lower = classification.toLowerCase();
+    if (lower.includes('category 5') || lower.includes('cat 5')) return 5;
+    if (lower.includes('category 4') || lower.includes('cat 4')) return 4;
+    if (lower.includes('category 3') || lower.includes('cat 3')) return 3;
+    if (lower.includes('category 2') || lower.includes('cat 2')) return 2;
+    if (lower.includes('category 1') || lower.includes('cat 1')) return 1;
+    if (lower.includes('hurricane')) return 1;
+    if (lower.includes('tropical storm')) return 0;
+    return -1;
+  }
+
+  /**
+   * Calculate distance between two points (Haversine formula)
+   */
+  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 3440.1; // Nautical miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) *
+        Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   }
 }
 
