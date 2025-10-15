@@ -22,7 +22,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useSocket } from '../contexts/SocketContext'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { planPassage, PassagePlanRequest } from '@/lib/orchestratorApi'
+import { planPassage, PassagePlanRequest } from '../../lib/orchestratorApi'
 import { analytics } from '@/lib/analytics'
 
 interface Waypoint {
