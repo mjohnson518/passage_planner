@@ -3,6 +3,8 @@ import { Inter } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { Providers } from './providers'
 import { MobileNav } from './components/navigation/MobileNav'
+import { FeedbackWidget } from './components/FeedbackWidget'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -40,9 +42,12 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
           <MobileNav />
           <Toaster richColors position="top-right" />
+          <FeedbackWidget />
         </Providers>
       </body>
     </html>

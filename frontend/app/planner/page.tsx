@@ -23,6 +23,7 @@ import { useSocket } from '../contexts/SocketContext'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { planPassage, PassagePlanRequest } from '@/lib/orchestratorApi'
+import { analytics } from '@/lib/analytics'
 
 interface Waypoint {
   id: string
@@ -63,6 +64,15 @@ export default function PlannerPage() {
           setPassagePlan(update.plan);
           setLoading(false);
           toast.success('Passage plan complete!');
+          
+          // Track successful passage creation
+          analytics.trackPassageCreated({
+            distance_nm: update.plan?.summary?.totalDistance,
+            duration_hours: update.plan?.summary?.estimatedDuration,
+            waypoint_count: update.plan?.route?.waypoints?.length,
+            departure_port: formData.departure,
+            destination_port: formData.destination,
+          });
           break;
         case 'planning_error':
           setLoading(false);

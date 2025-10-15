@@ -10,6 +10,7 @@ import { Label } from '../components/ui/label'
 import { Checkbox } from '../components/ui/checkbox'
 import { useAuth } from '../contexts/AuthContext'
 import { cn } from '../lib/utils'
+import { analytics } from '../lib/analytics'
 
 const passwordRequirements = [
   { regex: /.{8,}/, text: 'At least 8 characters' },
@@ -59,6 +60,13 @@ export default function SignupPage() {
 
     try {
       await signUp(formData.email, formData.password)
+      
+      // Track successful signup
+      analytics.track('user_signed_up', {
+        method: 'email',
+        has_name: !!formData.name,
+      });
+      
       // Redirect handled by AuthContext
     } catch (error: any) {
       console.error('Signup error:', error)

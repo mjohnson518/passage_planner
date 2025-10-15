@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useSocket } from '../contexts/SocketContext'
 import { PassagePlan, PassagePlanRequest } from '@passage-planner/shared'
+import { analytics } from '../lib/analytics'
 
 interface UsePassagePlannerReturn {
   planPassage: (request: PassagePlanRequest) => Promise<void>
@@ -222,6 +223,13 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+      
+      // Track successful export
+      analytics.trackRouteExported({
+        format,
+        waypoint_count: currentPlan.route?.waypoints?.length || 0,
+        distance_nm: currentPlan.summary?.totalDistance,
+      });
     } catch (err: any) {
       setError(err.message)
     }
