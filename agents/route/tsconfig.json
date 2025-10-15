@@ -2,10 +2,10 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "../../",
     "composite": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+  "include": ["src/**/*", "../../shared/src/**/*", "../../agents/base/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "../../shared/node_modules"]
 }
 
