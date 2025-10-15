@@ -53,7 +53,7 @@ export function AnalyticsDashboard() {
   const [chartData, setChartData] = useState<ChartData | null>(null)
   const [timeRange, setTimeRange] = useState('30d')
   const [loading, setLoading] = useState(true)
-  const { socket } = useSocket()
+  const { connected } = useSocket()
 
   useEffect(() => {
     fetchAnalytics()
