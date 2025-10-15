@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { User, Session, ApiKey, SubscriptionTier } from '../types/core';
