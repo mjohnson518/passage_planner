@@ -60,3 +60,6 @@ next-env.d.ts
 .temp/
 .tmp/
 passage-planner-tech-spec.mdDEPLOYMENT_INSTRUCTIONS.md
+
+DEPLOYMENT_INSTRUCTIONS.md
+passage-planner-tech-spec.md
