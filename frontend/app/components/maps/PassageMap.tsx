@@ -5,12 +5,23 @@ interface PassageMapProps {
 }
 
 export default function PassageMap({ data }: PassageMapProps) {
+  // Dynamically import to avoid SSR issues with Leaflet
+  const RouteMap = dynamic(() => import('../map/RouteMap'), {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-96 bg-muted rounded-lg flex items-center justify-center">
+        <p className="text-muted-foreground">Loading map...</p>
+      </div>
+    )
+  })
+
   return (
-    <div className="w-full h-96 border rounded-lg bg-gray-50 flex items-center justify-center">
-      <p className="text-sm text-gray-600">
-        Interactive passage map coming soon
-      </p>
-    </div>
-  );
+    <RouteMap
+      waypoints={data?.waypoints || []}
+      center={data?.center}
+      zoom={data?.zoom || 8}
+      height="384px"
+    />
+  )
 }
 

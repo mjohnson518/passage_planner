@@ -111,9 +111,27 @@ export default function PassageDetailPage() {
   const [showExportDialog, setShowExportDialog] = useState(false)
 
   useEffect(() => {
-    // TODO: Fetch passage from API
-    setPassage(mockPassage)
-    setLoading(false)
+    const fetchPassage = async () => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+        const response = await fetch(`${apiUrl}/api/passages/${params.id}`)
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch passage')
+        }
+        
+        const data = await response.json()
+        setPassage(data)
+      } catch (error) {
+        console.error('Error fetching passage:', error)
+        // Fallback to mock data for now
+        setPassage(mockPassage)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPassage()
   }, [params.id])
 
   if (loading) {
