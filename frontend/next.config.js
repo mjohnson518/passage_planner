@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   
   // TEMPORARY: Disable type checking to deploy quickly
   // Re-enable after deployment and fix type errors iteratively
