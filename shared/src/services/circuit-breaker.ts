@@ -21,7 +21,7 @@ export interface CircuitBreakerOptions {
   onCircuitClose?: () => void
 }
 
-interface CircuitMetrics {
+export interface CircuitMetrics {
   failures: number
   successes: number
   lastFailureTime: number | null

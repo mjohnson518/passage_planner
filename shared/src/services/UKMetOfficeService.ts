@@ -8,7 +8,7 @@
  */
 
 import { Logger } from 'pino';
-import { APIClient } from './api-client';
+import { ApiClient } from './api-client';
 import { DataFreshnessValidator } from './data-freshness';
 import { WeatherServiceError } from '../types/errors';
 
@@ -37,7 +37,7 @@ export interface UKMOSite {
 }
 
 export class UKMetOfficeService {
-  private apiClient: APIClient | null = null;
+  private apiClient: ApiClient | null = null;
   private logger: Logger;
   private freshnessValidator: DataFreshnessValidator;
   private siteCache: Map<string, UKMOSite> = new Map();
@@ -52,26 +52,26 @@ export class UKMetOfficeService {
 
     // Only initialize API client if key is provided
     if (this.apiKey) {
-      this.apiClient = new APIClient(
-        'UKMetOffice',
-        {
-          baseURL: this.BASE_URL,
-          timeout: 15000,
-          retryConfig: {
-            maxAttempts: 3,
-            initialDelayMs: 1000,
-            maxDelayMs: 10000,
-          },
-          circuitBreakerConfig: {
-            failureThreshold: 5,
-            timeout: 30000,
-          },
-          quotaConfig: {
-            maxRequestsPerDay: 4500, // Stay under 5000 limit
-          },
+      this.apiClient = new ApiClient({
+        baseUrl: this.BASE_URL,
+        timeout: 15000,
+        retryOptions: {
+          maxRetries: 3,
+          initialDelay: 1000,
+          maxDelay: 10000,
+          retryableStatuses: [408, 429, 500, 502, 503, 504],
         },
-        logger
-      );
+        circuitBreakerOptions: {
+          failureThreshold: 5,
+          timeout: 60000,
+        },
+        headers: {
+          'apikey': this.apiKey,
+        },
+        onError: (error, endpoint) => {
+          logger.error(`UK Met Office API error on ${endpoint}:`, error)
+        }
+      });
 
       // Load site list on initialization
       this.loadSiteList().catch((error) => {
