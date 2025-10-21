@@ -40,10 +40,13 @@ interface AgentStatus {
 export function AgentHealthDashboard() {
   const [agents, setAgents] = useState<Record<string, AgentStatus>>({})
   const [loading, setLoading] = useState(true)
-  const { socket, connected } = useSocket()
+  const { connected, agentStatuses } = useSocket()
 
   useEffect(() => {
-    if (!connected || !socket) return
+    if (!connected) return
+    
+    // Update agents from socket context
+    setAgents(agentStatuses)
 
     // Request initial status
     socket.emit('agents:status')
