@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Only initialize Supabase if URL is provided
-const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_URL !== 'NA' 
-  ? createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_KEY || ''
-    )
-  : null;
+import { getSupabase } from '@/lib/supabase-client';
 
 export async function POST(request: NextRequest) {
+  const supabase = getSupabase();
+  
   if (!supabase) {
     return NextResponse.json(
       { error: 'Database not configured' },
