@@ -5,12 +5,7 @@
  * No PII collected - only aggregate usage data.
  */
 
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+import { getSupabase } from './supabase-client';
 
 export interface EventProperties {
   [key: string]: string | number | boolean | null;

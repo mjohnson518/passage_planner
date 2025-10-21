@@ -1,10 +1,11 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { createClient, User, Session } from '@supabase/supabase-js'
+import { User, Session } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import { config } from '../config'
 import { toast } from '../hooks/use-toast'
+import { getSupabase } from '../lib/supabase-client'
 
 interface AuthContextType {
   user: User | null
@@ -19,19 +20,21 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Initialize Supabase client
-const supabase = createClient(
-  config.auth.supabaseUrl || '',
-  config.auth.supabaseAnonKey || ''
-)
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  
+  // Lazy load Supabase client
+  const supabase = getSupabase()
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
+    
     // Check active sessions
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -69,6 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router])
 
   const signUp = async (email: string, password: string) => {
+    if (!supabase) {
+      toast({ title: 'Authentication not available', variant: 'destructive' })
+      return
+    }
+    
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -132,6 +140,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const resetPassword = async (email: string) => {
+    if (!supabase) {
+      toast({ title: 'Authentication not available', variant: 'destructive' })
+      return
+    }
+    
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
@@ -147,6 +160,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const updateProfile = async (data: any) => {
+    if (!supabase) {
+      toast({ title: 'Authentication not available', variant: 'destructive' })
+      return
+    }
+    
     try {
       const { error } = await supabase.auth.updateUser({
         data,
