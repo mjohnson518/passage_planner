@@ -21,34 +21,54 @@ export default function InteractiveMap({
   const mapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // TODO: Initialize Leaflet map here
-    // For now, return placeholder
+    if (!mapRef.current || mapInstanceRef.current) return
+
+    // Dynamically import Leaflet to avoid SSR issues
+    import('leaflet').then((L) => {
+      if (!mapRef.current) return
+
+      // Fix Leaflet icon paths
+      delete (L.Icon.Default.prototype as any)._getIconUrl
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: '/leaflet/marker-icon-2x.png',
+        iconUrl: '/leaflet/marker-icon.png',
+        shadowUrl: '/leaflet/marker-shadow.png',
+      })
+
+      // Initialize map
+      const map = L.map(mapRef.current).setView(center, zoom)
+
+      // Add OpenStreetMap tiles
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19,
+      }).addTo(map)
+
+      // Add vessel markers if provided
+      vessels.forEach(vessel => {
+        if (vessel.position) {
+          L.marker([vessel.position.lat, vessel.position.lng])
+            .bindPopup(`<strong>${vessel.name}</strong>`)
+            .addTo(map)
+        }
+      })
+
+      mapInstanceRef.current = map
+
+      return () => {
+        map.remove()
+        mapInstanceRef.current = null
+      }
+    }).catch((error) => {
+      console.error('Failed to load Leaflet:', error)
+    })
   }, [center, zoom])
 
   return (
     <div 
       ref={mapRef}
-      className="w-full h-full bg-blue-50 dark:bg-blue-950/20 rounded-lg flex items-center justify-center"
-    >
-      <div className="text-center p-8">
-        <svg 
-          className="w-16 h-16 mx-auto mb-4 text-blue-500" 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            strokeWidth={1.5} 
-            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" 
-          />
-        </svg>
-        <h3 className="text-lg font-semibold mb-2">Interactive Map</h3>
-        <p className="text-sm text-muted-foreground">
-          Map visualization will be available soon
-        </p>
-      </div>
-    </div>
+      className="w-full h-full bg-blue-50 dark:bg-blue-950/20 rounded-lg"
+      style={{ minHeight: '400px' }}
+    />
   )
 } 

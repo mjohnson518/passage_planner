@@ -1,179 +1,168 @@
 /**
- * Retry Utility with Exponential Backoff
+ * Retry Logic with Exponential Backoff
  * 
- * Implements retry logic with configurable backoff for external API calls.
- * Includes jitter to prevent thundering herd problem.
+ * Implements production-grade retry patterns for external API calls
+ * with exponential backoff, jitter, and configurable strategies.
  */
 
-import { Logger } from 'pino';
-
-export interface RetryConfig {
-  maxAttempts: number;
-  initialDelayMs: number;
-  maxDelayMs: number;
-  backoffMultiplier: number;
-  jitterMs: number;
-  retryableErrors?: string[]; // Only retry these error types
-  shouldRetry?: (error: Error) => boolean;
+export interface RetryOptions {
+  maxRetries?: number
+  initialDelay?: number
+  maxDelay?: number
+  backoffFactor?: number
+  jitter?: boolean
+  retryableStatuses?: number[]
+  onRetry?: (error: Error, attempt: number) => void
 }
 
-export interface RetryResult<T> {
-  data?: T;
-  error?: Error;
-  attempts: number;
-  totalDelayMs: number;
-  success: boolean;
-}
-
-export class RetryHandler {
-  private config: RetryConfig;
-  private logger?: Logger;
-
-  constructor(config?: Partial<RetryConfig>, logger?: Logger) {
-    this.config = {
-      maxAttempts: config?.maxAttempts ?? 3,
-      initialDelayMs: config?.initialDelayMs ?? 1000,
-      maxDelayMs: config?.maxDelayMs ?? 30000,
-      backoffMultiplier: config?.backoffMultiplier ?? 2,
-      jitterMs: config?.jitterMs ?? 100,
-      retryableErrors: config?.retryableErrors,
-      shouldRetry: config?.shouldRetry,
-      ...config,
-    };
-    this.logger = logger;
-  }
-
-  /**
-   * Execute function with retry logic
-   */
-  async execute<T>(
-    fn: () => Promise<T>,
-    context?: string
-  ): Promise<T> {
-    let lastError: Error | undefined;
-    let totalDelay = 0;
-
-    for (let attempt = 1; attempt <= this.config.maxAttempts; attempt++) {
-      try {
-        const startTime = Date.now();
-        const result = await fn();
-        const duration = Date.now() - startTime;
-
-        if (this.logger && attempt > 1) {
-          this.logger.info({
-            context,
-            attempt,
-            duration,
-            totalDelay,
-          }, 'Retry succeeded');
-        }
-
-        return result;
-      } catch (error) {
-        lastError = error as Error;
-
-        // Check if error is retryable
-        const isRetryable = this.isRetryableError(error as Error);
-        
-        if (!isRetryable || attempt === this.config.maxAttempts) {
-          if (this.logger) {
-            this.logger.error({
-              context,
-              attempt,
-              maxAttempts: this.config.maxAttempts,
-              totalDelay,
-              error: lastError.message,
-              retryable: isRetryable,
-            }, `Failed after ${attempt} attempt(s)`);
-          }
-          throw lastError;
-        }
-
-        // Calculate delay with exponential backoff and jitter
-        const baseDelay = Math.min(
-          this.config.initialDelayMs * Math.pow(this.config.backoffMultiplier, attempt - 1),
-          this.config.maxDelayMs
-        );
-        const jitter = Math.random() * this.config.jitterMs;
-        const delay = baseDelay + jitter;
-        totalDelay += delay;
-
-        if (this.logger) {
-          this.logger.warn({
-            context,
-            attempt,
-            maxAttempts: this.config.maxAttempts,
-            delay,
-            error: lastError.message,
-          }, 'Retrying after delay');
-        }
-
-        // Wait before retrying
-        await this.sleep(delay);
-      }
-    }
-
-    throw lastError;
-  }
-
-  /**
-   * Check if error should be retried
-   */
-  private isRetryableError(error: Error): boolean {
-    // Use custom retry predicate if provided
-    if (this.config.shouldRetry) {
-      return this.config.shouldRetry(error);
-    }
-
-    // Check against retryable error list
-    if (this.config.retryableErrors) {
-      return this.config.retryableErrors.some(retryableError => 
-        error.message.includes(retryableError) || error.name.includes(retryableError)
-      );
-    }
-
-    // Default: retry network errors, timeouts, rate limits
-    const retryablePatterns = [
-      'ECONNRESET',
-      'ETIMEDOUT',
-      'ENOTFOUND',
-      'ECONNREFUSED',
-      'timeout',
-      'rate limit',
-      '429', // HTTP 429 Too Many Requests
-      '503', // HTTP 503 Service Unavailable
-      '502', // HTTP 502 Bad Gateway
-    ];
-
-    return retryablePatterns.some(pattern => 
-      error.message.toLowerCase().includes(pattern.toLowerCase())
-    );
-  }
-
-  /**
-   * Sleep for specified milliseconds
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Get configuration
-   */
-  getConfig(): RetryConfig {
-    return { ...this.config };
-  }
+const DEFAULT_OPTIONS: Required<RetryOptions> = {
+  maxRetries: 3,
+  initialDelay: 1000, // 1 second
+  maxDelay: 30000, // 30 seconds
+  backoffFactor: 2,
+  jitter: true,
+  retryableStatuses: [408, 429, 500, 502, 503, 504],
+  onRetry: () => {},
 }
 
 /**
- * Convenience function for simple retries
+ * Calculate delay with exponential backoff and optional jitter
  */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxAttempts: number = 3,
-  logger?: Logger
-): Promise<T> {
-  const retryHandler = new RetryHandler({ maxAttempts }, logger);
-  return retryHandler.execute(fn);
+function calculateDelay(
+  attempt: number,
+  initialDelay: number,
+  maxDelay: number,
+  backoffFactor: number,
+  jitter: boolean
+): number {
+  const exponentialDelay = Math.min(
+    initialDelay * Math.pow(backoffFactor, attempt),
+    maxDelay
+  )
+
+  if (!jitter) {
+    return exponentialDelay
+  }
+
+  // Add jitter: random value between 0 and calculated delay
+  // This prevents thundering herd problem
+  return Math.random() * exponentialDelay
 }
 
+/**
+ * Check if error is retryable
+ */
+function isRetryable(error: any, retryableStatuses: number[]): boolean {
+  // Network errors are retryable
+  if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND') {
+    return true
+  }
+
+  // HTTP status code based retry
+  if (error.response?.status) {
+    return retryableStatuses.includes(error.response.status)
+  }
+
+  // Fetch API errors
+  if (error instanceof TypeError && error.message.includes('fetch')) {
+    return true
+  }
+
+  return false
+}
+
+/**
+ * Retry a function with exponential backoff
+ * 
+ * @example
+ * ```typescript
+ * const data = await retry(
+ *   async () => fetch('https://api.example.com/data'),
+ *   { maxRetries: 3, initialDelay: 1000 }
+ * )
+ * ```
+ */
+export async function retry<T>(
+  fn: () => Promise<T>,
+  options: RetryOptions = {}
+): Promise<T> {
+  const config = { ...DEFAULT_OPTIONS, ...options }
+  let lastError: Error
+
+  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error as Error
+
+      // Don't retry on last attempt
+      if (attempt === config.maxRetries) {
+        break
+      }
+
+      // Check if error is retryable
+      if (!isRetryable(error, config.retryableStatuses)) {
+        throw error
+      }
+
+      // Call retry callback
+      config.onRetry(lastError, attempt + 1)
+
+      // Calculate and wait for delay
+      const delay = calculateDelay(
+        attempt,
+        config.initialDelay,
+        config.maxDelay,
+        config.backoffFactor,
+        config.jitter
+      )
+
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+
+  throw lastError!
+}
+
+/**
+ * Retry wrapper for fetch calls with proper error handling
+ * 
+ * @example
+ * ```typescript
+ * const response = await retryFetch('https://api.noaa.gov/data', {
+ *   headers: { 'User-Agent': 'helmwise.co, support@helmwise.co' }
+ * })
+ * ```
+ */
+export async function retryFetch(
+  url: string,
+  init?: RequestInit,
+  options?: RetryOptions
+): Promise<Response> {
+  return retry(
+    async () => {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 30000) // 30s timeout
+
+      try {
+        const response = await fetch(url, {
+          ...init,
+          signal: controller.signal,
+        })
+
+        // Throw for HTTP errors to trigger retry
+        if (!response.ok && isRetryable({ response }, options?.retryableStatuses || DEFAULT_OPTIONS.retryableStatuses)) {
+          throw Object.assign(
+            new Error(`HTTP ${response.status}: ${response.statusText}`),
+            { response }
+          )
+        }
+
+        return response
+      } finally {
+        clearTimeout(timeout)
+      }
+    },
+    options
+  )
+}
