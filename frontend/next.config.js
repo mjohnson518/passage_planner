@@ -3,6 +3,9 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   
+  // CRITICAL: Export as static site for Cloudflare Pages
+  output: 'export',
+  
   // TEMPORARY: Disable type checking to deploy quickly
   // Re-enable after deployment and fix type errors iteratively
   typescript: {
@@ -14,17 +17,11 @@ const nextConfig = {
   
   // CRITICAL: Disable CSS optimization (critters) that's causing build failures
   experimental: {
-    optimizeCss: false,
     scrollRestoration: true,
-  },
-  
-  // Disable build cache to reduce deployment size
-  generateBuildId: async () => {
-    return Date.now().toString()
   },
 
   images: {
-    domains: ['images.unsplash.com'],
+    unoptimized: true, // Required for static export
   },
 
   webpack: (config) => {
@@ -35,12 +32,6 @@ const nextConfig = {
       tls: false,
     };
     return config;
-  },
-  
-  // Force all pages to be dynamic (not pre-rendered) when Supabase isn't configured
-  // This prevents build-time errors when database isn't available
-  generateBuildId: async () => {
-    return 'helmwise-build'
   },
 }
 
