@@ -22,7 +22,15 @@ export class SimpleOrchestrator {
   private app: express.Application;
   
   constructor() {
-    this.redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      throw new Error(
+        'FATAL: REDIS_URL environment variable is required. ' +
+        'Cannot start orchestrator without Redis configured.'
+      );
+    }
+    
+    this.redis = new Redis(redisUrl, {
       maxRetriesPerRequest: 1,
       retryStrategy: () => null // Don't retry if Redis is down
     });
