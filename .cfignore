@@ -1,0 +1,44 @@
+# Cloudflare Pages Deployment Ignore
+# Only deploy production build output, not cache or development files
+
+# Next.js cache (too large for Cloudflare 25MB limit)
+.next/cache/
+
+# Development
+node_modules/
+.env.local
+.env.*.local
+
+# Testing
+coverage/
+.nyc_output/
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts we don't need
+*.map
+tsconfig.tsbuildinfo
+
+# Documentation
+docs/
+README.md
+*.md
+

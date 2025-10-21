@@ -17,6 +17,11 @@ const nextConfig = {
     optimizeCss: false,
     scrollRestoration: true,
   },
+  
+  // Disable build cache to reduce deployment size
+  generateBuildId: async () => {
+    return Date.now().toString()
+  },
 
   images: {
     domains: ['images.unsplash.com'],
