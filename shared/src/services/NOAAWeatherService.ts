@@ -1,7 +1,8 @@
-import axios, { AxiosInstance } from 'axios';
 import { Logger } from 'pino';
 import { CacheManager } from './CacheManager';
-import { APIFallbackManager } from './APIFallbackManager';
+import { NOAAAPIClient } from './noaa-api-client';
+import { CircuitBreakerFactory } from './resilience/circuit-breaker';
+import CircuitBreaker from 'opossum';
 
 export interface MarineWeatherForecast {
   location: {
@@ -63,92 +64,123 @@ export interface VisibilityData {
 }
 
 export class NOAAWeatherService {
-  private axios: AxiosInstance;
+  private noaaClient: NOAAAPIClient;
   private cache: CacheManager;
-  private fallbackManager: APIFallbackManager;
   private logger: Logger;
-  
-  // NOAA API endpoints
-  private readonly NOAA_API_BASE = 'https://api.weather.gov';
-  private readonly NOAA_MARINE_BASE = 'https://marine.weather.gov';
-  private readonly NOAA_TIDES_BASE = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter';
+  private gridPointBreaker: CircuitBreaker;
+  private forecastBreaker: CircuitBreaker;
   
   constructor(cache: CacheManager, logger: Logger) {
     this.cache = cache;
     this.logger = logger;
+    this.noaaClient = new NOAAAPIClient(logger, cache);
     
-    this.axios = axios.create({
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'PassagePlanner/1.0 (https://passageplanner.com)',
-        'Accept': 'application/geo+json'
+    // Initialize circuit breakers for NOAA API calls
+    this.gridPointBreaker = CircuitBreakerFactory.create(
+      'noaa-gridpoint',
+      this.noaaClient.getGridPoint.bind(this.noaaClient),
+      {
+        timeout: 30000,
+        errorThresholdPercentage: 50,
+        resetTimeout: 60000
       }
-    });
+    );
     
-    // Setup fallback manager with multiple endpoints
-    this.fallbackManager = new APIFallbackManager(
-      [
-        {
-          name: 'NOAA Primary',
-          baseUrl: this.NOAA_API_BASE,
-          priority: 1
-        },
-        {
-          name: 'NOAA Marine',
-          baseUrl: this.NOAA_MARINE_BASE,
-          priority: 2
-        }
-      ],
-      logger,
-      { maxRetries: 3 }
+    this.forecastBreaker = CircuitBreakerFactory.create(
+      'noaa-forecast',
+      this.noaaClient.getWeatherForecast.bind(this.noaaClient),
+      {
+        timeout: 30000,
+        errorThresholdPercentage: 50,
+        resetTimeout: 60000
+      }
     );
   }
   
   /**
    * Get marine weather forecast for a specific point
+   * Now using REAL NOAA API data
    */
   async getMarineForecast(
     latitude: number, 
     longitude: number,
     days: number = 7
   ): Promise<MarineWeatherForecast> {
-    const cacheKey = `weather:marine:${latitude.toFixed(4)},${longitude.toFixed(4)}:${days}`;
+    const cacheKey = `weather:forecast:${latitude.toFixed(4)},${longitude.toFixed(4)}:${days}`;
     
-    // Check cache first (15 minute TTL)
-    const cached = await this.cache.get<MarineWeatherForecast>(cacheKey);
-    if (cached) {
-      this.logger.debug({ latitude, longitude }, 'Returning cached marine forecast');
-      return cached;
+    // Check cache first with metadata (3 hour TTL for weather)
+    const cachedData = await this.cache.getWithMetadata<MarineWeatherForecast>(cacheKey);
+    if (cachedData && cachedData.value) {
+      this.logger.debug({ 
+        latitude, 
+        longitude, 
+        age: cachedData.age, 
+        ttl: cachedData.ttl 
+      }, 'Returning cached marine forecast');
+      return cachedData.value;
     }
     
     try {
-      // First, get the grid point for the coordinates
-      const pointData = await this.getGridPoint(latitude, longitude);
-      
-      // Get various forecast data in parallel
-      const [forecast, warnings, marineData] = await Promise.all([
-        this.getForecastFromGrid(pointData.gridId, pointData.gridX, pointData.gridY),
-        this.getActiveWarnings(latitude, longitude),
-        this.getMarineSpecificData(latitude, longitude)
+      // Get REAL weather forecast from NOAA with circuit breaker protection
+      const [forecast, alerts] = await Promise.all([
+        this.forecastBreaker.fire(latitude, longitude).then((result: any) => result).catch(async (error) => {
+          // If circuit is open, try to return cached data
+          this.logger.warn({ error: error.message }, 'Circuit breaker open for forecast, checking cache');
+          const fallbackCache = await this.cache.get<any>(`weather:forecast:fallback:${latitude.toFixed(4)},${longitude.toFixed(4)}`);
+          if (fallbackCache) {
+            this.logger.info('Using fallback cached forecast data');
+            return fallbackCache;
+          }
+          throw error; // Re-throw if no cache available
+        }),
+        this.noaaClient.getActiveAlerts(latitude, longitude)
       ]);
       
-      // Combine all data
+      // Transform NOAA format to our internal format
       const marineForecast: MarineWeatherForecast = {
         location: {
           latitude,
           longitude,
-          name: pointData.relativeLocation?.city || undefined
+          name: undefined // Will be populated from grid point city
         },
-        issuedAt: new Date(),
-        periods: forecast.periods.slice(0, days * 2), // 2 periods per day
-        warnings: warnings,
-        waveHeight: marineData.waves || [],
-        windData: marineData.wind || [],
-        visibility: marineData.visibility || []
+        issuedAt: new Date(forecast.generatedAt),
+        periods: forecast.periods.slice(0, days * 2).map(period => ({
+          startTime: new Date(period.startTime),
+          endTime: new Date(period.endTime),
+          temperature: period.temperature,
+          temperatureUnit: period.temperatureUnit as 'F' | 'C',
+          windSpeed: period.windSpeed,
+          windDirection: period.windDirection,
+          shortForecast: period.shortForecast,
+          detailedForecast: period.detailedForecast,
+          precipitationChance: period.probabilityOfPrecipitation?.value || 0,
+          isDaytime: period.isDaytime
+        })),
+        warnings: alerts.map(alert => ({
+          id: alert.id,
+          type: this.mapWarningType(alert.event),
+          severity: alert.severity.toLowerCase() as 'extreme' | 'severe' | 'moderate' | 'minor',
+          headline: alert.headline,
+          description: alert.description,
+          instruction: alert.instruction,
+          onset: new Date(alert.onset),
+          expires: new Date(alert.expires),
+          areas: alert.areaDesc.split('; ')
+        })),
+        waveHeight: [], // TODO: Implement when we have marine buoy data
+        windData: this.extractWindData(forecast.periods),
+        visibility: [] // TODO: Implement when we have visibility data
       };
       
-      // Cache the result
-      await this.cache.set(cacheKey, marineForecast, 900); // 15 minutes
+      // Cache the result with proper TTL (3 hours for weather data)
+      await this.cache.setWithTTL(cacheKey, marineForecast, 10800); // 3 hour TTL
+      
+      // Also store a fallback cache with longer TTL for circuit breaker scenarios
+      await this.cache.setWithTTL(
+        `weather:forecast:fallback:${latitude.toFixed(4)},${longitude.toFixed(4)}`, 
+        forecast, 
+        86400  // 24 hour TTL for fallback
+      );
       
       return marineForecast;
     } catch (error) {
@@ -158,131 +190,37 @@ export class NOAAWeatherService {
   }
   
   /**
-   * Get grid point data from coordinates
+   * Extract wind data from forecast periods
    */
-  private async getGridPoint(latitude: number, longitude: number): Promise<any> {
-    const response = await this.fallbackManager.request(`/points/${latitude.toFixed(4)},${longitude.toFixed(4)}`);
-    return (response as any).properties;
-  }
-  
-  /**
-   * Get forecast from grid coordinates
-   */
-  private async getForecastFromGrid(gridId: string, gridX: number, gridY: number): Promise<any> {
-    const response = await this.fallbackManager.request(
-      `/gridpoints/${gridId}/${gridX},${gridY}/forecast`
-    );
-    return (response as any).properties;
-  }
-  
-  /**
-   * Get active weather warnings for an area
-   */
-  private async getActiveWarnings(latitude: number, longitude: number): Promise<WeatherWarning[]> {
-    try {
-      const response = await this.fallbackManager.request('/alerts/active', {
-        params: {
-          point: `${latitude.toFixed(4)},${longitude.toFixed(4)}`,
-          status: 'actual',
-          message_type: 'alert,update'
-        }
-      });
-      
-      return (response as any).features.map((feature: any) => ({
-        id: feature.properties.id,
-        type: this.mapWarningType(feature.properties.event),
-        severity: feature.properties.severity?.toLowerCase() || 'moderate',
-        headline: feature.properties.headline,
-        description: feature.properties.description,
-        instruction: feature.properties.instruction,
-        onset: new Date(feature.properties.onset),
-        expires: new Date(feature.properties.expires),
-        areas: feature.properties.areaDesc?.split('; ') || []
-      }));
-    } catch (error) {
-      this.logger.warn({ error }, 'Failed to get weather warnings');
-      return [];
-    }
-  }
-  
-  /**
-   * Get marine-specific data (waves, detailed wind)
-   */
-  private async getMarineSpecificData(
-    latitude: number, 
-    longitude: number
-  ): Promise<{ waves?: WaveData[], wind?: WindData[], visibility?: VisibilityData[] }> {
-    try {
-      // Find nearest NOAA buoy or station
-      const station = await this.findNearestMarineStation(latitude, longitude);
-      if (!station) {
-        return {};
-      }
-      
-      // Get wave and wind data from the station
-      const [waveData, windData] = await Promise.all([
-        this.getWaveData(station.id),
-        this.getWindData(station.id)
-      ]);
-      
+  private extractWindData(periods: any[]): WindData[] {
+    return periods.map(period => {
+      const speed = this.noaaClient.parseWindSpeed(period.windSpeed);
       return {
-        waves: waveData,
-        wind: windData,
-        visibility: [] // TODO: Implement visibility data fetching
+        time: new Date(period.startTime),
+        speed: speed,
+        gusts: Math.round(speed * 1.5), // Estimate gusts as 1.5x sustained
+        direction: this.parseWindDirection(period.windDirection)
       };
-    } catch (error) {
-      this.logger.warn({ error }, 'Failed to get marine-specific data');
-      return {};
+    });
+  }
+  
+  /**
+   * Parse wind direction string to degrees
+   */
+  private parseWindDirection(direction: string): number {
+    const directions: { [key: string]: number } = {
+      'N': 0, 'NNE': 22.5, 'NE': 45, 'ENE': 67.5,
+      'E': 90, 'ESE': 112.5, 'SE': 135, 'SSE': 157.5,
+      'S': 180, 'SSW': 202.5, 'SW': 225, 'WSW': 247.5,
+      'W': 270, 'WNW': 292.5, 'NW': 315, 'NNW': 337.5
+    };
+    
+    // Extract direction from strings like "SW 10 mph"
+    const match = direction.match(/([NSEW]+)/);
+    if (match && directions[match[1]]) {
+      return directions[match[1]];
     }
-  }
-  
-  /**
-   * Find nearest NOAA marine observation station
-   */
-  private async findNearestMarineStation(
-    latitude: number, 
-    longitude: number
-  ): Promise<{ id: string; distance: number } | null> {
-    // This would query NOAA's station API to find the nearest buoy/station
-    // For now, returning null as a placeholder
-    return null;
-  }
-  
-  /**
-   * Get wave height data from a station
-   */
-  private async getWaveData(stationId: string): Promise<WaveData[]> {
-    try {
-      const response = await axios.get(this.NOAA_TIDES_BASE, {
-        params: {
-          station: stationId,
-          product: 'predictions',
-          datum: 'MLLW',
-          units: 'metric',
-          time_zone: 'gmt',
-          format: 'json'
-        }
-      });
-      
-      // Transform the data to our format
-      return response.data.predictions?.map((pred: any) => ({
-        time: new Date(pred.t),
-        height: parseFloat(pred.v),
-        period: 0, // TODO: Get wave period data
-        direction: 0 // TODO: Get wave direction data
-      })) || [];
-    } catch (error) {
-      this.logger.warn({ error, stationId }, 'Failed to get wave data');
-      return [];
-    }
-  }
-  
-  /**
-   * Get wind data from a station
-   */
-  private async getWindData(stationId: string): Promise<WindData[]> {
-    // Similar implementation for wind data
-    return [];
+    return 0;
   }
   
   /**

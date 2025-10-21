@@ -1,4 +1,5 @@
 import { BaseAgent, NOAAWeatherService, CacheManager } from '@passage-planner/shared';
+import { ValidationError, NOAAAPIError, toMCPError } from '@passage-planner/shared/dist/errors/mcp-errors';
 import { Logger } from 'pino';
 import pino from 'pino';
 import { 
@@ -93,6 +94,14 @@ export class WeatherAgent extends BaseAgent {
               },
               required: ['startLat', 'startLon', 'endLat', 'endLon', 'departureDate']
             }
+          },
+          {
+            name: 'health',
+            description: 'Check the health status of the Weather Agent and its dependencies',
+            inputSchema: {
+              type: 'object',
+              properties: {}
+            }
           }
         ]
       };
@@ -112,6 +121,9 @@ export class WeatherAgent extends BaseAgent {
             
           case 'get_weather_windows':
             return await this.getWeatherWindows(args);
+          
+          case 'health':
+            return await this.checkHealth();
             
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -127,6 +139,8 @@ export class WeatherAgent extends BaseAgent {
     const { latitude, longitude, days = 7 } = args;
     
     try {
+      // Validate coordinates
+      ValidationError.validateCoordinates(latitude, longitude);
       const forecast = await this.weatherService.getMarineForecast(
         latitude, 
         longitude, 
@@ -146,13 +160,20 @@ export class WeatherAgent extends BaseAgent {
         ]
       };
     } catch (error) {
-      this.logger.error({ error, args }, 'Failed to get marine weather');
+      const mcpError = toMCPError(error);
+      this.logger.error({ 
+        error: mcpError.toJSON(), 
+        args 
+      }, 'Failed to get marine weather');
+      
       return {
         content: [{
           type: 'text',
-          text: `Unable to retrieve weather forecast: ${(error as Error).message}`
+          text: `Unable to retrieve weather forecast: ${mcpError.message}`
         }],
-        isError: true
+        isError: true,
+        errorCode: mcpError.code,
+        retryable: mcpError.retryable
       };
     }
   }
@@ -327,7 +348,106 @@ export class WeatherAgent extends BaseAgent {
     
     return true;
   }
+  
+  private async checkHealth(): Promise<any> {
+    const health: any = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      lastSuccess: null,
+      errorRate: 0,
+      circuitStates: {},
+      dependencies: {}
+    };
+    
+    try {
+      // Check circuit breaker states
+      const circuitNames = ['noaa-gridpoint', 'noaa-forecast'];
+      for (const name of circuitNames) {
+        const state = (CircuitBreakerFactory as any).getState?.(name);
+        const metrics = (CircuitBreakerFactory as any).getMetrics?.(name);
+        
+        health.circuitStates[name] = {
+          state: state || 'UNKNOWN',
+          metrics: metrics || {}
+        };
+        
+        if (state === 'OPEN') {
+          health.status = 'degraded';
+        }
+      }
+      
+      // Check NOAA API connectivity
+      try {
+        const testForecast = await this.weatherService.getMarineForecast(
+          42.3601, // Boston coordinates
+          -71.0589,
+          1
+        );
+        health.dependencies.noaaApi = {
+          status: 'healthy',
+          lastCheck: new Date().toISOString()
+        };
+        health.lastSuccess = new Date().toISOString();
+      } catch (error: any) {
+        health.dependencies.noaaApi = {
+          status: 'unhealthy',
+          error: error.message,
+          lastCheck: new Date().toISOString()
+        };
+        health.status = 'unhealthy';
+      }
+      
+      // Check Redis connectivity
+      try {
+        await this.cache.get('health:check');
+        health.dependencies.redis = {
+          status: 'healthy',
+          lastCheck: new Date().toISOString()
+        };
+      } catch (error: any) {
+        health.dependencies.redis = {
+          status: 'unhealthy',
+          error: error.message,
+          lastCheck: new Date().toISOString()
+        };
+        health.status = 'degraded';
+      }
+      
+      // Calculate error rate (simplified - in production would track over time)
+      const failures = health.circuitStates['noaa-forecast']?.metrics?.failures || 0;
+      const successes = health.circuitStates['noaa-forecast']?.metrics?.successes || 0;
+      const total = failures + successes;
+      if (total > 0) {
+        health.errorRate = (failures / total) * 100;
+      }
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(health, null, 2)
+          }
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              status: 'error',
+              error: error.message,
+              timestamp: new Date().toISOString()
+            }, null, 2)
+          }
+        ]
+      };
+    }
+  }
 }
+
+// Import CircuitBreakerFactory for health checks
+const { CircuitBreakerFactory } = require('@passage-planner/shared/dist/services/resilience/circuit-breaker');
 
 // Start the agent if run directly
 if (require.main === module) {

@@ -16,6 +16,7 @@
     "@turf/turf": "^6.5.0",
     "axios": "^1.6.5",
     "dotenv": "^16.3.1",
+    "geolib": "^3.3.4",
     "ioredis": "^5.3.2",
     "pino": "^8.16.2",
     "pino-pretty": "^10.2.3"
@@ -29,5 +30,9 @@
     "ts-jest": "^29.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.0.0"
-  }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
 }

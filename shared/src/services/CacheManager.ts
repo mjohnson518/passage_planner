@@ -66,6 +66,67 @@ export class CacheManager {
     }
   }
   
+  /**
+   * Set a value with explicit TTL in seconds
+   */
+  async setWithTTL(key: string, value: any, ttlSeconds: number): Promise<void> {
+    if (!this.connected) return;
+    
+    try {
+      const serialized = JSON.stringify(value);
+      await this.redis.set(key, serialized, { EX: ttlSeconds });
+      
+      // Also store metadata about when this was cached
+      const metaKey = `${key}:meta`;
+      const metadata = {
+        cachedAt: Date.now(),
+        ttl: ttlSeconds
+      };
+      await this.redis.set(metaKey, JSON.stringify(metadata), { EX: ttlSeconds });
+      
+      this.logger.debug({ key, ttlSeconds }, 'Cache set with TTL');
+    } catch (error) {
+      this.logger.error({ error, key }, 'Cache setWithTTL error');
+    }
+  }
+  
+  /**
+   * Get a value with metadata about TTL and age
+   */
+  async getWithMetadata<T = any>(key: string): Promise<{ value: T | null; ttl: number; age: number } | null> {
+    if (!this.connected) return null;
+    
+    try {
+      // Get value and metadata in parallel
+      const [value, metaData, ttl] = await Promise.all([
+        this.redis.get(key),
+        this.redis.get(`${key}:meta`),
+        this.redis.ttl(key)
+      ]);
+      
+      if (!value) return null;
+      
+      const parsed = JSON.parse(value);
+      let age = 0;
+      let originalTtl = ttl;
+      
+      if (metaData) {
+        const meta = JSON.parse(metaData);
+        age = Math.floor((Date.now() - meta.cachedAt) / 1000); // Age in seconds
+        originalTtl = meta.ttl || ttl;
+      }
+      
+      return {
+        value: parsed as T,
+        ttl: ttl > 0 ? ttl : 0,
+        age
+      };
+    } catch (error) {
+      this.logger.error({ error, key }, 'Cache getWithMetadata error');
+      return null;
+    }
+  }
+  
   async delete(key: string): Promise<void> {
     if (!this.connected) return;
     

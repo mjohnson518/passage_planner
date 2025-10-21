@@ -2,12 +2,15 @@
 import Redis from 'ioredis';
 import { WeatherAgent } from '../../agents/weather/src/WeatherAgent';
 import { TidalAgent } from '../../agents/tidal/src/TidalAgent';
-import { RouteAgent } from '../../agents/route/src/RouteAgent';
+import { RouteAgent } from '../../agents/route/src';
 import { BaseAgent } from '../../agents/base/BaseAgent';
 import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import express from 'express';
 import http from 'http';
+import pino from 'pino';
+
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 interface AgentRegistry {
   [key: string]: BaseAgent;
@@ -46,7 +49,7 @@ export class SimpleOrchestrator {
   private async initializeAgents() {
     console.log('Initializing agents...');
     
-    // Initialize weather and tidal agents only (RouteAgent has Turf.js ESM issues)
+    // Initialize all three agents - RouteAgent now works with geolib!
     this.agents['weather'] = new WeatherAgent(
       process.env.REDIS_URL || 'redis://localhost:6379',
       process.env.NOAA_API_KEY || '',
@@ -57,6 +60,9 @@ export class SimpleOrchestrator {
       process.env.REDIS_URL || 'redis://localhost:6379',
       process.env.NOAA_API_KEY || ''
     );
+    
+    // RouteAgent now working with geolib (no more Turf.js ESM issues)
+    this.agents['route'] = new RouteAgent();
     
     // Initialize all agents
     for (const [name, agent] of Object.entries(this.agents)) {
@@ -73,6 +79,7 @@ export class SimpleOrchestrator {
 
   private async planPassage(request: any): Promise<any> {
     const planningId = uuidv4();
+    const startTime = Date.now();
     
     // Broadcast planning start
     this.broadcastUpdate({
@@ -82,104 +89,151 @@ export class SimpleOrchestrator {
     });
     
     console.log(`Planning passage ${planningId}...`);
+    logger.info({ planningId, request }, 'Starting passage planning with PARALLEL execution');
     
     try {
-      // Step 1: Calculate base route (using mock data for now)
-      this.broadcastUpdate({
-        type: 'agent_active',
-        planningId,
-        agent: 'route',
-        status: 'Calculating optimal route...'
+      // PARALLEL EXECUTION - All agents at once for <3 second response!
+      console.log('🚀 Executing all agents in PARALLEL...');
+      
+      // Prepare all agent calls with timeout protection
+      const agentTimeout = 30000; // 30 second timeout
+      
+      const routePromise = Promise.race([
+        this.agents['route'].handleToolCall('calculate_route', {
+          start: {
+            lat: request.departure.latitude,
+            lon: request.departure.longitude
+          },
+          end: {
+            lat: request.destination.latitude,
+            lon: request.destination.longitude
+          },
+          speed: request.vessel?.cruiseSpeed || 5
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Route calculation timeout')), agentTimeout)
+        )
+      ]).catch(error => {
+        console.error('Route agent error:', error);
+        // Fallback to simple calculation
+        const distance = this.calculateSimpleDistance(
+          request.departure.latitude,
+          request.departure.longitude,
+          request.destination.latitude,
+          request.destination.longitude
+        );
+        return {
+          waypoints: [request.departure, request.destination],
+          totalDistance: distance,
+          estimatedDuration: distance / (request.vessel?.cruiseSpeed || 5)
+        };
       });
       
-      console.log('Step 1: Calculating route...');
-      // Mock route calculation (Turf.js ESM issues prevent real RouteAgent)
-      const distance = this.calculateSimpleDistance(
-        request.departure.latitude,
-        request.departure.longitude,
-        request.destination.latitude,
-        request.destination.longitude
-      );
-      const cruiseSpeed = request.vessel?.cruiseSpeed || 5;
-      const route = {
-        waypoints: [request.departure, request.destination],
-        segments: [{
-          from: request.departure,
-          to: request.destination,
-          distance,
-          bearing: 180,
-          estimatedTime: distance / cruiseSpeed
-        }],
-        totalDistance: distance,
-        estimatedDuration: distance / cruiseSpeed,
-        optimized: false
-      };
-      console.log(`✓ Route calculated: ${route.totalDistance.toFixed(1)} nm`);
-      
-      // Step 2: Get weather along route
-      this.broadcastUpdate({
-        type: 'agent_active',
-        planningId,
-        agent: 'weather',
-        status: 'Fetching weather forecast...'
-      });
-      
-      console.log('Step 2: Fetching weather...');
-      const weatherPromises = route.waypoints.map((wp: any) =>
+      const weatherDeparturePromise = Promise.race([
         this.agents['weather'].handleToolCall('get_marine_forecast', {
-          latitude: wp.latitude,
-          longitude: wp.longitude,
-          hours: 72
-        }).catch((error: any) => {
-          console.error('Weather fetch error:', error);
-          return null;
-        })
-      );
-      const weatherData = await Promise.all(weatherPromises);
-      console.log(`✓ Weather fetched for ${weatherData.filter(w => w).length}/${route.waypoints.length} waypoints`);
-      
-      // Step 3: Get tidal information
-      this.broadcastUpdate({
-        type: 'agent_active',
-        planningId,
-        agent: 'tidal',
-        status: 'Calculating tides and currents...'
-      });
-      
-      console.log('Step 3: Fetching tidal data...');
-      let tidalData = null;
-      try {
-        tidalData = await this.agents['tidal'].handleToolCall('get_tide_predictions', {
           latitude: request.departure.latitude,
           longitude: request.departure.longitude,
-          start_date: request.departure.time,
-          end_date: new Date(new Date(request.departure.time).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        });
-        console.log('✓ Tidal data fetched');
-      } catch (error: any) {
-        console.error('Tidal fetch error:', error);
-      }
+          hours: 72
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Weather fetch timeout')), agentTimeout)
+        )
+      ]).catch(error => {
+        console.error('Weather departure error:', error);
+        return null;
+      });
+      
+      const weatherArrivalPromise = Promise.race([
+        this.agents['weather'].handleToolCall('get_marine_forecast', {
+          latitude: request.destination.latitude,
+          longitude: request.destination.longitude,
+          hours: 72
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Weather fetch timeout')), agentTimeout)
+        )
+      ]).catch(error => {
+        console.error('Weather arrival error:', error);
+        return null;
+      });
+      
+      const tidalDeparturePromise = Promise.race([
+        this.agents['tidal'].handleToolCall('get_tide_predictions', {
+          latitude: request.departure.latitude,
+          longitude: request.departure.longitude,
+          start_date: request.departure.time || new Date().toISOString(),
+          end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Tidal fetch timeout')), agentTimeout)
+        )
+      ]).catch(error => {
+        console.error('Tidal departure error:', error);
+        return null;
+      });
+      
+      const tidalArrivalPromise = Promise.race([
+        this.agents['tidal'].handleToolCall('get_tide_predictions', {
+          latitude: request.destination.latitude,
+          longitude: request.destination.longitude,
+          start_date: request.departure.time || new Date().toISOString(),
+          end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Tidal fetch timeout')), agentTimeout)
+        )
+      ]).catch(error => {
+        console.error('Tidal arrival error:', error);
+        return null;
+      });
+      
+      // EXECUTE ALL IN PARALLEL - THIS IS THE KEY!
+      const parallelStart = Date.now();
+      const [route, weatherDeparture, weatherArrival, tidalDeparture, tidalArrival] = await Promise.all([
+        routePromise,
+        weatherDeparturePromise,
+        weatherArrivalPromise,
+        tidalDeparturePromise,
+        tidalArrivalPromise
+      ]);
+      
+      const parallelTime = Date.now() - parallelStart;
+      console.log(`⚡ All agents completed in ${parallelTime}ms (PARALLEL EXECUTION)`);
+      logger.info({ parallelTime, planningId }, 'Parallel execution completed');
       
       // Compile comprehensive passage plan
       const passagePlan = {
         id: planningId,
         request,
         route,
-        weather: weatherData.filter((w: any) => w !== null),
-        tides: tidalData,
+        weather: {
+          departure: weatherDeparture,
+          arrival: weatherArrival
+        },
+        tides: {
+          departure: tidalDeparture,
+          arrival: tidalArrival
+        },
         summary: {
           totalDistance: route.totalDistance,
           estimatedDuration: route.estimatedDuration,
           departureTime: request.departure.time,
           estimatedArrival: new Date(
-            new Date(request.departure.time).getTime() + route.estimatedDuration * 60 * 60 * 1000
+            new Date(request.departure.time || Date.now()).getTime() + 
+            route.estimatedDuration * 60 * 60 * 1000
           ),
-          warnings: this.generateWarnings(weatherData),
-          recommendations: this.generateRecommendations(weatherData, route)
+          warnings: this.generateWarnings([weatherDeparture, weatherArrival]),
+          recommendations: this.generateRecommendations([weatherDeparture, weatherArrival], route)
+        },
+        performance: {
+          totalTime: Date.now() - startTime,
+          parallelTime,
+          agentsUsed: ['weather', 'tidal', 'route']
         }
       };
       
-      console.log(`✓ Passage plan complete: ${passagePlan.id}`);
+      console.log(`✅ Passage plan complete in ${passagePlan.performance.totalTime}ms`);
+      console.log(`📊 Performance: ${passagePlan.performance.totalTime < 3000 ? '✅ UNDER 3 SECONDS!' : '⚠️ Over 3 seconds'}`);
       
       // Broadcast completion
       this.broadcastUpdate({
