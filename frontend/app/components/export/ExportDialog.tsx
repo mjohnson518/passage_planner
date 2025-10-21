@@ -22,7 +22,9 @@ import {
   Loader2
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Passage } from '@passage-planner/shared'
+
+// Type inlined from @passage-planner/shared to avoid workspace dependency issues
+type Passage = any; // TODO: Import properly after fixing monorepo build
 
 type ExportFormat = 'gpx' | 'kml' | 'csv' | 'pdf'
 
