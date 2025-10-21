@@ -3,9 +3,6 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   
-  // CRITICAL: Export as static site for Cloudflare Pages
-  output: 'export',
-  
   // TEMPORARY: Disable type checking to deploy quickly
   // Re-enable after deployment and fix type errors iteratively
   typescript: {
@@ -21,7 +18,7 @@ const nextConfig = {
   },
 
   images: {
-    unoptimized: true, // Required for static export
+    unoptimized: true,
   },
 
   webpack: (config) => {
