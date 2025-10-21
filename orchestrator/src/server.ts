@@ -1018,6 +1018,31 @@ export class HttpServer {
         res.status(500).json({ error: 'Registration failed' });
       }
     });
+
+    // Frontend error logging endpoint
+    this.app.post('/api/errors/log', async (req, res) => {
+      try {
+        const { message, stack, componentStack, timestamp, userAgent, url } = req.body;
+        
+        this.logger.error({
+          type: 'frontend_error',
+          message,
+          stack,
+          componentStack,
+          timestamp,
+          userAgent,
+          url,
+          correlationId: (req as any).correlationId || 'unknown',
+        });
+        
+        // TODO: Send to error tracking service (Sentry, Rollbar, etc.)
+        
+        res.status(200).json({ success: true });
+      } catch (err) {
+        this.logger.error('Failed to log frontend error:', err);
+        res.status(500).json({ error: 'Failed to log error' });
+      }
+    });
   }
 
   private setupWebSocket() {
