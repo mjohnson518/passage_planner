@@ -2,8 +2,7 @@
 import Redis from 'ioredis';
 import { WeatherAgent } from '../../agents/weather/src/WeatherAgent';
 import { TidalAgent } from '../../agents/tidal/src/TidalAgent';
-// Temporarily skip RouteAgent due to Turf.js ESM issues
-// import { RouteAgent } from '../../agents/route/src/RouteAgent';
+import { RouteAgent } from '../../agents/route/src/RouteAgent';
 import { BaseAgent } from '../../agents/base/BaseAgent';
 import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';

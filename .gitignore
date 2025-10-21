@@ -64,3 +64,12 @@ passage-planner-tech-spec.mdDEPLOYMENT_INSTRUCTIONS.md
 DEPLOYMENT_INSTRUCTIONS.md
 passage-planner-tech-spec.md
 .env.production
+
+# Duplicate/artifact lockfiles
+package-lock 2.json
+package-lock 3.json
+package-lock 4.json
+
+# Cursor internal files
+.cursor/plans/
+.cursor/rules/
