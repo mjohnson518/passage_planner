@@ -198,7 +198,6 @@ export function RevenueMetrics() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  // @ts-expect-error - Recharts label type is complex
                   label={({ tier, percent }: any) => `${tier}: ${(percent * 100).toFixed(0)}%`}
                   outerRadius={80}
                   fill="#8884d8"
