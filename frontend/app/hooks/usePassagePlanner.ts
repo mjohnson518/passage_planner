@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useSocket } from '../contexts/SocketContext'
-import { PassagePlan, PassagePlanRequest } from '@passage-planner/shared'
+import { PassagePlan, PassagePlanRequest } from '@/types/shared'
 import { analytics } from '../lib/analytics'
 
 interface UsePassagePlannerReturn {

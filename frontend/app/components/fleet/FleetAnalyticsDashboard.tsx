@@ -18,7 +18,7 @@ import {
   Legend
 } from 'recharts'
 import { Skeleton } from '../ui/skeleton'
-import type { FleetAnalytics } from '@passage-planner/shared'
+import type { FleetAnalytics } from '@/types/shared'
 
 interface FleetAnalyticsDashboardProps {
   fleetId: string

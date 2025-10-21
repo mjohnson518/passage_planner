@@ -9,7 +9,7 @@ import {
   Wrench,
   Navigation
 } from 'lucide-react'
-import type { FleetVessel } from '@passage-planner/shared'
+import type { FleetVessel } from '@/types/shared'
 import { toRelativeTime } from '../../lib/utils'
 
 interface FleetVesselCardProps {

@@ -1,5 +1,5 @@
 // Re-export shared types
-export * from '@passage-planner/shared'
+export * from '@/types/shared'
 
 // Frontend-specific types
 export interface ChatMessage {

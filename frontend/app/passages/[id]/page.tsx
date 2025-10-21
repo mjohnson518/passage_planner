@@ -19,7 +19,7 @@ import {
   AlertTriangle,
   Anchor
 } from 'lucide-react'
-import type { Passage } from '@passage-planner/shared'
+import type { Passage } from '@/types/shared'
 
 // Mock data for demonstration
 const mockPassage: Passage = {

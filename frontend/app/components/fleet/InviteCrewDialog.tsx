@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Checkbox } from '../ui/checkbox'
 import { Loader2, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
-import type { CrewMember, FleetVessel } from '@passage-planner/shared'
+import type { CrewMember, FleetVessel } from '@/types/shared'
 
 interface InviteCrewDialogProps {
   open: boolean
