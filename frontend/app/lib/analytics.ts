@@ -28,6 +28,12 @@ class Analytics {
    */
   async track(eventName: string, properties?: EventProperties): Promise<void> {
     if (!this.isEnabled) return;
+    
+    const supabase = getSupabase()
+    if (!supabase) {
+      console.debug('[Analytics] Skipping event (no database):', eventName)
+      return
+    }
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
