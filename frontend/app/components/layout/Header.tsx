@@ -34,7 +34,7 @@ export function Header() {
     { name: 'Docs', href: '/docs', requireAuth: false },
   ]
 
-  const activeAgents = Object.keys(agentStatus).length
+  const activeAgents = Object.keys(agentStatuses).length
 
   return (
     <header className={cn(
