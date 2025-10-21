@@ -15,7 +15,7 @@ export function Header() {
   const [scrolled, setScrolled] = useState(false)
   const { theme, setTheme } = useTheme()
   const { user, signOut } = useAuth()
-  const { connected, agentStatus } = useSocket()
+  const { connected, agentStatuses } = useSocket()
   const pathname = usePathname()
 
   useEffect(() => {
