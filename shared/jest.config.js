@@ -44,5 +44,17 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/src/testing/jest.setup.ts'],
   testTimeout: 10000,
   verbose: true,
+  clearMocks: true,
+  resetMocks: true,
+  restoreMocks: true,
+  globals: {
+    'ts-jest': {
+      isolatedModules: true,
+      tsconfig: {
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true
+      }
+    }
+  }
 };
 

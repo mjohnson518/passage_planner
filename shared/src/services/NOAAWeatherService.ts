@@ -70,10 +70,14 @@ export class NOAAWeatherService {
   private gridPointBreaker: CircuitBreaker;
   private forecastBreaker: CircuitBreaker;
   
-  constructor(cache: CacheManager, logger: Logger) {
+  constructor(
+    cache: CacheManager, 
+    logger: Logger,
+    apiClient?: NOAAAPIClient  // Optional for dependency injection in tests
+  ) {
     this.cache = cache;
     this.logger = logger;
-    this.noaaClient = new NOAAAPIClient(logger, cache);
+    this.noaaClient = apiClient ?? new NOAAAPIClient(logger, cache);
     
     // Initialize circuit breakers for NOAA API calls
     this.gridPointBreaker = CircuitBreakerFactory.create(
