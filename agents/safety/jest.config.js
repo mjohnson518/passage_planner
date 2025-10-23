@@ -9,11 +9,16 @@ module.exports = {
         esModuleInterop: true,
         allowSyntheticDefaultImports: true,
       },
+      useESM: false,
     }],
   },
   transformIgnorePatterns: [
     'node_modules/(?!(@modelcontextprotocol|uuid)/)',
   ],
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
+  extensionsToTreatAsEsm: ['.ts'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   collectCoverageFrom: [
     'src/**/*.ts',
@@ -30,5 +35,17 @@ module.exports = {
     },
   },
   testTimeout: 10000,
+  clearMocks: true,
+  resetMocks: true,
+  restoreMocks: true,
+  globals: {
+    'ts-jest': {
+      isolatedModules: true,
+      tsconfig: {
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true,
+      }
+    }
+  }
 }
 
