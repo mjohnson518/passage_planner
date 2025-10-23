@@ -351,14 +351,16 @@ describe('NOAATidalService - SAFETY-CRITICAL Integration Tests', () => {
       );
       
       const startDate = new Date('2024-01-20T00:00:00Z');
-      const endDate = new Date('2024-01-21T00:00:00Z');
+      const durationHours = 24; // 24-hour window
       
       const windows = await tidalService.calculateTidalWindows(
         '8443970',
         startDate,
-        endDate,
-        6.0, // Vessel draft in feet
-        8.0  // Minimum required depth in feet
+        durationHours,
+        {
+          minTideHeight: 8.0, // Minimum required depth in feet
+          preferRising: true
+        }
       );
       
       expect(windows).toBeDefined();
@@ -368,8 +370,9 @@ describe('NOAATidalService - SAFETY-CRITICAL Integration Tests', () => {
       windows.forEach(window => {
         expect(window.start).toBeDefined();
         expect(window.end).toBeDefined();
-        expect(window.minimumDepth).toBeDefined();
-        expect(window.minimumDepth).toBeGreaterThanOrEqual(8.0);
+        expect(window.minHeight).toBeDefined();
+        expect(window.minHeight).toBeGreaterThanOrEqual(8.0);
+        expect(window.isSafe).toBe(true);
       });
     });
 
@@ -391,19 +394,21 @@ describe('NOAATidalService - SAFETY-CRITICAL Integration Tests', () => {
       );
       
       const startDate = new Date('2024-01-20T00:00:00Z');
-      const endDate = new Date('2024-01-21T00:00:00Z');
+      const durationHours = 24;
       
       const windows = await tidalService.calculateTidalWindows(
         '8443970',
         startDate,
-        endDate,
-        vesselDraft,
-        minimumClearance
+        durationHours,
+        {
+          minTideHeight: minimumClearance,
+          preferRising: true
+        }
       );
       
       // All safe windows should have depth >= minimumClearance
       windows.forEach(window => {
-        expect(window.minimumDepth).toBeGreaterThanOrEqual(minimumClearance);
+        expect(window.minHeight).toBeGreaterThanOrEqual(minimumClearance);
       });
     });
 
@@ -426,14 +431,16 @@ describe('NOAATidalService - SAFETY-CRITICAL Integration Tests', () => {
       );
       
       const startDate = new Date('2024-01-20T00:00:00Z');
-      const endDate = new Date('2024-01-21T00:00:00Z');
+      const durationHours = 24;
       
       const windows = await tidalService.calculateTidalWindows(
         '8443970',
         startDate,
-        endDate,
-        shallowDraft,
-        criticalDepth
+        durationHours,
+        {
+          minTideHeight: criticalDepth,
+          preferRising: true
+        }
       );
       
       // Should identify limited safe windows
@@ -701,14 +708,16 @@ describe('NOAATidalService - SAFETY-CRITICAL Integration Tests', () => {
       );
       
       const startDate = new Date('2024-01-20T00:00:00Z');
-      const endDate = new Date('2024-01-21T00:00:00Z');
+      const durationHours = 24;
       
       const windows = await tidalService.calculateTidalWindows(
         '8443970',
         startDate,
-        endDate,
-        deepDraft,
-        insufficientDepth
+        durationHours,
+        {
+          minTideHeight: insufficientDepth,
+          preferRising: true
+        }
       );
       
       // With insufficient depth, safe windows should be very limited or empty
@@ -740,14 +749,16 @@ describe('NOAATidalService - SAFETY-CRITICAL Integration Tests', () => {
       );
       
       const startDate = new Date('2024-01-20T00:00:00Z');
-      const endDate = new Date('2024-01-21T00:00:00Z');
+      const durationHours = 24;
       
       const windows = await tidalService.calculateTidalWindows(
         '8443970',
         startDate,
-        endDate,
-        6.0,
-        8.0
+        durationHours,
+        {
+          minTideHeight: 8.0,
+          preferRising: true
+        }
       );
       
       // Windows should have start and end times

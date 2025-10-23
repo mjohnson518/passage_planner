@@ -149,7 +149,7 @@ export const MOCK_CURRENT_PREDICTIONS_BOSTON = {
       t: '2024-01-20 06:00',
       v: '2.3', // Velocity in knots
       d: '045', // Direction in degrees
-      Type: 'flood'
+      Type: 'max_flood'
     },
     {
       t: '2024-01-20 09:00',
@@ -161,7 +161,7 @@ export const MOCK_CURRENT_PREDICTIONS_BOSTON = {
       t: '2024-01-20 12:00',
       v: '2.8', // Ebb current
       d: '225',
-      Type: 'ebb'
+      Type: 'max_ebb'
     },
     {
       t: '2024-01-20 15:00',
@@ -173,7 +173,7 @@ export const MOCK_CURRENT_PREDICTIONS_BOSTON = {
       t: '2024-01-20 18:00',
       v: '2.5', // Flood again
       d: '045',
-      Type: 'flood'
+      Type: 'max_flood'
     }
   ]
 };
@@ -187,13 +187,13 @@ export const MOCK_CURRENT_PREDICTIONS_DANGEROUS = {
       t: '2024-01-20 12:00',
       v: '4.5', // DANGEROUS - >3 knots
       d: '180',
-      Type: 'ebb'
+      Type: 'max_ebb'
     },
     {
       t: '2024-01-20 15:00',
       v: '5.2', // VERY DANGEROUS - >5 knots
       d: '180',
-      Type: 'ebb'
+      Type: 'max_ebb'
     }
   ]
 };
