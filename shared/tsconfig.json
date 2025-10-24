@@ -5,6 +5,7 @@
     "outDir": "./dist",
     "composite": true,
     "skipLibCheck": true,
+    "noEmitOnError": false,
     "types": ["node"],
     "noImplicitAny": false
   },
