@@ -1,0 +1,58 @@
+# Production Dockerfile for Helmwise Orchestrator
+# Handles monorepo structure properly
+
+FROM node:18-alpine AS base
+
+# Install dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
+WORKDIR /app
+
+# Copy package files for all workspaces
+COPY package*.json ./
+COPY shared/package*.json ./shared/
+COPY orchestrator/package*.json ./orchestrator/
+
+# Install all dependencies (including workspaces)
+RUN npm ci --include=dev
+
+# Copy source code
+COPY shared ./shared
+COPY orchestrator ./orchestrator
+COPY tsconfig.json ./
+
+# Build shared module first
+WORKDIR /app/shared
+RUN npm run build || true
+
+# Build orchestrator
+WORKDIR /app/orchestrator
+RUN npm run build || true
+
+# Production stage
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install production dependencies only
+COPY package*.json ./
+COPY shared/package*.json ./shared/
+COPY orchestrator/package*.json ./orchestrator/
+RUN npm ci --omit=dev
+
+# Copy built code from builder
+COPY --from=base /app/shared/dist ./shared/dist
+COPY --from=base /app/orchestrator/dist ./orchestrator/dist
+
+# Copy package.json files (needed for module resolution)
+COPY shared/package.json ./shared/
+COPY orchestrator/package.json ./orchestrator/
+
+WORKDIR /app/orchestrator
+
+# Expose port (Railway will override with PORT env var)
+EXPOSE 3000
+
+# Start the application
+CMD ["node", "dist/orchestrator/src/index.js"]
+
