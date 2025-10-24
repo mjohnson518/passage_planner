@@ -1,21 +1,25 @@
-# EMERGENCY: Simple ts-node deployment
-# Not optimal but gets service online while we fix architecture
+# Standalone orchestrator deployment
+# Includes all dependencies inline
 
 FROM node:18-alpine
 
+# Install build tools for native modules
+RUN apk add --no-cache python3 make g++ git
+
 WORKDIR /app
 
-# Copy everything (monorepo needs all files for ts-node)
+# Copy entire monorepo (needed for workspace dependencies)
 COPY . .
 
-# Install dependencies
-RUN npm ci
+# Install all dependencies at root level
+RUN npm install
 
-# Work from orchestrator directory
+# Set working directory to orchestrator
 WORKDIR /app/orchestrator
 
-# Set production environment
-ENV NODE_ENV=production
+# Expose port
+EXPOSE ${PORT:-3000}
 
-# Start with ts-node (accepts performance hit to get online)
+# Use ts-node directly (simplest approach that works)
+# --transpile-only skips type checking for faster startup
 CMD ["npx", "ts-node", "--transpile-only", "src/index.ts"]
