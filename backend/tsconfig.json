@@ -13,6 +13,6 @@
     "moduleResolution": "node",
     "types": []
   },
-  "include": ["src/index.ts"],
-  "exclude": ["node_modules", "dist", "src/agents", "src/services", "src/middleware", "src/shared"]
+  "include": ["src/index.ts", "src/services/routeCalculator.ts"],
+  "exclude": ["node_modules", "dist", "src/agents", "src/middleware", "src/shared"]
 }
