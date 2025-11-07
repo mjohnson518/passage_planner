@@ -1,4 +1,4 @@
-import { BaseAgent } from '../../shared/agents/BaseAgent';
+import { BaseAgent } from '../base/BaseAgent';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import * as turf from '@turf/turf';
 
