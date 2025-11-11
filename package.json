@@ -18,8 +18,8 @@
     "build:all": "npm --workspaces run build",
     "test": "npm --workspaces run test",
     "lint": "npm --workspaces run lint",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down",
+    "docker:up": "docker-compose -f tests/integration/docker-compose.yml up -d",
+    "docker:down": "docker-compose -f tests/integration/docker-compose.yml down",
     "setup": "npm install && npm run setup:env && npm run docker:up",
     "setup:env": "node scripts/setup/env-setup.js"
   },
@@ -63,7 +63,6 @@
     "uuid": "^11.1.0"
   },
   "description": "A production-ready passage planning system built with the Model Context Protocol (MCP) that orchestrates specialized AI agents to provide comprehensive sailing route planning. The system uses a hierarchical architecture where an orchestrator agent manages specialized sub-agents for weather forecasting, tidal predictions, port information, safety planning, and route optimization.",
-  "main": "test-db.js",
   "directories": {
     "doc": "docs",
     "test": "tests"

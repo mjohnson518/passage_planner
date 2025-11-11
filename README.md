@@ -128,7 +128,7 @@ Production URLs:
 
 4. **Start infrastructure**
    ```bash
-   docker-compose up -d --build
+   npm run docker:up
    ```
 
 5. **Run database migrations (if needed)**
@@ -157,14 +157,31 @@ passage-planner/
 │   ├── contexts/          # React contexts (Auth, Socket, etc.)
 │   ├── hooks/             # Custom React hooks
 │   └── lib/               # Utilities and services
+├── backend/               # Backend API service
 ├── orchestrator/          # MCP orchestrator service
 │   ├── services/          # Core orchestrator services and agent orchestration
 │   └── Dockerfile         # Orchestrator container build
 ├── agents/                # Specialized agent implementations
+│   ├── weather/           # Weather forecasting agent
+│   ├── tidal/             # Tidal prediction agent
+│   ├── safety/            # Safety analysis agent
+│   ├── route/             # Route optimization agent
+│   └── port/              # Port information agent
 ├── shared/                # Shared types and utilities
-├── emails/                # React Email templates
+├── scripts/               # Deployment and setup scripts
 ├── infrastructure/        # Docker, Kubernetes configs and SQL seeds
-└── tests/                 # Integration and E2E tests
+├── tests/                 # Organized test suite
+│   ├── integration/       # Integration tests & docker-compose files
+│   ├── scripts/           # Test scripts and utilities
+│   ├── config/            # Test configuration files
+│   ├── e2e/               # End-to-end tests
+│   ├── load/              # Load testing scripts
+│   └── agents/            # Agent-specific tests
+└── docs/                  # Project documentation
+    ├── api/               # API documentation
+    ├── architecture/      # Architecture documentation
+    ├── deployment/        # Deployment guides
+    └── archive/           # Archived documentation
 ```
 
 ## 🧪 Testing

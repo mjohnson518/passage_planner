@@ -36,7 +36,13 @@ For initial local development you can leave Stripe/Resend values as dummy string
 Build and launch services:
 
 ```bash
-docker-compose up -d --build
+npm run docker:up
+```
+
+Alternatively, you can run docker-compose directly:
+
+```bash
+docker-compose -f tests/integration/docker-compose.yml up -d --build
 ```
 
 The compose file starts Postgres, Redis, the orchestrator, and the frontend. Postgres runs all SQL files located in `infrastructure/docker/postgres/` (`init.sql`, `passages.sql`, `analytics.sql`, `subscriptions.sql`).
@@ -54,12 +60,18 @@ After containers are running, run any additional migrations or seed scripts as n
 ## 5. Tear Down
 
 ```bash
-docker-compose down
+npm run docker:down
+```
+
+Alternatively, you can run docker-compose directly:
+
+```bash
+docker-compose -f tests/integration/docker-compose.yml down
 ```
 
 Optionally remove volumes when you want a clean database/Redis state:
 
 ```bash
-docker-compose down -v
+docker-compose -f tests/integration/docker-compose.yml down -v
 ```
 
