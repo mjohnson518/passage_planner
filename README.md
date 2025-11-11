@@ -169,14 +169,18 @@ passage-planner/
 │   └── port/              # Port information agent
 ├── shared/                # Shared types and utilities
 ├── scripts/               # Deployment and setup scripts
+│   └── start-local.sh     # Local development startup script
 ├── infrastructure/        # Docker, Kubernetes configs and SQL seeds
+├── docker/                # Docker build configurations
+│   └── Dockerfile         # Orchestrator Docker build file
 ├── tests/                 # Organized test suite
 │   ├── integration/       # Integration tests & docker-compose files
 │   ├── scripts/           # Test scripts and utilities
 │   ├── config/            # Test configuration files
 │   ├── e2e/               # End-to-end tests
 │   ├── load/              # Load testing scripts
-│   └── agents/            # Agent-specific tests
+│   ├── agents/            # Agent-specific tests
+│   └── playwright.config.ts # E2E test configuration
 └── docs/                  # Project documentation
     ├── api/               # API documentation
     ├── architecture/      # Architecture documentation
