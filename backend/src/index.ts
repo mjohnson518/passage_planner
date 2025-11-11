@@ -8,6 +8,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { calculateRoute, formatDuration } from './services/routeCalculator';
 import { getWeatherData, formatWindDescription } from './services/weatherService';
+import { getNavigationWarnings } from './services/ntmService';
 
 dotenv.config();
 
@@ -58,18 +59,23 @@ app.post('/api/passage-planning/analyze', async (req, res) => {
     const cruiseSpeed = vessel?.cruiseSpeed || 5; // Default 5 knots
     const route = calculateRoute(departure, destination, cruiseSpeed);
     
-    // Fetch weather data for departure and destination
-    console.log('Fetching weather data...');
-    const [departureWeather, destinationWeather] = await Promise.all([
+    // Fetch weather data and navigation warnings in parallel
+    console.log('Fetching weather data and navigation warnings...');
+    const [departureWeather, destinationWeather, navigationWarnings] = await Promise.all([
       getWeatherData(departure.latitude, departure.longitude),
-      getWeatherData(destination.latitude, destination.longitude)
+      getWeatherData(destination.latitude, destination.longitude),
+      getNavigationWarnings(departure, destination)
     ]);
     
-    // Generate recommendations based on route and weather
+    // Filter critical navigation warnings
+    const criticalWarnings = navigationWarnings.filter(w => w.severity === 'critical');
+    
+    // Generate recommendations based on route, weather, and navigation warnings
     const recommendations = generateRecommendations(
       route, 
       departureWeather, 
-      destinationWeather
+      destinationWeather,
+      navigationWarnings
     );
     
     // Compile all warnings
@@ -123,6 +129,12 @@ app.post('/api/passage-planning/analyze', async (req, res) => {
             : 'Conditions require careful consideration'
         }
       },
+      navigationWarnings: {
+        count: navigationWarnings.length,
+        critical: criticalWarnings.length,
+        warnings: navigationWarnings,
+        lastChecked: new Date().toISOString()
+      },
       tidal: {
         status: 'Tidal service integration in progress',
         message: 'Real tidal predictions coming in next deployment'
@@ -145,13 +157,40 @@ app.post('/api/passage-planning/analyze', async (req, res) => {
   }
 });
 
-// Generate recommendations based on route and weather
+// Generate recommendations based on route, weather, and navigation warnings
 function generateRecommendations(
   route: any, 
   departureWeather: any, 
-  destinationWeather: any
+  destinationWeather: any,
+  navigationWarnings: any[]
 ): string[] {
   const recommendations: string[] = [];
+  
+  // CRITICAL: Navigation warnings take priority
+  const criticalNavWarnings = navigationWarnings.filter(w => w.severity === 'critical');
+  if (criticalNavWarnings.length > 0) {
+    recommendations.push(`⚠️ CRITICAL: ${criticalNavWarnings.length} navigation warning(s) require review before departure`);
+    criticalNavWarnings.forEach(warning => {
+      recommendations.push(`  - ${warning.title}`);
+    });
+  }
+  
+  // Chart corrections
+  if (navigationWarnings.some(w => w.type === 'chart_correction')) {
+    recommendations.push('📊 Chart corrections available - ensure charts are updated to latest Notice to Mariners');
+  }
+  
+  // Marine hazards
+  const hazardWarnings = navigationWarnings.filter(w => w.type === 'hazard');
+  if (hazardWarnings.length > 0) {
+    recommendations.push(`⚠️ ${hazardWarnings.length} navigation hazard(s) identified along route - review details`);
+  }
+  
+  // Marine restrictions
+  const restrictionWarnings = navigationWarnings.filter(w => w.type === 'restriction');
+  if (restrictionWarnings.length > 0) {
+    recommendations.push(`📍 ${restrictionWarnings.length} navigation restriction(s) in effect - verify compliance`);
+  }
   
   // Wind-based recommendations
   if (departureWeather.windSpeed > 25) {
