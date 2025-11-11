@@ -1022,6 +1022,7 @@ export class SafetyAgent {
 }
 
 // Start the agent if run directly
+/* istanbul ignore next */
 if (require.main === module) {
   const agent = new SafetyAgent();
   agent.initialize().then(() => {

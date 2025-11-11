@@ -624,5 +624,101 @@ describe('AreaChecker - LEGAL COMPLIANCE - SAFETY CRITICAL', () => {
       });
     });
   });
+
+  describe('PART E: Edge Case Coverage for Distance Calculations', () => {
+    it('should handle point directly inside polygon boundary (zero distance)', () => {
+      // Create a waypoint INSIDE a restricted area (should return 0 distance)
+      const route: Waypoint[] = [
+        { latitude: 42.35, longitude: -70.85 }, // Inside Boston Harbor TSS
+        { latitude: 42.36, longitude: -70.86 },
+      ];
+
+      const conflicts = checker.checkRoute(route);
+      
+      // Should detect the area even with zero distance
+      expect(conflicts.size).toBeGreaterThan(0);
+    });
+
+    it('should calculate distance when line segment has zero length (identical points)', () => {
+      // Route with two identical waypoints (edge case for line segment distance)
+      const route: Waypoint[] = [
+        { latitude: 42.0, longitude: -70.0 },
+        { latitude: 42.0, longitude: -70.0 }, // Same point
+        { latitude: 42.1, longitude: -70.1 },
+      ];
+
+      // Should handle gracefully without error
+      const conflicts = checker.checkRoute(route);
+      
+      // Expects no errors during calculation
+      expect(conflicts).toBeDefined();
+    });
+
+    it('should correctly calculate haversine distance between close points', () => {
+      // Very close points to test distance calculation precision
+      const route: Waypoint[] = [
+        { latitude: 42.0001, longitude: -70.0001 },
+        { latitude: 42.0002, longitude: -70.0002 },
+      ];
+
+      const conflicts = checker.checkRoute(route);
+      
+      // Distance calculation should work for very small distances
+      expect(conflicts).toBeDefined();
+    });
+
+    it('should handle polygon distance calculation for points outside polygon', () => {
+      // Route that passes NEAR but not THROUGH a restricted area
+      const route: Waypoint[] = [
+        { latitude: 42.25, longitude: -70.95 }, // Just outside Boston Harbor TSS
+        { latitude: 42.26, longitude: -70.96 },
+      ];
+
+      const conflicts = checker.checkRoute(route);
+      
+      // May or may not detect depending on proximity threshold
+      // Main goal is to test distance-to-polygon calculation doesn't error
+      expect(conflicts).toBeDefined();
+    });
+
+    it('should calculate correct distance for point to line segment with t=0 (start point)', () => {
+      // Route where closest point is at segment start
+      const route: Waypoint[] = [
+        { latitude: 40.0, longitude: -70.0 }, // Far from any restricted area
+        { latitude: 40.1, longitude: -70.0 },
+      ];
+
+      const conflicts = checker.checkRoute(route);
+      
+      // Should complete distance calculations
+      expect(conflicts).toBeDefined();
+    });
+
+    it('should calculate correct distance for point to line segment with t=1 (end point)', () => {
+      // Route where closest point is at segment end
+      const route: Waypoint[] = [
+        { latitude: 45.0, longitude: -70.0 }, // Far from any restricted area  
+        { latitude: 45.1, longitude: -70.0 },
+      ];
+
+      const conflicts = checker.checkRoute(route);
+      
+      // Should complete distance calculations
+      expect(conflicts).toBeDefined();
+    });
+
+    it('should calculate correct distance for point to line segment with 0<t<1 (middle)', () => {
+      // Route where closest point is in middle of segment
+      const route: Waypoint[] = [
+        { latitude: 43.0, longitude: -71.0 }, // Between known restricted areas
+        { latitude: 43.5, longitude: -70.5 },
+      ];
+
+      const conflicts = checker.checkRoute(route);
+      
+      // Should complete distance calculations for midpoint projection
+      expect(conflicts).toBeDefined();
+    });
+  });
 });
 

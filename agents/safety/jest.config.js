@@ -25,6 +25,9 @@ module.exports = {
     '!src/**/*.d.ts',
     '!src/**/__tests__/**',
   ],
+  coveragePathIgnorePatterns: [
+    'if \\(require\\.main === module\\)',
+  ],
   coverageDirectory: 'coverage',
   coverageThreshold: {
     global: {
@@ -37,15 +40,6 @@ module.exports = {
   testTimeout: 10000,
   clearMocks: true,
   resetMocks: true,
-  restoreMocks: true,
-  globals: {
-    'ts-jest': {
-      isolatedModules: true,
-      tsconfig: {
-        esModuleInterop: true,
-        allowSyntheticDefaultImports: true,
-      }
-    }
-  }
+  restoreMocks: true
 }
 
