@@ -11,6 +11,7 @@ import { getWeatherData, formatWindDescription } from './services/weatherService
 import { getNavigationWarnings } from './services/ntmService';
 import { getTidalData, getNextTide, formatTidalPrediction } from './services/tidalService';
 import { analyzeSafety } from './services/safetyService';
+import { getPortInfo, findEmergencyHarbors } from './services/portService';
 
 dotenv.config();
 
@@ -61,14 +62,17 @@ app.post('/api/passage-planning/analyze', async (req, res) => {
     const cruiseSpeed = vessel?.cruiseSpeed || 5; // Default 5 knots
     const route = calculateRoute(departure, destination, cruiseSpeed);
     
-    // Fetch weather, tidal, and navigation data first (needed for safety analysis)
-    console.log('Fetching weather, tidal, and navigation data...');
-    const [departureWeather, destinationWeather, navigationWarnings, departureTidal, destinationTidal] = await Promise.all([
+    // Fetch all data sources in parallel for optimal performance
+    console.log('Fetching weather, tidal, navigation, and port data...');
+    const [departureWeather, destinationWeather, navigationWarnings, departureTidal, destinationTidal, departurePort, destinationPort, emergencyHarbors] = await Promise.all([
       getWeatherData(departure.latitude, departure.longitude),
       getWeatherData(destination.latitude, destination.longitude),
       getNavigationWarnings(departure, destination),
       getTidalData(departure.latitude, departure.longitude),
-      getTidalData(destination.latitude, destination.longitude)
+      getTidalData(destination.latitude, destination.longitude),
+      getPortInfo(departure.latitude, departure.longitude, vessel?.draft),
+      getPortInfo(destination.latitude, destination.longitude, vessel?.draft),
+      findEmergencyHarbors(departure.latitude, departure.longitude, 50, vessel?.draft)
     ]);
     
     // Perform comprehensive safety analysis with all available data
@@ -191,6 +195,49 @@ app.post('/api/passage-planning/analyze', async (req, res) => {
           warningsActive: safetyAnalysis.safetyWarnings.length,
           crewExperienceConsidered: !!vessel?.crewExperience,
           vesselDraftConsidered: !!vessel?.draft
+        }
+      },
+      port: {
+        departure: departurePort.found ? {
+          name: departurePort.name,
+          type: departurePort.type,
+          distance: `${departurePort.distance} nm`,
+          facilities: departurePort.facilities,
+          navigation: departurePort.navigation,
+          contact: departurePort.contact,
+          customs: departurePort.customs,
+          recommendations: departurePort.recommendations,
+          rating: departurePort.rating
+        } : {
+          found: false,
+          message: 'No port found within 25nm of departure point'
+        },
+        destination: destinationPort.found ? {
+          name: destinationPort.name,
+          type: destinationPort.type,
+          distance: `${destinationPort.distance} nm`,
+          facilities: destinationPort.facilities,
+          navigation: destinationPort.navigation,
+          contact: destinationPort.contact,
+          customs: destinationPort.customs,
+          recommendations: destinationPort.recommendations,
+          rating: destinationPort.rating
+        } : {
+          found: false,
+          message: 'No port found within 25nm of destination point'
+        },
+        emergencyHarbors: emergencyHarbors.slice(0, 3).map((harbor: any) => ({
+          name: harbor.name,
+          distance: `${harbor.distance} nm`,
+          vhf: harbor.vhf,
+          protection: harbor.protection,
+          facilities: harbor.facilities
+        })),
+        summary: {
+          departurePortAvailable: departurePort.found,
+          destinationPortAvailable: destinationPort.found,
+          emergencyOptions: emergencyHarbors.length,
+          nearestEmergency: emergencyHarbors.length > 0 ? emergencyHarbors[0].name : 'None within range'
         }
       },
       summary: {
