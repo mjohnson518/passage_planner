@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import { calculateRoute, formatDuration } from './services/routeCalculator';
 import { getWeatherData, formatWindDescription } from './services/weatherService';
 import { getNavigationWarnings } from './services/ntmService';
+import { getTidalData, getNextTide, formatTidalPrediction } from './services/tidalService';
 
 dotenv.config();
 
@@ -59,12 +60,14 @@ app.post('/api/passage-planning/analyze', async (req, res) => {
     const cruiseSpeed = vessel?.cruiseSpeed || 5; // Default 5 knots
     const route = calculateRoute(departure, destination, cruiseSpeed);
     
-    // Fetch weather data and navigation warnings in parallel
-    console.log('Fetching weather data and navigation warnings...');
-    const [departureWeather, destinationWeather, navigationWarnings] = await Promise.all([
+    // Fetch all data in parallel for best performance
+    console.log('Fetching weather, tidal, and navigation data...');
+    const [departureWeather, destinationWeather, navigationWarnings, departureTidal, destinationTidal] = await Promise.all([
       getWeatherData(departure.latitude, departure.longitude),
       getWeatherData(destination.latitude, destination.longitude),
-      getNavigationWarnings(departure, destination)
+      getNavigationWarnings(departure, destination),
+      getTidalData(departure.latitude, departure.longitude),
+      getTidalData(destination.latitude, destination.longitude)
     ]);
     
     // Filter critical navigation warnings
@@ -136,8 +139,29 @@ app.post('/api/passage-planning/analyze', async (req, res) => {
         lastChecked: new Date().toISOString()
       },
       tidal: {
-        status: 'Tidal service integration in progress',
-        message: 'Real tidal predictions coming in next deployment'
+        departure: {
+          ...departureTidal,
+          nextTide: getNextTide(departureTidal.predictions),
+          nextTideFormatted: getNextTide(departureTidal.predictions) 
+            ? formatTidalPrediction(getNextTide(departureTidal.predictions)!)
+            : 'No prediction available'
+        },
+        destination: {
+          ...destinationTidal,
+          nextTide: getNextTide(destinationTidal.predictions),
+          nextTideFormatted: getNextTide(destinationTidal.predictions)
+            ? formatTidalPrediction(getNextTide(destinationTidal.predictions)!)
+            : 'No prediction available'
+        },
+        summary: {
+          departureStation: departureTidal.station,
+          destinationStation: destinationTidal.station,
+          tidalDataAvailable: departureTidal.predictions.length > 0 || destinationTidal.predictions.length > 0,
+          warnings: [
+            ...(departureTidal.warning ? [departureTidal.warning] : []),
+            ...(destinationTidal.warning ? [destinationTidal.warning] : [])
+          ]
+        }
       },
       summary: {
         totalDistance: `${route.distance} nm`,
