@@ -1,14 +1,33 @@
-import { BaseAgent } from '@passage-planner/shared';
+/**
+ * Port Agent - Comprehensive Port and Marina Information
+ * 
+ * Provides detailed information about ports, marinas, anchorages including:
+ * - Facilities and services
+ * - Navigation approach details
+ * - Customs/immigration requirements
+ * - Local knowledge and recommendations
+ * - Emergency harbor identification
+ */
+
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { Tool } from '@modelcontextprotocol/sdk/types';
-import axios from 'axios';
 import { Logger } from 'pino';
 import pino from 'pino';
+import { 
+  PORT_DATABASE, 
+  Port,
+  getPortById,
+  searchPortsByName,
+  findNearestPorts,
+  findPortsForDraft
+} from './data/portDatabase';
 
-export class PortAgent extends BaseAgent {
-  private marineTrafficApiKey: string;
+export class PortAgent {
+  private server: Server;
+  protected logger: Logger;
 
   constructor() {
-    const logger = pino({
+    this.logger = pino({
       level: process.env.LOG_LEVEL || 'info',
       transport: {
         target: 'pino-pretty',
@@ -16,437 +35,500 @@ export class PortAgent extends BaseAgent {
       }
     });
 
-    super(
+    this.server = new Server(
       {
         name: 'Port Information Agent',
-        version: '1.0.0',
-        description: 'Provides port information, facilities, and marine services',
-        healthCheckInterval: 30000
+        version: '2.0.0'
       },
-      logger
+      {
+        capabilities: {
+          tools: {}
+        }
+      }
     );
-
-    this.marineTrafficApiKey = process.env.MARINETRAFFIC_API_KEY || '';
+    
     this.setupTools();
   }
 
-  protected getAgentSpecificHealth(): any {
-    return {
-      apiKeyConfigured: !!this.marineTrafficApiKey,
-      lastPortQuery: new Date(),
-      cacheStatus: 'active'
-    };
+  async initialize(): Promise<void> {
+    this.logger.info({ ports: PORT_DATABASE.length }, 'Port Agent initialized');
   }
 
-  private setupTools() {
-    // Define available tools
-    const tools: Tool[] = [
+  async shutdown(): Promise<void> {
+    this.logger.info('Port Agent shutdown');
+  }
+
+  getTools(): Tool[] {
+    return [
       {
-        name: 'get_port_info',
-        description: 'Get detailed port information including facilities and services',
+        name: 'search_ports',
+        description: 'Search for ports and marinas near a location',
         inputSchema: {
           type: 'object',
           properties: {
-            latitude: { type: 'number', description: 'Port latitude' },
-            longitude: { type: 'number', description: 'Port longitude' },
-            name: { type: 'string', description: 'Port name (optional)' }
+            latitude: { type: 'number', minimum: -90, maximum: 90 },
+            longitude: { type: 'number', minimum: -180, maximum: 180 },
+            radius: { type: 'number', minimum: 1, maximum: 500, default: 50 },
+            name: { type: 'string' },
+            draft: { type: 'number', description: 'Vessel draft in feet for suitability filtering' }
           },
           required: ['latitude', 'longitude']
         }
       },
       {
-        name: 'search_nearby_ports',
-        description: 'Search for ports within a specified radius',
+        name: 'get_port_details',
+        description: 'Get comprehensive information about a specific port',
         inputSchema: {
           type: 'object',
           properties: {
-            latitude: { type: 'number', description: 'Center latitude' },
-            longitude: { type: 'number', description: 'Center longitude' },
-            radius_nm: { type: 'number', default: 50, description: 'Search radius in nautical miles' },
-            port_type: {
-              type: 'string',
-              enum: ['marina', 'anchorage', 'commercial', 'all'],
-              default: 'all',
-              description: 'Type of port to search for'
+            portId: { type: 'string' },
+            portName: { type: 'string' }
+          }
+        }
+      },
+      {
+        name: 'find_emergency_harbors',
+        description: 'Find safe harbors for emergency situations',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            latitude: { type: 'number' },
+            longitude: { type: 'number' },
+            maxDistance: { type: 'number', default: 50 },
+            draft: { type: 'number', description: 'Vessel draft in feet' },
+            requiredServices: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Required services (fuel, repair, etc.)'
             }
           },
           required: ['latitude', 'longitude']
         }
       },
       {
-        name: 'get_port_facilities',
-        description: 'Get available facilities and services at a port',
+        name: 'get_customs_info',
+        description: 'Get customs and immigration information for a port',
         inputSchema: {
           type: 'object',
           properties: {
-            port_id: { type: 'string', description: 'Port identifier' }
-          },
-          required: ['port_id']
-        }
-      },
-      {
-        name: 'get_port_weather',
-        description: 'Get current weather conditions at a port',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            latitude: { type: 'number' },
-            longitude: { type: 'number' }
-          },
-          required: ['latitude', 'longitude']
+            portId: { type: 'string' },
+            country: { type: 'string' }
+          }
         }
       }
     ];
+  }
 
-    // Register tools with MCP server
-    this.server.setRequestHandler('tools/list', async () => ({ tools }));
+  async handleToolCall(name: string, args: any): Promise<any> {
+    try {
+      this.logger.info({ tool: name, args }, 'Handling port tool call');
 
-    this.server.setRequestHandler('tools/call', async (request) => {
-      const { name, arguments: args } = request;
-
-      try {
-        this.logger.info({ tool: name, args }, 'Handling tool call');
-
-        switch (name) {
-          case 'get_port_info':
-            return await this.getPortInfo(args.latitude, args.longitude, args.name);
-          case 'search_nearby_ports':
-            return await this.searchNearbyPorts(
-              args.latitude,
-              args.longitude,
-              args.radius_nm || 50,
-              args.port_type || 'all'
-            );
-          case 'get_port_facilities':
-            return await this.getPortFacilities(args.port_id);
-          case 'get_port_weather':
-            return await this.getPortWeather(args.latitude, args.longitude);
-          default:
-            throw new Error(`Unknown tool: ${name}`);
-        }
-      } catch (error) {
-        this.logger.error({ error, tool: name }, 'Tool call failed');
-        throw error;
+      switch (name) {
+        case 'search_ports':
+          return await this.searchPorts(args);
+        case 'get_port_details':
+          return await this.getPortDetails(args);
+        case 'find_emergency_harbors':
+          return await this.findEmergencyHarbors(args);
+        case 'get_customs_info':
+          return await this.getCustomsInfo(args);
+        default:
+          throw new Error(`Unknown tool: ${name}`);
       }
+    } catch (error) {
+      this.logger.error({ error, tool: name }, 'Port tool call failed');
+      throw error;
+    }
+  }
+
+  private setupTools() {
+    // MCP server tool setup would go here
+  }
+
+  private async searchPorts(args: any): Promise<any> {
+    const { latitude, longitude, radius = 50, name, draft } = args;
+
+    // Validate coordinates
+    if (latitude === undefined || longitude === undefined) {
+      throw new Error('Latitude and longitude are required');
+    }
+    if (latitude < -90 || latitude > 90) {
+      throw new Error(`Invalid latitude: ${latitude}`);
+    }
+    if (longitude < -180 || longitude > 180) {
+      throw new Error(`Invalid longitude: ${longitude}`);
+    }
+
+    let results;
+
+    if (draft) {
+      // Filter by suitable depth for vessel
+      results = findPortsForDraft(latitude, longitude, draft, radius);
+    } else {
+      // Standard search
+      results = findNearestPorts(latitude, longitude, radius);
+    }
+
+    // Apply name filter if provided
+    if (name) {
+      results = results.filter(p => 
+        p.name.toLowerCase().includes(name.toLowerCase()) ||
+        p.location.city.toLowerCase().includes(name.toLowerCase())
+      );
+    }
+
+    const summary = this.formatSearchSummary(results, draft);
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          searchCenter: { latitude, longitude },
+          radius,
+          resultsFound: results.length,
+          draftConsidered: draft,
+          summary,
+          ports: results.map(p => this.formatPortSummary(p))
+        }, null, 2)
+      }]
+    };
+  }
+
+  private async getPortDetails(args: any): Promise<any> {
+    const { portId, portName } = args;
+
+    let port: Port | undefined;
+
+    if (portId) {
+      port = getPortById(portId);
+    } else if (portName) {
+      const results = searchPortsByName(portName);
+      port = results[0];
+    }
+
+    if (!port) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            found: false,
+            message: `Port ${portId || portName} not found in database`
+          }, null, 2)
+        }]
+      };
+    }
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          found: true,
+          port: this.formatDetailedPort(port)
+        }, null, 2)
+      }]
+    };
+  }
+
+  private async findEmergencyHarbors(args: any): Promise<any> {
+    const { latitude, longitude, maxDistance = 50, draft, requiredServices = [] } = args;
+
+    // Find all nearby ports
+    let harbors = findNearestPorts(latitude, longitude, maxDistance);
+
+    // Filter by draft if specified
+    if (draft) {
+      harbors = harbors.filter(h => h.navigation.dockDepth >= draft * 1.2);
+    }
+
+    // Filter by required services
+    if (requiredServices.length > 0) {
+      harbors = harbors.filter(h => {
+        return requiredServices.every((service: string) => {
+          switch (service.toLowerCase()) {
+            case 'fuel':
+              return h.facilities.fuel;
+            case 'repair':
+              return h.facilities.repair.available;
+            case 'water':
+              return h.facilities.water;
+            default:
+              return true;
+          }
+        });
+      });
+    }
+
+    // Sort by protection and facilities for emergency situations
+    harbors.sort((a, b) => {
+      const scoreA = a.rating.protection + a.rating.facilities;
+      const scoreB = b.rating.protection + b.rating.facilities;
+      return scoreB - scoreA; // Higher scores first
     });
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          emergencyLocation: { latitude, longitude },
+          maxDistance,
+          harborsFound: harbors.length,
+          draftRequirement: draft,
+          requiredServices,
+          recommendations: harbors.slice(0, 5).map(h => ({
+            name: h.name,
+            distance: h.distance,
+            type: h.type,
+            vhf: h.contact.vhf,
+            protection: h.rating.protection,
+            facilities: h.rating.facilities,
+            approachDepth: h.navigation.approachDepth,
+            suitableForEmergency: true,
+            reason: this.getEmergencySuitabilityReason(h)
+          }))
+        }, null, 2)
+      }]
+    };
   }
 
-  private async getPortInfo(lat: number, lon: number, name?: string): Promise<any> {
-    try {
-      // In production, this would call actual marine APIs
-      // For now, return comprehensive mock data
-      const portInfo = {
-        id: `port_${Math.random().toString(36).substr(2, 9)}`,
-        name: name || await this.getPortNameFromCoords(lat, lon),
-        position: {
-          latitude: lat,
-          longitude: lon
-        },
-        type: 'marina',
-        country: 'USA',
-        depths: {
-          approach: { feet: 15, meters: 4.6 },
-          harbor: { feet: 12, meters: 3.7 },
-          alongside: { feet: 10, meters: 3.0 }
-        },
-        tides: {
-          type: 'semidiurnal',
-          range: { feet: 9, meters: 2.7 },
-          highTide: '2 hours after Boston'
-        },
-        facilities: {
-          fuel: {
-            diesel: true,
-            gasoline: true,
-            propane: false
-          },
-          utilities: {
-            water: true,
-            electricity: '30/50 amp',
-            wifi: true,
-            showers: true,
-            laundry: true
-          },
-          services: {
-            repairs: true,
-            haulOut: true,
-            chandlery: true,
-            provisioning: true,
-            customs: false
-          },
-          moorings: {
-            slips: 250,
-            mooringBalls: 30,
-            anchorage: true,
-            maxLOA: { feet: 200, meters: 61 },
-            transient: true
-          }
-        },
-        contact: {
-          vhf: 'Channel 16/9',
-          phone: '+1-555-0100',
-          email: 'harbormaster@port.com',
-          website: 'www.portexample.com'
-        },
-        fees: {
-          currency: 'USD',
-          overnight: 2.50,
-          weekly: 15.00,
-          monthly: 45.00,
-          electric: 0.25,
-          water: 'included',
-          pumpOut: 'free'
-        },
-        navigation: {
-          approach: 'Clear approach from SW, watch for rocks on port side',
-          hazards: 'Shoaling reported east of channel marker #3',
-          restrictions: 'No wake zone in harbor',
-          charts: ['NOAA 13270', 'NOAA 13272']
-        },
-        amenities: {
-          nearbyTowns: ['Portsmouth', 'Kittery'],
-          groceries: '0.5 miles',
-          restaurants: 'Multiple on-site and nearby',
-          transportation: 'Taxi, Uber, bike rental',
-          hospital: '3 miles'
-        }
-      };
+  private async getCustomsInfo(args: any): Promise<any> {
+    const { portId, country } = args;
 
-      this.logger.info({ port: portInfo.name }, 'Port information retrieved');
-      return { content: [{ type: 'text', text: JSON.stringify(portInfo, null, 2) }] };
-    } catch (error) {
-      this.logger.error({ error, lat, lon }, 'Failed to get port info');
-      throw error;
+    if (!portId && !country) {
+      throw new Error('Either portId or country is required');
     }
-  }
 
-  private async searchNearbyPorts(
-    lat: number,
-    lon: number,
-    radiusNm: number,
-    portType: string
-  ): Promise<any> {
-    try {
-      // Calculate bounding box for search
-      const latRange = radiusNm / 60; // 1 degree latitude = 60 nm
-      const lonRange = radiusNm / (60 * Math.cos(lat * Math.PI / 180));
+    if (portId) {
+      const port = getPortById(portId);
+      if (!port) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              found: false,
+              message: `Port ${portId} not found`
+            }, null, 2)
+          }]
+        };
+      }
 
-      // Mock port database search
-      const ports = [
-        {
-          id: 'port_001',
-          name: 'Safe Harbor Marina',
-          type: 'marina',
-          position: {
-            latitude: lat + 0.05,
-            longitude: lon + 0.08
-          },
-          distance: 5.2,
-          bearing: 45,
-          facilities: {
-            fuel: true,
-            water: true,
-            repairs: true
-          },
-          vhf: 'Channel 16/71',
-          maxDraft: 12
-        },
-        {
-          id: 'port_002',
-          name: 'Quiet Cove Anchorage',
-          type: 'anchorage',
-          position: {
-            latitude: lat - 0.07,
-            longitude: lon + 0.12
-          },
-          distance: 8.7,
-          bearing: 120,
-          facilities: {
-            mooringBalls: 15,
-            dinglyDock: true
-          },
-          holding: 'Good in mud, 10-15ft',
-          protection: 'Good from N-E, exposed S-W'
-        },
-        {
-          id: 'port_003',
-          name: 'City Marina',
-          type: 'marina',
-          position: {
-            latitude: lat + 0.15,
-            longitude: lon - 0.05
-          },
-          distance: 12.3,
-          bearing: 350,
-          facilities: {
-            fuel: true,
-            water: true,
-            electricity: true,
-            pumpOut: true,
-            wifi: true
-          },
-          vhf: 'Channel 16/68',
-          slips: 180
-        }
-      ];
-
-      // Filter by port type if specified
-      const filteredPorts = portType === 'all'
-        ? ports
-        : ports.filter(p => p.type === portType);
-
-      // Sort by distance
-      filteredPorts.sort((a, b) => a.distance - b.distance);
-
-      const result = {
-        searchCenter: { latitude: lat, longitude: lon },
-        searchRadius: radiusNm,
-        portType: portType,
-        portsFound: filteredPorts.length,
-        ports: filteredPorts
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            port: port.name,
+            portOfEntry: port.customs.portOfEntry,
+            requirements: port.customs,
+            procedures: port.customs.procedures || 'Standard CBP procedures apply',
+            notes: port.customs.portOfEntry 
+              ? 'Port of Entry - customs clearance available'
+              : 'Not a Port of Entry - clear customs at nearest designated port'
+          }, null, 2)
+        }]
       };
-
-      this.logger.info({ count: filteredPorts.length }, 'Nearby ports found');
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-    } catch (error) {
-      this.logger.error({ error, lat, lon }, 'Failed to search nearby ports');
-      throw error;
     }
+
+    // Country-level customs info
+    const customsInfo = this.getCountryCustomsInfo(country);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify(customsInfo, null, 2)
+      }]
+    };
   }
 
-  private async getPortFacilities(portId: string): Promise<any> {
-    try {
-      const facilities = {
-        portId,
-        lastUpdated: new Date().toISOString(),
-        berths: {
-          total: 250,
-          visitor: 50,
-          liveaboard: 20,
-          commercial: 10
-        },
-        dimensions: {
-          maxLOA: { feet: 200, meters: 61 },
-          maxBeam: { feet: 40, meters: 12 },
-          maxDraft: { feet: 15, meters: 4.6 }
-        },
-        fuel: {
-          diesel: {
-            available: true,
-            price: 4.25,
-            hours: '0700-1800 daily'
-          },
-          gasoline: {
-            available: true,
-            price: 4.75,
-            hours: '0700-1800 daily'
-          },
-          propane: {
-            available: false
-          }
-        },
-        services: {
-          repairs: {
-            mechanical: true,
-            electrical: true,
-            fiberglass: true,
-            canvas: true,
-            rigging: true
-          },
-          haulOut: {
-            travelift: '75 ton',
-            railway: false,
-            dryStorage: true
-          },
-          chandlery: {
-            onSite: true,
-            hours: '0800-1700 Mon-Sat'
-          }
-        },
-        amenities: {
-          showers: {
-            available: true,
-            number: 6,
-            keyAccess: true
-          },
-          laundry: {
-            available: true,
-            washers: 4,
-            dryers: 4
-          },
-          wifi: {
-            available: true,
-            free: true,
-            coverage: 'Marina-wide'
-          },
-          restaurant: {
-            onSite: true,
-            name: 'The Galley',
-            hours: '1130-2100'
-          },
-          pool: true,
-          parking: {
-            available: true,
-            free: true
-          },
-          security: {
-            gated: true,
-            cameras: true,
-            nightWatch: false
-          }
-        }
-      };
-
-      this.logger.info({ portId }, 'Port facilities retrieved');
-      return { content: [{ type: 'text', text: JSON.stringify(facilities, null, 2) }] };
-    } catch (error) {
-      this.logger.error({ error, portId }, 'Failed to get port facilities');
-      throw error;
+  private formatSearchSummary(results: any[], draft?: number): string {
+    if (results.length === 0) {
+      return 'No ports found in search area';
     }
+
+    const summary = [`Found ${results.length} port(s)`];
+    
+    const marinas = results.filter(p => p.type === 'marina').length;
+    const harbors = results.filter(p => p.type === 'harbor').length;
+    const anchorages = results.filter(p => p.type === 'anchorage').length;
+
+    if (marinas > 0) summary.push(`${marinas} marina(s)`);
+    if (harbors > 0) summary.push(`${harbors} harbor(s)`);
+    if (anchorages > 0) summary.push(`${anchorages} anchorage(s)`);
+
+    if (draft) {
+      const suitable = results.filter((p: any) => p.suitable).length;
+      summary.push(`${suitable} suitable for ${draft}ft draft`);
+    }
+
+    return summary.join(', ');
   }
 
-  private async getPortWeather(lat: number, lon: number): Promise<any> {
-    try {
-      // Simple weather data for port
-      const weather = {
-        location: { latitude: lat, longitude: lon },
-        current: {
-          time: new Date().toISOString(),
-          conditions: 'Partly cloudy',
-          temperature: { f: 72, c: 22 },
-          wind: {
-            speed: 12,
-            direction: 225,
-            gusts: 18
-          },
-          visibility: 10,
-          pressure: 1013,
-          humidity: 65
-        },
-        marine: {
-          seaState: 'Slight',
-          waveHeight: { feet: 2, meters: 0.6 },
-          wavePeriod: 6,
-          swellHeight: { feet: 3, meters: 0.9 },
-          swellDirection: 180,
-          waterTemp: { f: 68, c: 20 }
-        },
-        forecast: 'Winds SW 10-15 kts, seas 2-3 ft, partly cloudy'
-      };
-
-      this.logger.info({ lat, lon }, 'Port weather retrieved');
-      return { content: [{ type: 'text', text: JSON.stringify(weather, null, 2) }] };
-    } catch (error) {
-      this.logger.error({ error, lat, lon }, 'Failed to get port weather');
-      throw error;
-    }
+  private formatPortSummary(port: any): any {
+    return {
+      id: port.id,
+      name: port.name,
+      type: port.type,
+      location: `${port.location.city}, ${port.location.state}`,
+      distance: port.distance ? `${port.distance} nm` : undefined,
+      vhf: port.contact.vhf,
+      facilities: {
+        fuel: !!port.facilities.fuel,
+        water: port.facilities.water,
+        repair: port.facilities.repair.available,
+        provisions: port.facilities.provisions
+      },
+      navigation: {
+        depth: `${port.navigation.dockDepth}ft`,
+        tidalRange: `${port.navigation.tidalRange}ft`
+      },
+      rating: port.rating.overall,
+      suitable: port.suitable !== undefined ? port.suitable : true,
+      clearance: port.clearanceMargin !== undefined ? `${port.clearanceMargin.toFixed(1)}ft` : undefined
+    };
   }
 
-  private async getPortNameFromCoords(lat: number, lon: number): Promise<string> {
-    // In production, reverse geocode to get actual port name
-    return `Port at ${lat.toFixed(3)}°, ${lon.toFixed(3)}°`;
+  private formatDetailedPort(port: Port): any {
+    return {
+      basic: {
+        id: port.id,
+        name: port.name,
+        type: port.type,
+        location: port.location,
+        coordinates: port.coordinates
+      },
+      facilities: port.facilities,
+      navigation: {
+        ...port.navigation,
+        safetyNotes: port.navigation.hazards || []
+      },
+      services: port.services,
+      contact: port.contact,
+      customs: port.customs,
+      localKnowledge: port.localKnowledge,
+      amenities: port.amenities,
+      rating: port.rating,
+      recommendations: this.generatePortRecommendations(port)
+    };
+  }
+
+  private generatePortRecommendations(port: Port): string[] {
+    const recommendations: string[] = [];
+
+    // Navigation recommendations
+    if (port.navigation.hazards && port.navigation.hazards.length > 0) {
+      recommendations.push(`⚠️ Navigation hazards: ${port.navigation.hazards.join(', ')}`);
+    }
+
+    if (port.navigation.bestTideState) {
+      recommendations.push(`⏰ Tidal timing: ${port.navigation.bestTideState}`);
+    }
+
+    if (port.navigation.tidalRange > 8) {
+      recommendations.push(`🌊 Large tidal range (${port.navigation.tidalRange}ft) - monitor depth at low water`);
+    }
+
+    // Service recommendations
+    if (port.facilities.fuel) {
+      recommendations.push(`⛽ Fuel available: ${port.facilities.fuel.hours || 'Check hours'}`);
+    }
+
+    if (port.services.slips.reservation) {
+      recommendations.push(`📞 ${port.services.slips.reservation}`);
+    }
+
+    // Local knowledge
+    if (port.localKnowledge.bestApproach) {
+      recommendations.push(`🧭 ${port.localKnowledge.bestApproach}`);
+    }
+
+    // Customs
+    if (port.customs.portOfEntry) {
+      recommendations.push(`🛂 Port of Entry - customs clearance available`);
+      if (port.customs.procedures) {
+        recommendations.push(`  ${port.customs.procedures}`);
+      }
+    }
+
+    return recommendations;
+  }
+
+  private getEmergencySuitabilityReason(port: any): string {
+    const reasons: string[] = [];
+
+    if (port.rating.protection >= 4) {
+      reasons.push('Excellent weather protection');
+    }
+
+    if (port.facilities.repair.available) {
+      reasons.push('Repair services available');
+    }
+
+    if (port.facilities.fuel) {
+      reasons.push('Fuel available');
+    }
+
+    if (port.navigation.approachDepth >= 12) {
+      reasons.push('Deep water approach');
+    }
+
+    return reasons.join('; ') || 'Basic services available';
+  }
+
+  private getCountryCustomsInfo(country: string): any {
+    const customsDB: { [key: string]: any } = {
+      'USA': {
+        country: 'United States',
+        requirements: {
+          entry: [
+            'All persons must clear customs at designated Port of Entry',
+            'File eAPIS (Electronic Advance Passenger Information System) before arrival',
+            'Have passports ready for all aboard',
+            'Declare all items purchased abroad',
+            'Agriculture items subject to inspection'
+          ],
+          portOfEntry: 'Must enter at designated Port of Entry',
+          reporting: 'Call CBP at +1-800-973-2867 upon arrival',
+          fees: 'User fee $27.50 per person (recreational vessels may be exempt)',
+          documentation: ['Vessel documentation or state registration', 'Passports for all crew', 'Fishing license if applicable']
+        },
+        contacts: {
+          cbp: '+1-800-973-2867',
+          roamApp: 'CBP ROAM app for small vessels'
+        },
+        notes: [
+          'Use CBP ROAM app for easier reporting',
+          'Keep ship papers readily accessible',
+          'Declare alcohol and tobacco purchases',
+          'Pet health certificates required'
+        ]
+      },
+      'BAHAMAS': {
+        country: 'Bahamas',
+        requirements: {
+          entry: [
+            'Clear in at first Bahamian port',
+            'Yellow quarantine flag until cleared',
+            'All persons must go to customs/immigration',
+            'Cruising permit required for stays over 90 days'
+          ],
+          fees: '$300 departure tax, $150 entry fee (varies by vessel size)',
+          documentation: ['Passports', 'Vessel registration', 'Proof of citizenship', 'Fishing license ($20)']
+        },
+        contacts: {
+          customs: 'VHF Channel 16',
+          immigration: 'Located with customs at each port of entry'
+        },
+        notes: [
+          'Must clear in and out at each island',
+          'Keep yellow quarantine flag ready',
+          'Spearfishing prohibited',
+          'Marine park fees apply in some areas'
+        ]
+      }
+    };
+
+    return customsDB[country.toUpperCase()] || {
+      country,
+      message: 'Customs information not available for this country. Contact local authorities before arrival.'
+    };
   }
 }
 
-// Export for use in index.ts
 export default PortAgent;
