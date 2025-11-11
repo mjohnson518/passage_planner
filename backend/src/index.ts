@@ -10,6 +10,7 @@ import { calculateRoute, formatDuration } from './services/routeCalculator';
 import { getWeatherData, formatWindDescription } from './services/weatherService';
 import { getNavigationWarnings } from './services/ntmService';
 import { getTidalData, getNextTide, formatTidalPrediction } from './services/tidalService';
+import { analyzeSafety } from './services/safetyService';
 
 dotenv.config();
 
@@ -60,7 +61,7 @@ app.post('/api/passage-planning/analyze', async (req, res) => {
     const cruiseSpeed = vessel?.cruiseSpeed || 5; // Default 5 knots
     const route = calculateRoute(departure, destination, cruiseSpeed);
     
-    // Fetch all data in parallel for best performance
+    // Fetch weather, tidal, and navigation data first (needed for safety analysis)
     console.log('Fetching weather, tidal, and navigation data...');
     const [departureWeather, destinationWeather, navigationWarnings, departureTidal, destinationTidal] = await Promise.all([
       getWeatherData(departure.latitude, departure.longitude),
@@ -69,6 +70,17 @@ app.post('/api/passage-planning/analyze', async (req, res) => {
       getTidalData(departure.latitude, departure.longitude),
       getTidalData(destination.latitude, destination.longitude)
     ]);
+    
+    // Perform comprehensive safety analysis with all available data
+    console.log('Analyzing safety with all available data...');
+    const safetyAnalysis = await analyzeSafety(
+      route.waypoints,
+      { departure: departureWeather, destination: destinationWeather },
+      { departure: departureTidal, destination: destinationTidal },
+      vessel?.draft,
+      vessel?.crewExperience,
+      vessel?.crewSize
+    );
     
     // Filter critical navigation warnings
     const criticalWarnings = navigationWarnings.filter(w => w.severity === 'critical');
@@ -163,13 +175,34 @@ app.post('/api/passage-planning/analyze', async (req, res) => {
           ]
         }
       },
+      safety: {
+        ...safetyAnalysis,
+        decision: {
+          goNoGo: safetyAnalysis.goNoGo,
+          overallRisk: safetyAnalysis.overallRisk,
+          safetyScore: safetyAnalysis.safetyScore,
+          proceedWithPassage: safetyAnalysis.goNoGo === 'GO',
+          requiresCaution: safetyAnalysis.goNoGo === 'CAUTION',
+          doNotProceed: safetyAnalysis.goNoGo === 'NO-GO'
+        },
+        analysis: {
+          riskFactors: safetyAnalysis.riskFactors,
+          hazardsDetected: safetyAnalysis.hazards.length,
+          warningsActive: safetyAnalysis.safetyWarnings.length,
+          crewExperienceConsidered: !!vessel?.crewExperience,
+          vesselDraftConsidered: !!vessel?.draft
+        }
+      },
       summary: {
         totalDistance: `${route.distance} nm`,
         estimatedTime: formatDuration(route.estimatedDuration),
         averageSpeed: `${cruiseSpeed} knots`,
-        suitableForPassage: suitable,
+        safetyDecision: safetyAnalysis.goNoGo,
+        safetyScore: safetyAnalysis.safetyScore,
+        overallRisk: safetyAnalysis.overallRisk,
+        suitableForPassage: safetyAnalysis.goNoGo === 'GO',
         warnings: allWarnings.length > 0 ? allWarnings : ['No weather warnings'],
-        recommendations
+        recommendations: safetyAnalysis.recommendations
       }
     });
   } catch (error: any) {

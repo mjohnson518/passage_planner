@@ -11,8 +11,11 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
-    "types": []
+    "types": ["node"]
   },
-  "include": ["src/index.ts", "src/services/routeCalculator.ts"],
-  "exclude": ["node_modules", "dist", "src/agents", "src/middleware", "src/shared"]
+  "include": [
+    "src/index.ts",
+    "src/services/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "src/agents", "src/shared", "src/Orchestrator.ts", "src/SimpleOrchestrator.ts", "src/server.ts"]
 }
