@@ -26,6 +26,7 @@ import { toast } from 'sonner'
 import { planPassage as planPassageOld, PassagePlanRequest } from '../../lib/orchestratorApi'
 import { planPassage, PassagePlanningRequest, PassagePlanningResponse } from '../../lib/services/passagePlanningService'
 import { analytics } from '@/lib/analytics'
+import LocationAutocomplete from '../components/location/LocationAutocomplete'
 
 interface Waypoint {
   id: string
@@ -45,6 +46,8 @@ export default function PlannerPage() {
   const [formData, setFormData] = useState({
     departure: '',
     destination: '',
+    departureCoords: { latitude: 42.3601, longitude: -71.0589 }, // Default: Boston
+    destinationCoords: { latitude: 43.6591, longitude: -70.2568 }, // Default: Portland
     departureDate: new Date(),
     boat: '',
     cruiseSpeed: 6,
@@ -124,20 +127,16 @@ export default function PlannerPage() {
     setPassagePlan(null);
     
     try {
-      // For now, use hardcoded coordinates - in production, geocode the port names
-      // TODO: Add geocoding service to convert port names to coordinates
-      const departureCoords = { latitude: 42.3601, longitude: -71.0589 }; // Boston
-      const destinationCoords = { latitude: 43.6591, longitude: -70.2568 }; // Portland
-      
+      // Use coordinates from autocomplete or defaults
       const planRequest: PassagePlanningRequest = {
         departure: {
-          latitude: departureCoords.latitude,
-          longitude: departureCoords.longitude,
+          latitude: formData.departureCoords.latitude,
+          longitude: formData.departureCoords.longitude,
           name: formData.departure
         },
         destination: {
-          latitude: destinationCoords.latitude,
-          longitude: destinationCoords.longitude,
+          latitude: formData.destinationCoords.latitude,
+          longitude: formData.destinationCoords.longitude,
           name: formData.destination
         },
         vessel: {
@@ -286,13 +285,13 @@ export default function PlannerPage() {
 
           {/* Weather Data */}
           <Card>
-            <CardHeader>
+          <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Ship className="h-5 w-5" />
                 2. Weather Conditions
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <p className="font-semibold mb-2">Departure: {formData.departure}</p>
@@ -306,7 +305,7 @@ export default function PlannerPage() {
                     )}
                   </div>
                 </div>
-                <div>
+              <div>
                   <p className="font-semibold mb-2">Destination: {formData.destination}</p>
                   <div className="space-y-1 text-sm">
                     <p><strong>Conditions:</strong> {passagePlan.weather.destination.conditions}</p>
@@ -343,8 +342,8 @@ export default function PlannerPage() {
                   {passagePlan.tidal.departure.predictions.length > 0 && (
                     <p className="text-sm text-muted-foreground">{passagePlan.tidal.departure.predictions.length} predictions available</p>
                   )}
-                </div>
-                <div>
+              </div>
+              <div>
                   <p className="font-semibold mb-2">Destination Tides</p>
                   <p className="text-sm"><strong>Station:</strong> {passagePlan.tidal.destination.station}</p>
                   <p className="text-sm"><strong>Next Tide:</strong> {passagePlan.tidal.destination.nextTideFormatted}</p>
@@ -369,11 +368,11 @@ export default function PlannerPage() {
               {passagePlan.navigationWarnings.critical > 0 && (
                 <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded">
                   <p className="font-bold text-red-700">⚠️ {passagePlan.navigationWarnings.critical} CRITICAL WARNING(S)</p>
-                </div>
+            </div>
               )}
-              
+            
               {passagePlan.navigationWarnings.count > 0 ? (
-                <div className="space-y-2">
+              <div className="space-y-2">
                   {passagePlan.navigationWarnings.warnings.slice(0, 5).map((warning: any, idx: number) => (
                     <div key={idx} className={`p-3 rounded border ${
                       warning.severity === 'critical' ? 'bg-red-50 border-red-200' :
@@ -423,9 +422,9 @@ export default function PlannerPage() {
                       <li key={idx} className="text-muted-foreground">• {rec}</li>
                     ))}
                   </ul>
-                </div>
-              )}
-              
+              </div>
+            )}
+            
               {passagePlan.safety.emergencyContacts && (
                 <div className="pt-3 border-t">
                   <p className="font-semibold mb-2">Emergency Contact:</p>
@@ -488,7 +487,7 @@ export default function PlannerPage() {
               {passagePlan.port.emergencyHarbors.length > 0 && (
                 <div className="pt-3 border-t">
                   <p className="font-semibold mb-2">Emergency Harbors Nearby:</p>
-                  <div className="space-y-2">
+              <div className="space-y-2">
                     {passagePlan.port.emergencyHarbors.map((harbor: any, idx: number) => (
                       <div key={idx} className="text-sm flex items-center gap-2">
                         <span className="font-medium">{harbor.name}</span>
@@ -515,20 +514,20 @@ export default function PlannerPage() {
               {passagePlan.summary.recommendations.length > 0 && (
                 <div>
                   <p className="font-semibold mb-2">📋 All Recommendations:</p>
-                  <ul className="text-sm space-y-1">
-                    {passagePlan.summary.recommendations.map((rec: string, idx: number) => (
-                      <li key={idx} className="text-muted-foreground">• {rec}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              
+                <ul className="text-sm space-y-1">
+                  {passagePlan.summary.recommendations.map((rec: string, idx: number) => (
+                    <li key={idx} className="text-muted-foreground">• {rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
               <div className="pt-3 border-t text-xs text-muted-foreground">
                 <p><strong>Data Sources:</strong> Route (geolib), Weather (NOAA), Tidal (NOAA), Navigation Warnings, Safety Analysis, Port Information</p>
                 <p><strong>Generated:</strong> {new Date().toLocaleString()}</p>
               </div>
-            </CardContent>
-          </Card>
+          </CardContent>
+        </Card>
         </div>
       )}
 
