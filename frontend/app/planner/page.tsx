@@ -23,7 +23,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { useSocket } from '../contexts/SocketContext'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { planPassage, PassagePlanRequest } from '../../lib/orchestratorApi'
+import { planPassage as planPassageOld, PassagePlanRequest } from '../../lib/orchestratorApi'
+import { planPassage, PassagePlanningRequest, PassagePlanningResponse } from '../../lib/services/passagePlanningService'
 import { analytics } from '@/lib/analytics'
 
 interface Waypoint {
@@ -39,7 +40,7 @@ export default function PlannerPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('route')
-  const [passagePlan, setPassagePlan] = useState<any>(null)
+  const [passagePlan, setPassagePlan] = useState<PassagePlanningResponse | null>(null)
   
   const [formData, setFormData] = useState({
     departure: '',
@@ -124,36 +125,52 @@ export default function PlannerPage() {
     
     try {
       // For now, use hardcoded coordinates - in production, geocode the port names
+      // TODO: Add geocoding service to convert port names to coordinates
       const departureCoords = { latitude: 42.3601, longitude: -71.0589 }; // Boston
       const destinationCoords = { latitude: 43.6591, longitude: -70.2568 }; // Portland
       
-      const planRequest: PassagePlanRequest = {
+      const planRequest: PassagePlanningRequest = {
         departure: {
-          port: formData.departure,
           latitude: departureCoords.latitude,
           longitude: departureCoords.longitude,
-          time: formData.departureDate.toISOString()
+          name: formData.departure
         },
         destination: {
-          port: formData.destination,
           latitude: destinationCoords.latitude,
-          longitude: destinationCoords.longitude
+          longitude: destinationCoords.longitude,
+          name: formData.destination
         },
         vessel: {
-          type: formData.boat || 'sailboat',
           cruiseSpeed: formData.cruiseSpeed,
-          maxSpeed: formData.maxSpeed
-        },
-        userId: user?.id
+          draft: 5.5, // Default draft in feet
+          crewExperience: 'advanced', // Default to advanced
+          crewSize: 2
+        }
       };
 
+      console.log('Calling production backend API...');
       const result = await planPassage(planRequest);
-      console.log('Planning started:', result.planningId);
       
-      // WebSocket will handle the rest via planning_completed event
+      console.log('Passage plan received:', result);
+      setPassagePlan(result);
+      setLoading(false);
+      
+      toast.success('Passage plan complete - all 6 data sources loaded!');
+      
+      // Track successful passage creation
+      analytics.trackPassageCreated({
+        distance_nm: result.route.distance,
+        duration_hours: result.route.estimatedDurationHours,
+        waypoint_count: result.route.waypoints.length,
+        departure_port: formData.departure,
+        destination_port: formData.destination,
+        safety_decision: result.summary.safetyDecision
+      });
+      
     } catch (error: any) {
       setLoading(false);
       toast.error(error.message || 'Failed to create passage plan')
+      console.error('Passage planning error:', error);
     }
   }
 
@@ -196,54 +213,323 @@ export default function PlannerPage() {
         </Card>
       )}
 
-      {/* Passage Plan Results */}
+      {/* Passage Plan Results - All 6 Data Sources */}
       {passagePlan && (
-        <Card className="mb-6 border-green-200 bg-green-50">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              Passage Plan Ready
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Distance</p>
-                <p className="text-xl font-bold">{passagePlan.summary.totalDistance.toFixed(1)} nm</p>
+        <div className="space-y-6 mb-6">
+          {/* Safety Decision - PROMINENT DISPLAY */}
+          <Card className={`border-2 ${
+            passagePlan.summary.safetyDecision === 'GO' ? 'border-green-500 bg-green-50' :
+            passagePlan.summary.safetyDecision === 'CAUTION' ? 'border-yellow-500 bg-yellow-50' :
+            'border-red-500 bg-red-50'
+          }`}>
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                {passagePlan.summary.safetyDecision === 'GO' && <CheckCircle2 className="h-8 w-8 text-green-600" />}
+                {passagePlan.summary.safetyDecision === 'CAUTION' && <AlertCircle className="h-8 w-8 text-yellow-600" />}
+                {passagePlan.summary.safetyDecision === 'NO-GO' && <X className="h-8 w-8 text-red-600" />}
+                Safety Decision: {passagePlan.summary.safetyDecision}
+              </CardTitle>
+              <CardDescription className="text-lg">
+                Safety Score: {passagePlan.summary.safetyScore} | Risk Level: {passagePlan.summary.overallRisk}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div>
+                  <p className="font-semibold mb-2">Assessment:</p>
+                  <p className="text-sm">{passagePlan.summary.suitableForPassage ? '✅ This passage is suitable for departure' : '⚠️ Review all warnings before proceeding'}</p>
+                </div>
+                
+                {passagePlan.safety.riskFactors.length > 0 && (
+                  <div>
+                    <p className="font-semibold mb-2">Risk Factors ({passagePlan.safety.riskFactors.length}):</p>
+                    <ul className="text-sm space-y-1">
+                      {passagePlan.safety.riskFactors.slice(0, 5).map((factor: string, idx: number) => (
+                        <li key={idx}>• {factor}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Estimated Duration</p>
-                <p className="text-xl font-bold">{passagePlan.summary.estimatedDuration.toFixed(1)} hrs</p>
+            </CardContent>
+          </Card>
+
+          {/* Route Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Compass className="h-5 w-5" />
+                1. Route Calculations
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Distance</p>
+                  <p className="text-xl font-bold">{passagePlan.route.distance} nm</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Duration</p>
+                  <p className="text-xl font-bold">{passagePlan.route.estimatedDuration}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Bearing</p>
+                  <p className="text-xl font-bold">{passagePlan.route.bearing.toFixed(0)}°</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Avg Speed</p>
+                  <p className="text-xl font-bold">{passagePlan.summary.averageSpeed}</p>
+                </div>
               </div>
-            </div>
-            
-            {passagePlan.summary.warnings?.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-orange-700">⚠️ Warnings:</p>
-                <ul className="text-sm space-y-1">
-                  {passagePlan.summary.warnings.map((warning: string, idx: number) => (
-                    <li key={idx} className="text-orange-700">• {warning}</li>
+            </CardContent>
+          </Card>
+
+          {/* Weather Data */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Ship className="h-5 w-5" />
+                2. Weather Conditions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <p className="font-semibold mb-2">Departure: {formData.departure}</p>
+                  <div className="space-y-1 text-sm">
+                    <p><strong>Conditions:</strong> {passagePlan.weather.departure.conditions}</p>
+                    <p><strong>Wind:</strong> {passagePlan.weather.departure.windDescription}</p>
+                    <p><strong>Waves:</strong> {passagePlan.weather.departure.waveHeight}ft</p>
+                    <p><strong>Temp:</strong> {passagePlan.weather.departure.temperature}°F</p>
+                    {passagePlan.weather.departure.warnings.length > 0 && (
+                      <p className="text-orange-600"><strong>⚠️ Warnings:</strong> {passagePlan.weather.departure.warnings.join(', ')}</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold mb-2">Destination: {formData.destination}</p>
+                  <div className="space-y-1 text-sm">
+                    <p><strong>Conditions:</strong> {passagePlan.weather.destination.conditions}</p>
+                    <p><strong>Wind:</strong> {passagePlan.weather.destination.windDescription}</p>
+                    <p><strong>Waves:</strong> {passagePlan.weather.destination.waveHeight}ft</p>
+                    <p><strong>Temp:</strong> {passagePlan.weather.destination.temperature}°F</p>
+                    {passagePlan.weather.destination.warnings.length > 0 && (
+                      <p className="text-orange-600"><strong>⚠️ Warnings:</strong> {passagePlan.weather.destination.warnings.join(', ')}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="pt-2 border-t">
+                <p className="text-sm"><strong>Overall:</strong> {passagePlan.weather.summary.overall}</p>
+                <p className="text-sm text-muted-foreground">Source: {passagePlan.weather.departure.source}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tidal Data */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                3. Tidal Predictions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <p className="font-semibold mb-2">Departure Tides</p>
+                  <p className="text-sm"><strong>Station:</strong> {passagePlan.tidal.departure.station}</p>
+                  <p className="text-sm"><strong>Next Tide:</strong> {passagePlan.tidal.departure.nextTideFormatted}</p>
+                  {passagePlan.tidal.departure.predictions.length > 0 && (
+                    <p className="text-sm text-muted-foreground">{passagePlan.tidal.departure.predictions.length} predictions available</p>
+                  )}
+                </div>
+                <div>
+                  <p className="font-semibold mb-2">Destination Tides</p>
+                  <p className="text-sm"><strong>Station:</strong> {passagePlan.tidal.destination.station}</p>
+                  <p className="text-sm"><strong>Next Tide:</strong> {passagePlan.tidal.destination.nextTideFormatted}</p>
+                  {passagePlan.tidal.destination.predictions.length > 0 && (
+                    <p className="text-sm text-muted-foreground">{passagePlan.tidal.destination.predictions.length} predictions available</p>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">Source: {passagePlan.tidal.departure.source}</p>
+            </CardContent>
+          </Card>
+
+          {/* Navigation Warnings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5" />
+                4. Navigation Warnings ({passagePlan.navigationWarnings.count})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {passagePlan.navigationWarnings.critical > 0 && (
+                <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded">
+                  <p className="font-bold text-red-700">⚠️ {passagePlan.navigationWarnings.critical} CRITICAL WARNING(S)</p>
+                </div>
+              )}
+              
+              {passagePlan.navigationWarnings.count > 0 ? (
+                <div className="space-y-2">
+                  {passagePlan.navigationWarnings.warnings.slice(0, 5).map((warning: any, idx: number) => (
+                    <div key={idx} className={`p-3 rounded border ${
+                      warning.severity === 'critical' ? 'bg-red-50 border-red-200' :
+                      warning.severity === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                      'bg-blue-50 border-blue-200'
+                    }`}>
+                      <p className="font-semibold text-sm">{warning.title}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{warning.description}</p>
+                      <p className="text-xs mt-1"><strong>Source:</strong> {warning.source}</p>
+                    </div>
                   ))}
-                </ul>
+                  {passagePlan.navigationWarnings.count > 5 && (
+                    <p className="text-sm text-muted-foreground">+ {passagePlan.navigationWarnings.count - 5} more warnings</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No active navigation warnings</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Safety Analysis */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5" />
+                5. Safety Analysis
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Hazards Detected</p>
+                  <p className="text-lg font-bold">{passagePlan.safety.analysis.hazardsDetected}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Warnings Active</p>
+                  <p className="text-lg font-bold">{passagePlan.safety.analysis.warningsActive}</p>
+                </div>
               </div>
-            )}
-            
-            {passagePlan.summary.recommendations?.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">💡 Recommendations:</p>
-                <ul className="text-sm space-y-1">
-                  {passagePlan.summary.recommendations.map((rec: string, idx: number) => (
-                    <li key={idx} className="text-muted-foreground">• {rec}</li>
-                  ))}
-                </ul>
+              
+              {passagePlan.safety.recommendations.length > 0 && (
+                <div>
+                  <p className="font-semibold mb-2">Safety Recommendations:</p>
+                  <ul className="text-sm space-y-1">
+                    {passagePlan.safety.recommendations.slice(0, 8).map((rec: string, idx: number) => (
+                      <li key={idx} className="text-muted-foreground">• {rec}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {passagePlan.safety.emergencyContacts && (
+                <div className="pt-3 border-t">
+                  <p className="font-semibold mb-2">Emergency Contact:</p>
+                  <p className="text-sm">{passagePlan.safety.emergencyContacts.emergency.coastGuard.name}</p>
+                  <p className="text-sm">VHF: {passagePlan.safety.emergencyContacts.emergency.coastGuard.vhf}</p>
+                  <p className="text-sm">Phone: {passagePlan.safety.emergencyContacts.emergency.coastGuard.phone}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Port Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                6. Port Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Departure Port */}
+                <div>
+                  <p className="font-semibold mb-2">Departure Port</p>
+                  {passagePlan.port.departure.found !== false ? (
+                    <div className="space-y-1 text-sm">
+                      <p><strong>Name:</strong> {passagePlan.port.departure.name}</p>
+                      <p><strong>Distance:</strong> {passagePlan.port.departure.distance}</p>
+                      <p><strong>VHF:</strong> Channel {passagePlan.port.departure.contact?.vhf}</p>
+                      <p><strong>Facilities:</strong> {passagePlan.port.departure.facilities?.fuel ? '⛽' : ''} {passagePlan.port.departure.facilities?.water ? '💧' : ''} {passagePlan.port.departure.facilities?.repair ? '🔧' : ''}</p>
+                      {passagePlan.port.departure.customs?.portOfEntry && (
+                        <p className="text-blue-600"><strong>🛂 Port of Entry</strong></p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{passagePlan.port.departure.message || 'No port nearby'}</p>
+                  )}
+                </div>
+
+                {/* Destination Port */}
+                <div>
+                  <p className="font-semibold mb-2">Destination Port</p>
+                  {passagePlan.port.destination.found !== false ? (
+                    <div className="space-y-1 text-sm">
+                      <p><strong>Name:</strong> {passagePlan.port.destination.name}</p>
+                      <p><strong>Distance:</strong> {passagePlan.port.destination.distance}</p>
+                      <p><strong>VHF:</strong> Channel {passagePlan.port.destination.contact?.vhf}</p>
+                      <p><strong>Facilities:</strong> {passagePlan.port.destination.facilities?.fuel ? '⛽' : ''} {passagePlan.port.destination.facilities?.water ? '💧' : ''} {passagePlan.port.destination.facilities?.repair ? '🔧' : ''}</p>
+                      {passagePlan.port.destination.customs?.portOfEntry && (
+                        <p className="text-blue-600"><strong>🛂 Port of Entry</strong></p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{passagePlan.port.destination.message || 'No port nearby'}</p>
+                  )}
+                </div>
               </div>
-            )}
-            
-            <Button onClick={() => router.push(`/passages/${passagePlan.id}`)} className="w-full">
-              View Full Plan Details
-            </Button>
-          </CardContent>
-        </Card>
+
+              {/* Emergency Harbors */}
+              {passagePlan.port.emergencyHarbors.length > 0 && (
+                <div className="pt-3 border-t">
+                  <p className="font-semibold mb-2">Emergency Harbors Nearby:</p>
+                  <div className="space-y-2">
+                    {passagePlan.port.emergencyHarbors.map((harbor: any, idx: number) => (
+                      <div key={idx} className="text-sm flex items-center gap-2">
+                        <span className="font-medium">{harbor.name}</span>
+                        <span className="text-muted-foreground">({harbor.distance}) - VHF {harbor.vhf}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Summary and Recommendations */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Passage Summary & Recommendations</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="font-semibold mb-2">Route Summary:</p>
+                <p className="text-sm">{passagePlan.summary.totalDistance} in {passagePlan.summary.estimatedTime}</p>
+              </div>
+              
+              {passagePlan.summary.recommendations.length > 0 && (
+                <div>
+                  <p className="font-semibold mb-2">📋 All Recommendations:</p>
+                  <ul className="text-sm space-y-1">
+                    {passagePlan.summary.recommendations.map((rec: string, idx: number) => (
+                      <li key={idx} className="text-muted-foreground">• {rec}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              <div className="pt-3 border-t text-xs text-muted-foreground">
+                <p><strong>Data Sources:</strong> Route (geolib), Weather (NOAA), Tidal (NOAA), Navigation Warnings, Safety Analysis, Port Information</p>
+                <p><strong>Generated:</strong> {new Date().toLocaleString()}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Mobile-optimized tabs */}
