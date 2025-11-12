@@ -1,8 +1,8 @@
+// CRITICAL: These exports MUST be before 'use client' directive
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 'use client'
-
-// Force dynamic rendering for authentication page (uses useSearchParams)
-export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
