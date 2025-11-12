@@ -8,6 +8,8 @@
  */
 
 import axios from 'axios';
+import { calculateAstronomicalTides, getNextTide as getNextAstroTide } from './astronomicalTides';
+import { isUSWaters } from './worldPortService';
 
 export interface TidalData {
   station: string;
@@ -129,10 +131,44 @@ export async function getTidalData(
       predictions: [],
       currentSpeed: 0,
       currentDirection: 0,
-      warning: 'Unable to retrieve tidal predictions. Consult local tide tables and current charts before passage.',
-      source: 'Helmwise System (Error)'
+      source: 'Helmwise System (Error)',
+      warning: 'Unable to retrieve tidal predictions. Consult local tide tables and current charts before passage.'
     };
   }
+}
+
+/**
+ * Get tidal data with global fallback
+ * Uses NOAA for US, astronomical calculations elsewhere
+ */
+export async function getTidalDataGlobal(lat: number, lon: number, date?: Date): Promise<TidalData> {
+  // Try NOAA first (always try, works globally for some stations)
+  try {
+    const noaaData = await getTidalData(lat, lon, date);
+    if (noaaData.predictions.length > 0) {
+      return noaaData;
+    }
+  } catch (error) {
+    console.log('NOAA unavailable, using astronomical calculations');
+  }
+
+  // Fallback to astronomical calculations
+  const astroPredictions = calculateAstronomicalTides(lat, lon, date || new Date());
+  const nextTide = getNextAstroTide(astroPredictions);
+
+  return {
+    station: `Astronomical calculation (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`,
+    predictions: astroPredictions.map(p => ({
+      time: p.time,
+      type: p.type,
+      height: p.height,
+      unit: 'meters'
+    })),
+    currentSpeed: 0,
+    currentDirection: 0,
+    source: 'Astronomical Tide Calculation (Global Coverage)',
+    warning: 'Predictions based on astronomical calculations - verify with local sources'
+  };
 }
 
 /**

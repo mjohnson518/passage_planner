@@ -1,16 +1,14 @@
 /**
- * Port Service - Port and Marina Information
- * 
- * Provides port details, facilities, and customs information
- * Uses inline port database for backend integration
- * 
- * NOTE: Full Port Agent with 20+ ports exists in agents/port/
- * This is a simplified version for backend API without cross-workspace imports
+ * Port Service - Global Port Coverage
+ * Integrates US ports (detailed) + World Port Index (global coverage)
  */
+
+import { findNearbyWorldPorts, isUSWaters, getPortInfo as getWorldPortInfo } from './worldPortService';
 
 export interface PortInfo {
   found: boolean;
   name?: string;
+  country?: string;
   type?: string;
   distance?: number;
   location?: any;
@@ -22,7 +20,8 @@ export interface PortInfo {
   };
   navigation?: {
     depth: string;
-    tidalRange: string;
+    tidalRange?: string;
+    shelter?: string;
     approach?: string;
     hazards?: string[];
   };
@@ -36,73 +35,89 @@ export interface PortInfo {
   };
   recommendations?: string[];
   rating?: number;
+  source?: string;
 }
 
-// Simplified port database for key locations
-const PORTS = [
+// US ports with detailed VHF and local knowledge
+const US_PORTS = [
   { id: 'boston', name: 'Boston Harbor', lat: 42.36, lon: -71.05, depth: 15, vhf: '14', fuel: true, repair: true, customs: true },
   { id: 'portland', name: 'Portland Harbor', lat: 43.66, lon: -70.25, depth: 15, vhf: '9', fuel: true, repair: true, customs: true },
   { id: 'newport', name: 'Newport Harbor', lat: 41.49, lon: -71.33, depth: 12, vhf: '9', fuel: true, repair: true, customs: true },
   { id: 'new-york', name: 'New York Harbor', lat: 40.71, lon: -74.01, depth: 20, vhf: '14', fuel: true, repair: true, customs: true },
   { id: 'charleston', name: 'Charleston Harbor', lat: 32.78, lon: -79.93, depth: 18, vhf: '11', fuel: true, repair: true, customs: true },
   { id: 'miami', name: 'Miami', lat: 25.73, lon: -80.23, depth: 12, vhf: '16', fuel: true, repair: true, customs: true },
-  { id: 'nassau', name: 'Nassau Harbor', lat: 25.08, lon: -77.35, depth: 10, vhf: '16', fuel: true, repair: true, customs: true },
-  { id: 'bermuda', name: 'St. George\'s Harbor', lat: 32.38, lon: -64.68, depth: 12, vhf: '16', fuel: true, repair: true, customs: true }
 ];
 
 /**
- * Get port information for coordinates
+ * Get port information - GLOBAL COVERAGE
+ * Uses US ports for US waters, World Port Index elsewhere
  */
 export async function getPortInfo(lat: number, lon: number, draft?: number): Promise<PortInfo> {
   try {
-    // Find nearest port
-    const portsWithDistance = PORTS.map(p => ({
-      ...p,
-      distance: haversineDistance(lat, lon, p.lat, p.lon)
-    })).sort((a, b) => a.distance - b.distance);
+    // For US waters, use detailed US port data
+    if (isUSWaters(lat, lon)) {
+      const portsWithDistance = US_PORTS.map(p => ({
+        ...p,
+        distance: haversineDistance(lat, lon, p.lat, p.lon)
+      })).sort((a, b) => a.distance - b.distance);
 
-    const nearest = portsWithDistance[0];
+      const nearest = portsWithDistance[0];
 
-    if (nearest.distance > 25) {
-      return { found: false };
+      if (nearest && nearest.distance <= 25) {
+        const suitable = !draft || nearest.depth >= (draft * 1.2);
+
+        return {
+          found: true,
+          name: nearest.name,
+          type: 'marina',
+          distance: nearest.distance,
+          location: { name: nearest.name },
+          facilities: {
+            fuel: nearest.fuel,
+            water: true,
+            repair: nearest.repair,
+            provisions: true
+          },
+          navigation: {
+            depth: `${nearest.depth}ft`,
+            tidalRange: '8ft',
+            approach: 'Via marked channel'
+          },
+          contact: {
+            vhf: nearest.vhf,
+            phone: 'Contact harbor master'
+          },
+          customs: {
+            portOfEntry: nearest.customs,
+            procedures: nearest.customs ? 'Contact CBP before arrival' : undefined
+          },
+          recommendations: [
+            `${nearest.name} is ${nearest.distance.toFixed(1)} nm away`,
+            `Monitor VHF channel ${nearest.vhf}`,
+            suitable ? 'Port suitable for your draft' : 'CAUTION: Verify depth for your draft'
+          ],
+          rating: 4.5,
+          source: 'US Port Database'
+        };
+      }
     }
 
-    // Check draft suitability
-    const suitable = !draft || nearest.depth >= (draft * 1.2); // 20% safety margin
+    // For non-US waters or if no US port nearby, use World Port Index
+    console.log(`Using World Port Index for ${lat}, ${lon}`);
+    const worldPortInfo = getWorldPortInfo(lat, lon, draft);
+    
+    if (worldPortInfo.found) {
+      return {
+        ...worldPortInfo,
+        recommendations: [
+          `${worldPortInfo.name} is ${worldPortInfo.distance?.toFixed(1)} nm away`,
+          'Verify current port information before arrival',
+          worldPortInfo.suitable ? 'Port appears suitable for your draft' : 'CAUTION: Verify depth for your draft'
+        ]
+      } as PortInfo;
+    }
 
-    return {
-      found: true,
-      name: nearest.name,
-      type: 'marina',
-      distance: nearest.distance,
-      location: { name: nearest.name },
-      facilities: {
-        fuel: nearest.fuel,
-        water: true,
-        repair: nearest.repair,
-        provisions: true
-      },
-      navigation: {
-        depth: `${nearest.depth}ft`,
-        tidalRange: '8ft',
-        approach: 'Via marked channel',
-        hazards: ['Monitor local weather and tidal conditions']
-      },
-      contact: {
-        vhf: nearest.vhf,
-        phone: 'Contact harbor master'
-      },
-      customs: {
-        portOfEntry: nearest.customs,
-        procedures: nearest.customs ? 'Contact CBP before arrival' : undefined
-      },
-      recommendations: [
-        `${nearest.name} is ${nearest.distance.toFixed(1)} nm from your location`,
-        `Monitor VHF channel ${nearest.vhf}`,
-        suitable ? 'Port suitable for your draft' : 'CAUTION: Limited depth for your draft'
-      ],
-      rating: 4.5
-    };
+    return { found: false };
 
   } catch (error: any) {
     console.error('Port info fetch failed:', error.message);
@@ -111,16 +126,33 @@ export async function getPortInfo(lat: number, lon: number, draft?: number): Pro
 }
 
 /**
- * Find emergency harbors near a location
+ * Find emergency harbors - GLOBAL COVERAGE
  */
 export async function findEmergencyHarbors(
-  lat: number, 
-  lon: number, 
+  lat: number,
+  lon: number,
   maxDistance: number = 50,
   draft?: number
 ): Promise<any[]> {
   try {
-    const portsWithDistance = PORTS.map(p => ({
+    // Use World Port Index for global coverage
+    const worldPorts = findNearbyWorldPorts(lat, lon, maxDistance);
+
+    if (worldPorts.length > 0) {
+      return worldPorts.slice(0, 3).map(p => ({
+        name: p.name,
+        country: p.country,
+        distance: p.distance.toFixed(1),
+        vhf: 'Channel 16',
+        protection: p.shelter === 'good' ? 5 : p.shelter === 'moderate' ? 3 : 2,
+        facilities: p.facilities.length,
+        suitableForEmergency: true,
+        source: 'World Port Index'
+      }));
+    }
+
+    // Fallback to US ports
+    const usPortsWithDistance = US_PORTS.map(p => ({
       ...p,
       distance: haversineDistance(lat, lon, p.lat, p.lon)
     }))
@@ -128,13 +160,14 @@ export async function findEmergencyHarbors(
     .sort((a, b) => a.distance - b.distance)
     .slice(0, 3);
 
-    return portsWithDistance.map(p => ({
+    return usPortsWithDistance.map(p => ({
       name: p.name,
       distance: p.distance.toFixed(1),
       vhf: p.vhf,
       protection: 4,
       facilities: 5,
-      suitableForEmergency: true
+      suitableForEmergency: true,
+      source: 'US Port Database'
     }));
 
   } catch (error: any) {
@@ -144,10 +177,10 @@ export async function findEmergencyHarbors(
 }
 
 /**
- * Haversine distance calculation
+ * Haversine distance calculation (nautical miles)
  */
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 3440.1; // Earth radius in nautical miles
+  const R = 3440.1;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -156,4 +189,3 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c * 10) / 10;
 }
-
