@@ -9,7 +9,7 @@ import dotenv from 'dotenv';
 import { calculateRoute, formatDuration } from './services/routeCalculator';
 import { getWeatherData, formatWindDescription } from './services/weatherService';
 import { getNavigationWarnings } from './services/ntmService';
-import { getTidalData, getNextTide, formatTidalPrediction } from './services/tidalService';
+import { getTidalData, getTidalDataGlobal, getNextTide, formatTidalPrediction } from './services/tidalService';
 import { analyzeSafety } from './services/safetyService';
 import { getPortInfo, findEmergencyHarbors } from './services/portService';
 
@@ -68,8 +68,8 @@ app.post('/api/passage-planning/analyze', async (req, res) => {
       getWeatherData(departure.latitude, departure.longitude),
       getWeatherData(destination.latitude, destination.longitude),
       getNavigationWarnings(departure, destination),
-      getTidalData(departure.latitude, departure.longitude),
-      getTidalData(destination.latitude, destination.longitude),
+      getTidalDataGlobal(departure.latitude, departure.longitude),
+      getTidalDataGlobal(destination.latitude, destination.longitude),
       getPortInfo(departure.latitude, departure.longitude, vessel?.draft),
       getPortInfo(destination.latitude, destination.longitude, vessel?.draft),
       findEmergencyHarbors(departure.latitude, departure.longitude, 50, vessel?.draft)

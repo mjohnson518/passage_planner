@@ -28,6 +28,9 @@ import { planPassage, PassagePlanningRequest, PassagePlanningResponse } from '..
 import { analytics } from '@/lib/analytics'
 import LocationAutocomplete from '../components/location/LocationAutocomplete'
 import PortSelector from '../components/location/PortSelector'
+import RouteMap from '../components/map/RouteMap'
+import { exportToGPX } from '../lib/export/gpx'
+import { exportToPDF } from '../lib/export/pdf'
 
 interface Waypoint {
   id: string
@@ -508,6 +511,71 @@ export default function PlannerPage() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Interactive Route Map */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Compass className="h-5 w-5" />
+                  Route Visualization
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (passagePlan) {
+                        const gpx = exportToGPX({
+                          name: `${formData.departure} to ${formData.destination}`,
+                          waypoints: passagePlan.route.waypoints,
+                          departure: { name: formData.departure, latitude: formData.departureCoords.latitude, longitude: formData.departureCoords.longitude },
+                          destination: { name: formData.destination, latitude: formData.destinationCoords.latitude, longitude: formData.destinationCoords.longitude }
+                        } as any)
+                        const blob = new Blob([gpx], { type: 'application/gpx+xml' })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `${formData.departure}-${formData.destination}.gpx`
+                        a.click()
+                        toast.success('GPX file downloaded')
+                      }
+                    }}
+                  >
+                    📥 GPX
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (passagePlan) {
+                        exportToPDF({
+                          name: `${formData.departure} to ${formData.destination}`,
+                          route: passagePlan.route,
+                          weather: passagePlan.weather,
+                          safety: passagePlan.safety
+                        } as any)
+                        toast.success('PDF export started')
+                      }
+                    }}
+                  >
+                    📄 PDF
+                  </Button>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RouteMap
+                waypoints={passagePlan.route.waypoints}
+                center={[
+                  (formData.departureCoords.latitude + formData.destinationCoords.latitude) / 2,
+                  (formData.departureCoords.longitude + formData.destinationCoords.longitude) / 2
+                ]}
+                zoom={6}
+                height="400px"
+              />
             </CardContent>
           </Card>
 
