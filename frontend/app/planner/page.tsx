@@ -46,8 +46,8 @@ export default function PlannerPage() {
   const [formData, setFormData] = useState({
     departure: '',
     destination: '',
-    departureCoords: { latitude: 42.3601, longitude: -71.0589 }, // Default: Boston
-    destinationCoords: { latitude: 43.6591, longitude: -70.2568 }, // Default: Portland
+    departureCoords: { latitude: 0, longitude: 0 }, // Will be set by autocomplete
+    destinationCoords: { latitude: 0, longitude: 0 }, // Will be set by autocomplete
     departureDate: new Date(),
     boat: '',
     cruiseSpeed: 6,
@@ -120,6 +120,12 @@ export default function PlannerPage() {
   const handleSubmit = async () => {
     if (!formData.departure || !formData.destination) {
       toast.error('Please enter departure and destination ports')
+      return
+    }
+
+    // Validate coordinates are set
+    if (formData.departureCoords.latitude === 0 || formData.destinationCoords.latitude === 0) {
+      toast.error('Please select locations from the autocomplete suggestions')
       return
     }
 
@@ -559,29 +565,53 @@ export default function PlannerPage() {
                 <div>
                   <Label htmlFor="departure">Departure Port *</Label>
                   <div className="relative mt-1">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="departure"
-                      placeholder="e.g., Boston, MA"
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+                    <LocationAutocomplete
                       value={formData.departure}
-                      onChange={(e) => setFormData(prev => ({ ...prev, departure: e.target.value }))}
-                      className="pl-10"
+                      onChange={(value) => setFormData(prev => ({ ...prev, departure: value }))}
+                      onPlaceSelected={(place) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          departure: place.name,
+                          departureCoords: { latitude: place.latitude, longitude: place.longitude }
+                        }))
+                      }}
+                      placeholder="e.g., Boston, MA or Gibraltar"
+                      className="pl-10 w-full"
+                      id="departure"
                     />
                   </div>
+                  {formData.departureCoords.latitude !== 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      📍 {formData.departureCoords.latitude.toFixed(4)}°, {formData.departureCoords.longitude.toFixed(4)}°
+                    </p>
+                  )}
                 </div>
                 
                 <div>
                   <Label htmlFor="destination">Destination Port *</Label>
                   <div className="relative mt-1">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="destination"
-                      placeholder="e.g., Portland, ME"
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+                    <LocationAutocomplete
                       value={formData.destination}
-                      onChange={(e) => setFormData(prev => ({ ...prev, destination: e.target.value }))}
-                      className="pl-10"
+                      onChange={(value) => setFormData(prev => ({ ...prev, destination: value }))}
+                      onPlaceSelected={(place) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          destination: place.name,
+                          destinationCoords: { latitude: place.latitude, longitude: place.longitude }
+                        }))
+                      }}
+                      placeholder="e.g., Portland, ME or Athens, Greece"
+                      className="pl-10 w-full"
+                      id="destination"
                     />
                   </div>
+                  {formData.destinationCoords.latitude !== 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      📍 {formData.destinationCoords.latitude.toFixed(4)}°, {formData.destinationCoords.longitude.toFixed(4)}°
+                    </p>
+                  )}
                 </div>
               </div>
 
