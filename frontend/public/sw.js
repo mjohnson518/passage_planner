@@ -1,5 +1,5 @@
-// Service Worker for Passage Planner PWA
-const CACHE_NAME = 'passage-planner-v1';
+// Service Worker for Helmwise PWA
+const CACHE_NAME = 'helmwise-v1';
 const DYNAMIC_CACHE = 'passage-planner-dynamic-v1';
 
 // Assets to cache on install
@@ -179,7 +179,7 @@ async function syncPassages() {
 // Push notifications
 self.addEventListener('push', (event) => {
   const options = {
-    body: event.data ? event.data.text() : 'New update from Passage Planner',
+    body: event.data ? event.data.text() : 'New update from Helmwise',
     icon: '/icon-192.png',
     badge: '/icon-96.png',
     vibrate: [100, 50, 100],
@@ -190,7 +190,7 @@ self.addEventListener('push', (event) => {
   };
   
   event.waitUntil(
-    self.registration.showNotification('Passage Planner', options)
+    self.registration.showNotification('Helmwise', options)
   );
 });
 
@@ -206,7 +206,7 @@ self.addEventListener('notificationclick', (event) => {
 // Helper function to open IndexedDB
 function openDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('PassagePlannerDB', 1);
+    const request = indexedDB.open('HelmwiseDB', 1);
     
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);

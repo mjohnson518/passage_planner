@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     siteName: 'Helmwise',
     images: [
       {
-        url: 'https://passageplanner.com/og-image.png',
+        url: 'https://helmwise.co/og-image.png',
         width: 1200,
         height: 630,
       },

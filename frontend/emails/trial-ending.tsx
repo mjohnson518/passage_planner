@@ -26,7 +26,7 @@ export const TrialEndingEmail = ({
   daysRemaining = 3,
   upgradeUrl = `${baseUrl}/pricing`,
 }: TrialEndingEmailProps) => {
-  const previewText = `Your Passage Planner trial ends in ${daysRemaining} days`
+  const previewText = `Your Helmwise trial ends in ${daysRemaining} days`
 
   return (
     <Html>
@@ -39,7 +39,7 @@ export const TrialEndingEmail = ({
               src={`${baseUrl}/logo.png`}
               width="120"
               height="40"
-              alt="Passage Planner"
+              alt="Helmwise"
               style={logo}
             />
           </Section>
@@ -57,7 +57,7 @@ export const TrialEndingEmail = ({
           </Text>
 
           <Text style={text}>
-            Your Passage Planner trial is coming to an end in just {daysRemaining} days. 
+            Your Helmwise trial is coming to an end in just {daysRemaining} days. 
             We hope you've enjoyed planning safer, smarter passages with our AI-powered tools.
           </Text>
 
@@ -144,7 +144,7 @@ export const TrialEndingEmail = ({
             <Text style={footerText}>
               Fair winds,
               <br />
-              The Passage Planner Team
+              The Helmwise Team
             </Text>
             
             <Text style={footerLinks}>

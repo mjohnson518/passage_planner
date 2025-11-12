@@ -50,7 +50,7 @@ export const UsageReportEmail = ({
   subscriptionTier = 'premium',
   remainingPassages,
 }: UsageReportEmailProps) => {
-  const previewText = `Your ${month} ${year} Passage Planner summary`
+  const previewText = `Your ${month} ${year} Helmwise summary`
 
   return (
     <Html>
@@ -63,7 +63,7 @@ export const UsageReportEmail = ({
               src={`${baseUrl}/logo.png`}
               width="120"
               height="40"
-              alt="Passage Planner"
+              alt="Helmwise"
               style={logo}
             />
           </Section>
@@ -168,7 +168,7 @@ export const UsageReportEmail = ({
             <Text style={footerText}>
               Fair winds and following seas,
               <br />
-              The Passage Planner Team
+              The Helmwise Team
             </Text>
             
             <Text style={footerLinks}>

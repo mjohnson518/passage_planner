@@ -26,7 +26,7 @@ export const WelcomeEmail = ({
   userEmail,
   loginUrl = `${baseUrl}/login`,
 }: WelcomeEmailProps) => {
-  const previewText = `Welcome to Passage Planner - Your AI-powered sailing companion`
+  const previewText = `Welcome to Helmwise - Your AI-powered sailing companion`
 
   return (
     <Html>
@@ -39,7 +39,7 @@ export const WelcomeEmail = ({
               src={`${baseUrl}/logo.png`}
               width="120"
               height="40"
-              alt="Passage Planner"
+              alt="Helmwise"
               style={logo}
             />
           </Section>
@@ -47,13 +47,13 @@ export const WelcomeEmail = ({
           <Heading style={h1}>Welcome aboard, {userName}!</Heading>
           
           <Text style={text}>
-            We're thrilled to have you join Passage Planner. You're now part of a community
+            We're thrilled to have you join Helmwise. You're now part of a community
             of sailors who plan smarter, safer passages with AI-powered insights.
           </Text>
 
           <Section style={featureSection}>
             <Heading as="h2" style={h2}>
-              What you can do with Passage Planner:
+              What you can do with Helmwise:
             </Heading>
             
             <Section style={featureItem}>
@@ -103,7 +103,7 @@ export const WelcomeEmail = ({
             <Text style={footerText}>
               Fair winds and following seas,
               <br />
-              The Passage Planner Team
+              The Helmwise Team
             </Text>
             
             <Text style={footerLinks}>
@@ -121,7 +121,7 @@ export const WelcomeEmail = ({
             </Text>
             
             <Text style={footerAddress}>
-              Passage Planner Inc.
+              Helmwise Inc.
               <br />
               123 Harbor Way, Marina del Rey, CA 90292
             </Text>

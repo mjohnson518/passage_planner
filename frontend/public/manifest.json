@@ -1,7 +1,7 @@
 {
-  "name": "Passage Planner",
-  "short_name": "PassagePlan",
-  "description": "AI-powered sailing passage planning for modern sailors",
+  "name": "Helmwise",
+  "short_name": "Helmwise",
+  "description": "AI-powered maritime passage planning for modern sailors",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
