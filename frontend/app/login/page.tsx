@@ -1,6 +1,9 @@
 
 'use client'
 
+// Force dynamic rendering for authentication page (uses useSearchParams)
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
