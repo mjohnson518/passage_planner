@@ -148,7 +148,7 @@ export function OnboardingFlow() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold">Welcome to Passage Planner</h1>
+            <h1 className="text-3xl font-bold">Welcome to Helmwise</h1>
             {currentStep < TOTAL_STEPS - 1 && (
               <Button
                 variant="ghost"

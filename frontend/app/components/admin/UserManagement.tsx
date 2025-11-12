@@ -104,7 +104,7 @@ export function UserManagement() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          subject: 'Message from Passage Planner',
+          subject: 'Message from Helmwise',
           template: 'admin-message' 
         })
       })

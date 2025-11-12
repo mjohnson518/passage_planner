@@ -17,7 +17,7 @@ export function passageToGPX(passage: Passage): string {
   const trackXML = buildTrack(passage)
   
   return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Passage Planner - passageplanner.com"
+<gpx version="1.1" creator="Helmwise - helmwise.co"
      xmlns="http://www.topografix.com/GPX/1/1"
      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
      xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
@@ -25,9 +25,9 @@ export function passageToGPX(passage: Passage): string {
     <name>${escapeXML(passage.name)}</name>
     <desc>Passage from ${escapeXML(passage.departure.name)} to ${escapeXML(passage.destination.name)}</desc>
     <author>
-      <name>Passage Planner</name>
-      <link href="https://passageplanner.com">
-        <text>Passage Planner</text>
+      <name>Helmwise</name>
+      <link href="https://helmwise.co">
+        <text>Helmwise</text>
       </link>
     </author>
     <time>${timestamp}</time>

@@ -17,7 +17,7 @@ export class EmailService {
   private from: string
   
   constructor() {
-    this.from = process.env.EMAIL_FROM || 'Passage Planner <noreply@passageplanner.com>'
+    this.from = process.env.EMAIL_FROM || 'Helmwise <noreply@helmwise.co>'
   }
 
   async sendWelcomeEmail(
@@ -30,7 +30,7 @@ export class EmailService {
       const { data, error } = await resend.emails.send({
         from: this.from,
         to: email,
-        subject: 'Welcome to Passage Planner!',
+        subject: 'Welcome to Helmwise!',
         html,
       })
 
@@ -58,7 +58,7 @@ export class EmailService {
       const { data, error } = await resend.emails.send({
         from: this.from,
         to: email,
-        subject: `Your Passage Planner trial ends in ${daysRemaining} days`,
+        subject: `Your Helmwise trial ends in ${daysRemaining} days`,
         html,
       })
 
@@ -102,7 +102,7 @@ export class EmailService {
       const { data, error } = await resend.emails.send({
         from: this.from,
         to: email,
-        subject: `Your ${reportData.month} ${reportData.year} Passage Planner Summary`,
+        subject: `Your ${reportData.month} ${reportData.year} Helmwise Summary`,
         html,
       })
 
@@ -127,7 +127,7 @@ export class EmailService {
       const { data, error } = await resend.emails.send({
         from: this.from,
         to: email,
-        subject: 'Reset your Passage Planner password',
+        subject: 'Reset your Helmwise password',
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
             <h1 style="color: #1e293b; font-size: 24px; margin-bottom: 16px;">Reset Your Password</h1>
@@ -182,7 +182,7 @@ export class EmailService {
       const { data, error } = await resend.emails.send({
         from: this.from,
         to: email,
-        subject: `Welcome to Passage Planner ${details.name}!`,
+        subject: `Welcome to Helmwise ${details.name}!`,
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
             <h1 style="color: #1e293b; font-size: 24px; margin-bottom: 16px;">Welcome to ${details.name}, ${userName}!</h1>
@@ -231,7 +231,7 @@ export class EmailService {
       const { data, error } = await resend.emails.send({
         from: this.from,
         to: email,
-        subject: 'Your Passage Planner subscription has been cancelled',
+        subject: 'Your Helmwise subscription has been cancelled',
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
             <h1 style="color: #1e293b; font-size: 24px; margin-bottom: 16px;">We're sorry to see you go, ${userName}</h1>

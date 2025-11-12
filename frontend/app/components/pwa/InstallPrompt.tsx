@@ -77,7 +77,7 @@ export function InstallPrompt() {
               <Download className="h-6 w-6 text-primary" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold mb-1">Install Passage Planner</h3>
+              <h3 className="font-semibold mb-1">Install Helmwise</h3>
               <p className="text-sm text-muted-foreground mb-3">
                 {isIOS 
                   ? 'Add to your home screen for quick access and offline features'

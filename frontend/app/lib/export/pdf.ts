@@ -154,8 +154,8 @@ function addTitlePage(
   const footerY = pdf.internal.pageSize.getHeight() - 20
   pdf.setFontSize(10)
   pdf.setTextColor(128)
-  pdf.text(`Generated on ${new Date().toLocaleDateString()} by Passage Planner`, margin, footerY)
-  pdf.text('www.passageplanner.com', margin, footerY + 5)
+  pdf.text(`Generated on ${new Date().toLocaleDateString()} by Helmwise`, margin, footerY)
+  pdf.text('www.helmwise.co', margin, footerY + 5)
   pdf.setTextColor(0)
 }
 

@@ -53,7 +53,7 @@ export function TutorialStep({ onNext, onPrevious }: TutorialStepProps) {
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold mb-2">Key Features</h2>
         <p className="text-muted-foreground">
-          Here's what you can do with Passage Planner
+          Here's what you can do with Helmwise
         </p>
       </div>
 

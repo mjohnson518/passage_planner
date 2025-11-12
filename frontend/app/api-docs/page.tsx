@@ -325,7 +325,7 @@ export default function APIDocsPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">API Documentation</h1>
         <p className="text-muted-foreground">
-          Build powerful integrations with the Passage Planner API
+          Build powerful integrations with the Helmwise API
         </p>
       </div>
 

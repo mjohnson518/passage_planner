@@ -58,7 +58,7 @@ export function DemoPassage() {
           <div>
             <CardTitle>Demo Passage: Boston to Portland</CardTitle>
             <CardDescription>
-              See how Passage Planner creates a complete sailing plan
+              See how Helmwise creates a complete sailing plan
             </CardDescription>
           </div>
           <Badge variant="secondary">Demo</Badge>

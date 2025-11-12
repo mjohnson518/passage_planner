@@ -8,15 +8,15 @@ import { Toaster } from './components/ui/toaster'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Passage Planner - AI-Powered Sailing Route Planning',
+  title: 'Helmwise - AI-Powered Sailing Route Planning',
   description: 'Plan your sailing passages with AI-powered weather routing, tidal predictions, and comprehensive safety briefings.',
   keywords: 'sailing, passage planning, weather routing, marine navigation, boat, yacht',
-  authors: [{ name: 'Passage Planner Team' }],
+  authors: [{ name: 'Helmwise Team' }],
   openGraph: {
-    title: 'Passage Planner',
+    title: 'Helmwise',
     description: 'AI-Powered Sailing Route Planning',
-    url: 'https://passageplanner.com',
-    siteName: 'Passage Planner',
+    url: 'https://helmwise.co',
+    siteName: 'Helmwise',
     images: [
       {
         url: 'https://passageplanner.com/og-image.png',
@@ -29,9 +29,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Passage Planner',
+    title: 'Helmwise',
     description: 'AI-Powered Sailing Route Planning',
-    images: ['https://passageplanner.com/og-image.png'],
+    images: ['https://helmwise.co/og-image.png'],
   },
   robots: {
     index: true,

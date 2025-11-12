@@ -43,7 +43,7 @@ export default function LoginPage() {
           </Link>
           <h1 className="text-3xl font-bold mt-4 mb-2">Welcome Back</h1>
           <p className="text-muted-foreground">
-            Sign in to your Passage Planner account
+            Sign in to your Helmwise account
           </p>
         </div>
 
@@ -169,7 +169,7 @@ export default function LoginPage() {
         {/* Demo Account Info */}
         <div className="mt-6 p-4 rounded-lg border border-primary/20 bg-primary/5">
           <p className="text-sm text-center">
-            <strong>Demo Account:</strong> demo@passageplanner.com / demo123
+            <strong>Demo Account:</strong> demo@helmwise.co / demo123
           </p>
         </div>
       </div>
