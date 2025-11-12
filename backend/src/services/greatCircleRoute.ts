@@ -81,7 +81,7 @@ function calculateRhumbLineDistance(p1: Coordinate, p2: Coordinate): number {
   const φ1 = p1.latitude * Math.PI / 180;
   const φ2 = p2.latitude * Math.PI / 180;
   const Δφ = φ2 - φ1;
-  const Δλ = Math.abs(p2.longitude - p1.longitude) * Math.PI / 180;
+  let Δλ = Math.abs(p2.longitude - p1.longitude) * Math.PI / 180;
 
   // Adjust for crossing antimeridian
   if (Math.abs(Δλ) > Math.PI) {
