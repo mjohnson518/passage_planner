@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -27,9 +28,17 @@ import { planPassage, PassagePlanningRequest, PassagePlanningResponse } from '..
 import { analytics } from '@/lib/analytics'
 import LocationAutocomplete from '../components/location/LocationAutocomplete'
 import PortSelector from '../components/location/PortSelector'
-import RouteMap from '../components/map/RouteMap'
 import { passageToGPX } from '../lib/export/gpx'
 import { generatePassagePDF } from '../lib/export/pdf'
+
+// Dynamic import for map component to avoid SSR issues
+const RouteMap = dynamic(
+  () => import('../components/map/RouteMap'),
+  { 
+    ssr: false,
+    loading: () => <div className="h-[400px] flex items-center justify-center">Loading map...</div>
+  }
+)
 
 interface Waypoint {
   id: string
