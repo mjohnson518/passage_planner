@@ -27,6 +27,7 @@ import { planPassage as planPassageOld, PassagePlanRequest } from '../../lib/orc
 import { planPassage, PassagePlanningRequest, PassagePlanningResponse } from '../../lib/services/passagePlanningService'
 import { analytics } from '@/lib/analytics'
 import LocationAutocomplete from '../components/location/LocationAutocomplete'
+import PortSelector from '../components/location/PortSelector'
 
 interface Waypoint {
   id: string
@@ -123,9 +124,13 @@ export default function PlannerPage() {
       return
     }
 
-    // Validate coordinates are set
-    if (formData.departureCoords.latitude === 0 || formData.destinationCoords.latitude === 0) {
-      toast.error('Please select locations from the autocomplete suggestions')
+    // Auto-match coordinates if not set
+    if (formData.departureCoords.latitude === 0 && formData.departure) {
+      toast.error('Could not determine coordinates for departure port. Please select from the dropdown.')
+      return
+    }
+    if (formData.destinationCoords.latitude === 0 && formData.destination) {
+      toast.error('Could not determine coordinates for destination port. Please select from the dropdown.')
       return
     }
 
@@ -566,52 +571,42 @@ export default function PlannerPage() {
                   <Label htmlFor="departure">Departure Port *</Label>
                   <div className="relative mt-1">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-                    <LocationAutocomplete
+                    <PortSelector
                       value={formData.departure}
                       onChange={(value) => setFormData(prev => ({ ...prev, departure: value }))}
-                      onPlaceSelected={(place) => {
+                      onPortSelected={(port) => {
                         setFormData(prev => ({
                           ...prev,
-                          departure: place.name,
-                          departureCoords: { latitude: place.latitude, longitude: place.longitude }
+                          departure: port.name,
+                          departureCoords: { latitude: port.lat, longitude: port.lng }
                         }))
                       }}
-                      placeholder="e.g., Boston, MA or Gibraltar"
-                      className="pl-10 w-full"
+                      placeholder="Type port name (e.g., Miami, Gibraltar, Singapore)"
+                      className="pl-10"
                       id="departure"
                     />
                   </div>
-                  {formData.departureCoords.latitude !== 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      📍 {formData.departureCoords.latitude.toFixed(4)}°, {formData.departureCoords.longitude.toFixed(4)}°
-                    </p>
-                  )}
                 </div>
                 
                 <div>
                   <Label htmlFor="destination">Destination Port *</Label>
                   <div className="relative mt-1">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-                    <LocationAutocomplete
+                    <PortSelector
                       value={formData.destination}
                       onChange={(value) => setFormData(prev => ({ ...prev, destination: value }))}
-                      onPlaceSelected={(place) => {
+                      onPortSelected={(port) => {
                         setFormData(prev => ({
                           ...prev,
-                          destination: place.name,
-                          destinationCoords: { latitude: place.latitude, longitude: place.longitude }
+                          destination: port.name,
+                          destinationCoords: { latitude: port.lat, longitude: port.lng }
                         }))
                       }}
-                      placeholder="e.g., Portland, ME or Athens, Greece"
-                      className="pl-10 w-full"
+                      placeholder="Type port name (e.g., Charleston, Athens, Hong Kong)"
+                      className="pl-10"
                       id="destination"
                     />
                   </div>
-                  {formData.destinationCoords.latitude !== 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      📍 {formData.destinationCoords.latitude.toFixed(4)}°, {formData.destinationCoords.longitude.toFixed(4)}°
-                    </p>
-                  )}
                 </div>
               </div>
 
