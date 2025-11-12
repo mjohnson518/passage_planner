@@ -11,6 +11,9 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   
+  // Disable SWC to prevent yarn registry errors on Cloudflare
+  swcMinify: false,
+  
   // CRITICAL: Disable CSS optimization (critters) that's causing build failures
   experimental: {
     scrollRestoration: true,
