@@ -21,7 +21,7 @@ export default function AnalyticsPage() {
     }
 
     // Admin check - in production this would be role-based
-    const adminEmails = ['admin@passageplanner.com', 'marc@example.com']
+    const adminEmails = ['admin@helmwise.co', 'marc@example.com']
     const hasAdminAccess = 
       adminEmails.includes(user.email || '')
 

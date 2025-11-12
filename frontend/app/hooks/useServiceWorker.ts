@@ -239,7 +239,7 @@ export function useServiceWorker() {
 // Helper to open IndexedDB
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('PassagePlannerDB', 1)
+    const request = indexedDB.open('HelmwiseDB', 1)
     
     request.onerror = () => reject(request.error)
     request.onsuccess = () => resolve(request.result)
