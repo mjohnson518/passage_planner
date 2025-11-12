@@ -1,4 +1,6 @@
 
+export const dynamic = 'force-dynamic'
+
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -29,8 +31,8 @@ import { analytics } from '@/lib/analytics'
 import LocationAutocomplete from '../components/location/LocationAutocomplete'
 import PortSelector from '../components/location/PortSelector'
 import RouteMap from '../components/map/RouteMap'
-import { exportToGPX } from '../lib/export/gpx'
-import { exportToPDF } from '../lib/export/pdf'
+import { passageToGPX } from '../lib/export/gpx'
+import { generatePassagePDF } from '../lib/export/pdf'
 
 interface Waypoint {
   id: string
@@ -528,7 +530,7 @@ export default function PlannerPage() {
                     variant="outline"
                     onClick={() => {
                       if (passagePlan) {
-                        const gpx = exportToGPX({
+                        const gpx = passageToGPX({
                           name: `${formData.departure} to ${formData.destination}`,
                           waypoints: passagePlan.route.waypoints,
                           departure: { name: formData.departure, latitude: formData.departureCoords.latitude, longitude: formData.departureCoords.longitude },
@@ -551,7 +553,7 @@ export default function PlannerPage() {
                     variant="outline"
                     onClick={() => {
                       if (passagePlan) {
-                        exportToPDF({
+                        generatePassagePDF({
                           name: `${formData.departure} to ${formData.destination}`,
                           route: passagePlan.route,
                           weather: passagePlan.weather,
