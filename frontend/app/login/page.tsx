@@ -1,12 +1,8 @@
-// CRITICAL: These exports MUST be before 'use client' directive
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
-
 'use client'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Anchor, Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,17 +19,19 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const { signIn } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const supabase = getSupabase()
 
-  // Handle OAuth callback errors
+  // Handle OAuth callback errors using window.location (avoids useSearchParams suspense issue)
   useEffect(() => {
-    const callbackError = searchParams.get('error')
-    if (callbackError) {
-      setError(decodeURIComponent(callbackError))
-      toast({ title: 'Authentication failed', description: callbackError, variant: 'destructive' })
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const callbackError = params.get('error')
+      if (callbackError) {
+        setError(decodeURIComponent(callbackError))
+        toast({ title: 'Authentication failed', description: callbackError, variant: 'destructive' })
+      }
     }
-  }, [searchParams])
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
