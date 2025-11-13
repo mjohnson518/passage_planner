@@ -56,28 +56,43 @@ export class ErrorBoundary extends Component<Props, State> {
       errorCount: prevState.errorCount + 1,
     }));
 
-    // Log to error tracking service in production
-    if (process.env.NODE_ENV === 'production') {
-      // TODO: Send to error tracking service (e.g., Sentry)
-      this.logErrorToService(error, errorInfo);
-    }
+    // Log to error tracking service
+    this.logErrorToService(error, errorInfo);
   }
 
   private async logErrorToService(error: Error, errorInfo: React.ErrorInfo) {
     try {
-      // Send to backend error logging endpoint
+      // Log to Sentry (client-side)
+      if (typeof window !== 'undefined' && (window as any).Sentry) {
+        (window as any).Sentry.captureException(error, {
+          tags: {
+            source: 'ErrorBoundary',
+            errorCount: this.state.errorCount.toString()
+          },
+          extra: {
+            componentStack: errorInfo.componentStack,
+            errorInfo
+          }
+        });
+      }
+      
+      // Also send to backend error logging endpoint
       await fetch('/api/errors/log', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: error.message,
-          stack: error.stack,
-          componentStack: errorInfo.componentStack,
+          error: {
+            message: error.message,
+            stack: error.stack,
+          },
+          errorInfo: {
+            componentStack: errorInfo.componentStack,
+          },
           timestamp: new Date().toISOString(),
-          userAgent: navigator.userAgent,
-          url: window.location.href,
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+          url: typeof window !== 'undefined' ? window.location.href : undefined,
         }),
       });
     } catch (loggingError) {
