@@ -1,7 +1,6 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "rootDir": "../",
     "outDir": "./dist",
     "composite": true,
     "skipLibCheck": true,
@@ -13,7 +12,11 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
-    "types": []
+    "types": [],
+    "paths": {
+      "@passage-planner/shared": ["../shared/src"],
+      "@passage-planner/shared/*": ["../shared/src/*"]
+    }
   },
   "include": [
     "src/**/*",

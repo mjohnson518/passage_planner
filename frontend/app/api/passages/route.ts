@@ -5,7 +5,7 @@ import { headers } from 'next/headers'
 
 export async function GET(request: Request) {
   try {
-    const headersList = headers()
+    const headersList = await headers()
     const authorization = headersList.get('authorization')
     
     if (!authorization) {
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const headersList = headers()
+    const headersList = await headers()
     const authorization = headersList.get('authorization')
     
     if (!authorization) {

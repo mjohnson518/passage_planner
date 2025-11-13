@@ -46,7 +46,7 @@ export class CacheManager {
       const value = await this.redis.get(key);
       if (!value) return null;
       
-      return JSON.parse(value) as T;
+      return JSON.parse(value as string) as T;
     } catch (error) {
       this.logger.error({ error, key }, 'Cache get error');
       return null;
@@ -106,12 +106,12 @@ export class CacheManager {
       
       if (!value) return null;
       
-      const parsed = JSON.parse(value);
+      const parsed = JSON.parse(value as string);
       let age = 0;
       let originalTtl = ttl;
       
       if (metaData) {
-        const meta = JSON.parse(metaData);
+        const meta = JSON.parse(metaData as string);
         age = Math.floor((Date.now() - meta.cachedAt) / 1000); // Age in seconds
         originalTtl = meta.ttl || ttl;
       }

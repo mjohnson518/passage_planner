@@ -179,4 +179,10 @@ export abstract class BaseAgent extends EventEmitter {
   resetErrors() {
     this.errorCount = 0
   }
+
+  /**
+   * Abstract method for direct tool invocation (for orchestrator)
+   * Agents must implement this to allow non-MCP direct calls
+   */
+  abstract callTool(toolName: string, args: any): Promise<any>
 } 

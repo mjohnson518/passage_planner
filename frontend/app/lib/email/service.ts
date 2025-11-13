@@ -25,7 +25,7 @@ export class EmailService {
     userName?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const html = render(WelcomeEmail({ userName, userEmail: email }))
+      const html = await render(WelcomeEmail({ userName, userEmail: email }))
       
       const { data, error } = await resend.emails.send({
         from: this.from,
@@ -53,7 +53,7 @@ export class EmailService {
     daysRemaining: number
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const html = render(TrialEndingEmail({ userName, daysRemaining }))
+      const html = await render(TrialEndingEmail({ userName, daysRemaining }))
       
       const { data, error } = await resend.emails.send({
         from: this.from,
@@ -97,7 +97,7 @@ export class EmailService {
     }
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const html = render(UsageReportEmail(reportData))
+      const html = await render(UsageReportEmail(reportData))
       
       const { data, error } = await resend.emails.send({
         from: this.from,

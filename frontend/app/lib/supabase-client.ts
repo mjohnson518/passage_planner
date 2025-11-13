@@ -23,7 +23,7 @@ let supabaseInstance: ReturnType<typeof createSupabaseClient> | null = null
 
 export function getSupabase() {
   if (supabaseInstance === null) {
-    supabaseInstance = createClient()
+    supabaseInstance = createClient() as any
   }
   return supabaseInstance
 }

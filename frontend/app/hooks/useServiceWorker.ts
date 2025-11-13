@@ -112,7 +112,7 @@ export function useServiceWorker() {
     }
 
     try {
-      await state.registration.sync.register(tag)
+      await (state.registration as any).sync?.register(tag)
       setSyncRegistered(true)
       return true
     } catch (error) {

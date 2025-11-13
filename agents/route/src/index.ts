@@ -379,6 +379,24 @@ ${waypointList}`
       ]
     };
   }
+  
+  /**
+   * Public method to call tools directly (for orchestrator)
+   */
+  public async callTool(toolName: string, args: any): Promise<any> {
+    switch (toolName) {
+      case 'calculate_route':
+        return await this.calculateRoute(args);
+      case 'calculate_distance':
+        return await this.calculateDistance(args);
+      case 'optimize_waypoints':
+        return await this.optimizeWaypoints(args);
+      case 'health':
+        return await this.checkHealth();
+      default:
+        throw new Error(`Unknown tool: ${toolName}`);
+    }
+  }
 }
 
 // Start the agent if run directly

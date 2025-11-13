@@ -444,6 +444,25 @@ export class WeatherAgent extends BaseAgent {
       };
     }
   }
+  
+  /**
+   * Public method to call tools directly (for orchestrator)
+   */
+  public async callTool(toolName: string, args: any): Promise<any> {
+    switch (toolName) {
+      case 'get_marine_weather':
+      case 'get_marine_forecast': // Alias for compatibility
+        return await this.getMarineWeather(args);
+      case 'check_weather_safety':
+        return await this.checkWeatherSafety(args);
+      case 'get_weather_windows':
+        return await this.getWeatherWindows(args);
+      case 'health':
+        return await this.checkHealth();
+      default:
+        throw new Error(`Unknown tool: ${toolName}`);
+    }
+  }
 }
 
 // Import CircuitBreakerFactory for health checks

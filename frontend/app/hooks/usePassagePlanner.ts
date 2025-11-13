@@ -34,56 +34,17 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null)
   
   const { user } = useAuth()
-  const { socket, connected } = useSocket()
+  const { connected } = useSocket()
 
   // Listen for real-time updates
+  // TODO: Implement WebSocket-based real-time updates
+  // The socket.io client code needs to be replaced with WebSocket API
   useEffect(() => {
-    if (!socket || !connected || !currentRequestId) return
-
-    const handleProgress = (data: any) => {
-      if (data.requestId !== currentRequestId) return
-      
-      setProgress(data.progress)
-      setStatus(data.status)
-      
-      if (data.agentUpdate) {
-        setAgentActivity(prev => [...prev, {
-          agentId: data.agentUpdate.agentId,
-          agentName: data.agentUpdate.agentName,
-          status: data.agentUpdate.status,
-          message: data.agentUpdate.message,
-          timestamp: new Date(),
-        }])
-      }
-    }
-
-    const handleCompletion = (data: any) => {
-      if (data.requestId !== currentRequestId) return
-      
-      setCurrentPlan(data.passagePlan)
-      setLoading(false)
-      setProgress(100)
-      setStatus('completed')
-    }
-
-    const handleError = (data: any) => {
-      if (data.requestId !== currentRequestId) return
-      
-      setError(data.error)
-      setLoading(false)
-      setStatus('error')
-    }
-
-    socket.on('passage_progress', handleProgress)
-    socket.on('passage_completed', handleCompletion)
-    socket.on('passage_error', handleError)
-
-    return () => {
-      socket.off('passage_progress', handleProgress)
-      socket.off('passage_completed', handleCompletion)
-      socket.off('passage_error', handleError)
-    }
-  }, [socket, connected, currentRequestId])
+    if (!connected || !currentRequestId) return
+    
+    // WebSocket implementation placeholder
+    // This will be implemented when the WebSocket protocol is finalized
+  }, [connected, currentRequestId])
 
   const planPassage = useCallback(async (request: PassagePlanRequest) => {
     if (!user) {
@@ -174,14 +135,15 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
   }
 
   const cancelPlanning = useCallback(() => {
-    if (currentRequestId && socket?.connected) {
-      socket.emit('cancel_passage', { requestId: currentRequestId })
+    // TODO: Implement cancellation via WebSocket or API
+    if (currentRequestId) {
+      console.log('Cancel passage:', currentRequestId)
     }
     
     setLoading(false)
     setStatus('cancelled')
     setCurrentRequestId(null)
-  }, [currentRequestId, socket])
+  }, [currentRequestId])
 
   const exportPlan = useCallback(async (format: 'gpx' | 'pdf' | 'kml') => {
     if (!currentPlan) {
@@ -226,7 +188,7 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
       
       // Track successful export
       analytics.trackRouteExported({
-        format,
+        format: format as 'gpx' | 'kml' | 'csv',
         waypoint_count: currentPlan.route?.waypoints?.length || 0,
         distance_nm: currentPlan.summary?.totalDistance,
       });
