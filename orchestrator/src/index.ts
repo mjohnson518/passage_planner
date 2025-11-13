@@ -1,5 +1,22 @@
 // Entry point for orchestrator
 import { SimpleOrchestrator } from './SimpleOrchestrator';
+import { validateEnv, getSafeEnvInfo } from '@passage-planner/shared';
+import { initSentry } from './sentry';
+
+// Validate environment FIRST - fail fast with clear errors
+try {
+  const env = validateEnv();
+  console.log('✅ Environment validation passed');
+  console.log('📋 Environment:', getSafeEnvInfo());
+} catch (error) {
+  console.error('❌ FATAL: Environment validation failed');
+  console.error((error as Error).message);
+  console.error('\n💡 Fix the errors above and restart the orchestrator.');
+  process.exit(1);
+}
+
+// Initialize error tracking SECOND - after validation
+initSentry();
 
 const orchestrator = new SimpleOrchestrator();
 

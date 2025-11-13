@@ -54,11 +54,11 @@ export async function POST(request: NextRequest) {
         contact_email: contact_email || null,
         browser_info: browserInfo || null,
         status: 'new',
-      })
+      } as any)
       .select()
       .single();
 
-    if (error) {
+    if (error || !data) {
       console.error('Failed to insert feedback:', error);
       return NextResponse.json(
         { error: 'Failed to save feedback' },
@@ -68,15 +68,16 @@ export async function POST(request: NextRequest) {
 
     // TODO: Send notification to admin (email, Slack, etc.)
     // For now, just log
+    const feedbackData = data as any;
     console.log('New feedback received:', {
-      id: data.id,
+      id: feedbackData.id,
       type: feedback_type,
       userId,
     });
 
     return NextResponse.json({
       success: true,
-      feedbackId: data.id,
+      feedbackId: feedbackData.id,
     });
   } catch (error) {
     console.error('Error processing feedback:', error);

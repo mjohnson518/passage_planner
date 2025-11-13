@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string) => {
     if (!supabase) {
-      toast({ title: 'Authentication not available', variant: 'destructive' })
+      toast.error('Authentication not available')
       return
     }
     
@@ -141,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = async (email: string) => {
     if (!supabase) {
-      toast({ title: 'Authentication not available', variant: 'destructive' })
+      toast.error('Authentication not available')
       return
     }
     
@@ -161,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = async (data: any) => {
     if (!supabase) {
-      toast({ title: 'Authentication not available', variant: 'destructive' })
+      toast.error('Authentication not available')
       return
     }
     

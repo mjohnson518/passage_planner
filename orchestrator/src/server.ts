@@ -1035,7 +1035,22 @@ export class HttpServer {
           correlationId: (req as any).correlationId || 'unknown',
         });
         
-        // TODO: Send to error tracking service (Sentry, Rollbar, etc.)
+        // Send to Sentry for error tracking
+        const { captureError } = await import('./sentry');
+        captureError(new Error(message), {
+          tags: {
+            source: 'frontend',
+            component: componentStack?.split('\n')[1]?.trim() || 'unknown'
+          },
+          extra: {
+            stack,
+            componentStack,
+            url,
+            userAgent,
+            correlationId: (req as any).correlationId
+          },
+          user: req.user ? { id: req.user.id, email: req.user.email } : undefined
+        });
         
         res.status(200).json({ success: true });
       } catch (err) {

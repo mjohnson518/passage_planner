@@ -6,7 +6,7 @@ import { headers } from 'next/headers'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const headersList = headers()
+    const headersList = await headers()
     
     // Get user info from auth header if available
     const authorization = headersList.get('authorization')

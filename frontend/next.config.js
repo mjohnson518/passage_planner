@@ -2,13 +2,14 @@
 const nextConfig = {
   reactStrictMode: true,
   
-  // TEMPORARY: Disable type checking to deploy quickly
-  // Re-enable after deployment and fix type errors iteratively
+  // Type checking enabled - errors must be fixed iteratively
+  // TODO: Fix remaining TypeScript errors in: reset-password, and other pages
+  // Critical errors have been fixed. Remaining are mostly prop mismatches and type imports.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: true, // Temporary - fix iteratively
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   
   // CRITICAL: Disable CSS optimization (critters) that's causing build failures

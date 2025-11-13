@@ -1,9 +1,9 @@
 // Simplified orchestrator without MCP SDK (HTTP + WebSocket only)
 import Redis from 'ioredis';
-import { WeatherAgent } from '../../agents/weather/src/WeatherAgent';
-import { TidalAgent } from '../../agents/tidal/src/TidalAgent';
+import { WeatherAgent } from '../../agents/weather/src/index';
+import { TidalAgent } from '../../agents/tidal/src/index';
 import { RouteAgent } from '../../agents/route/src';
-import { BaseAgent } from '../../agents/base/BaseAgent';
+import { BaseAgent } from '@passage-planner/shared';
 import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import express from 'express';
@@ -50,29 +50,15 @@ export class SimpleOrchestrator {
     console.log('Initializing agents...');
     
     // Initialize all three agents - RouteAgent now works with geolib!
-    this.agents['weather'] = new WeatherAgent(
-      process.env.REDIS_URL || 'redis://localhost:6379',
-      process.env.NOAA_API_KEY || '',
-      process.env.OPENWEATHER_API_KEY || ''
-    );
+    this.agents['weather'] = new WeatherAgent();
+    console.log('✓ weather agent initialized');
     
-    this.agents['tidal'] = new TidalAgent(
-      process.env.REDIS_URL || 'redis://localhost:6379',
-      process.env.NOAA_API_KEY || ''
-    );
+    this.agents['tidal'] = new TidalAgent();
+    console.log('✓ tidal agent initialized');
     
     // RouteAgent now working with geolib (no more Turf.js ESM issues)
     this.agents['route'] = new RouteAgent();
-    
-    // Initialize all agents
-    for (const [name, agent] of Object.entries(this.agents)) {
-      try {
-        await agent.initialize();
-        console.log(`✓ ${name} agent initialized`);
-      } catch (error) {
-        console.error(`✗ Failed to initialize ${name} agent:`, error);
-      }
-    }
+    console.log('✓ route agent initialized');
     
     console.log('All agents initialized');
   }
@@ -99,7 +85,7 @@ export class SimpleOrchestrator {
       const agentTimeout = 30000; // 30 second timeout
       
       const routePromise = Promise.race([
-        this.agents['route'].handleToolCall('calculate_route', {
+        this.agents['route'].callTool('calculate_route', {
           start: {
             lat: request.departure.latitude,
             lon: request.departure.longitude
@@ -130,7 +116,7 @@ export class SimpleOrchestrator {
       });
       
       const weatherDeparturePromise = Promise.race([
-        this.agents['weather'].handleToolCall('get_marine_forecast', {
+        this.agents['weather'].callTool('get_marine_forecast', {
           latitude: request.departure.latitude,
           longitude: request.departure.longitude,
           hours: 72
@@ -144,7 +130,7 @@ export class SimpleOrchestrator {
       });
       
       const weatherArrivalPromise = Promise.race([
-        this.agents['weather'].handleToolCall('get_marine_forecast', {
+        this.agents['weather'].callTool('get_marine_forecast', {
           latitude: request.destination.latitude,
           longitude: request.destination.longitude,
           hours: 72
@@ -158,7 +144,7 @@ export class SimpleOrchestrator {
       });
       
       const tidalDeparturePromise = Promise.race([
-        this.agents['tidal'].handleToolCall('get_tide_predictions', {
+        this.agents['tidal'].callTool('get_tide_predictions', {
           latitude: request.departure.latitude,
           longitude: request.departure.longitude,
           start_date: request.departure.time || new Date().toISOString(),
@@ -173,7 +159,7 @@ export class SimpleOrchestrator {
       });
       
       const tidalArrivalPromise = Promise.race([
-        this.agents['tidal'].handleToolCall('get_tide_predictions', {
+        this.agents['tidal'].callTool('get_tide_predictions', {
           latitude: request.destination.latitude,
           longitude: request.destination.longitude,
           start_date: request.departure.time || new Date().toISOString(),

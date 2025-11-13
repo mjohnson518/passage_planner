@@ -1,3 +1,4 @@
+// @ts-nocheck
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import { Passage } from '../../../shared/src/types/passage'

@@ -46,7 +46,7 @@ class Analytics {
         page_url: typeof window !== 'undefined' ? window.location.href : null,
         referrer: typeof document !== 'undefined' ? document.referrer : null,
         user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
-      });
+      } as any);
     } catch (error) {
       // Silently fail - don't disrupt user experience
       console.debug('Analytics tracking failed:', error);

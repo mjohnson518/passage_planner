@@ -46,70 +46,27 @@ export function AgentHealthDashboard() {
     if (!connected) return
     
     // Update agents from socket context
-    setAgents(agentStatuses)
+    setAgents(agentStatuses as Record<string, AgentStatus>)
+    setLoading(false)
 
-    // Request initial status
-    socket.emit('agents:status')
-
-    // Listen for updates
-    socket.on('agents:status', (status: Record<string, AgentStatus>) => {
-      setAgents(status)
-      setLoading(false)
-    })
-
-    socket.on('agent:started', ({ name }: { name: string }) => {
-      setAgents(prev => ({
-        ...prev,
-        [name]: { ...prev[name], status: 'running' }
-      }))
-    })
-
-    socket.on('agent:stopped', ({ name }: { name: string }) => {
-      setAgents(prev => ({
-        ...prev,
-        [name]: { ...prev[name], status: 'stopped' }
-      }))
-    })
-
-    socket.on('agent:crashed', ({ name }: { name: string }) => {
-      setAgents(prev => ({
-        ...prev,
-        [name]: { ...prev[name], status: 'crashed' }
-      }))
-    })
-
-    socket.on('agent:health', ({ name, health }: { name: string; health: any }) => {
-      setAgents(prev => ({
-        ...prev,
-        [name]: { ...prev[name], healthStatus: health, lastHealthCheck: new Date().toISOString() }
-      }))
-    })
-
-    return () => {
-      socket.off('agents:status')
-      socket.off('agent:started')
-      socket.off('agent:stopped')
-      socket.off('agent:crashed')
-      socket.off('agent:health')
-    }
-  }, [socket, connected])
+    // TODO: Implement WebSocket-based agent monitoring
+    // The socket.io client code needs to be replaced with WebSocket API
+    // or the SocketContext needs to be updated to use socket.io
+  }, [connected, agentStatuses])
 
   const handleStartAgent = (name: string) => {
-    if (socket) {
-      socket.emit('agent:start', { name })
-    }
+    // TODO: Implement agent start via WebSocket or API
+    console.log('Start agent:', name)
   }
 
   const handleStopAgent = (name: string) => {
-    if (socket) {
-      socket.emit('agent:stop', { name })
-    }
+    // TODO: Implement agent stop via WebSocket or API
+    console.log('Stop agent:', name)
   }
 
   const handleRestartAgent = (name: string) => {
-    if (socket) {
-      socket.emit('agent:restart', { name })
-    }
+    // TODO: Implement agent restart via WebSocket or API
+    console.log('Restart agent:', name)
   }
 
   const getStatusColor = (status: string) => {

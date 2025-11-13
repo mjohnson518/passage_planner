@@ -253,6 +253,24 @@ export class TidalAgent extends BaseAgent {
     
     return lines.join('\n');
   }
+  
+  /**
+   * Public method to call tools directly (for orchestrator)
+   */
+  public async callTool(toolName: string, args: any): Promise<any> {
+    switch (toolName) {
+      case 'get_tidal_stations':
+        return await this.getTidalStations(args);
+      case 'get_tides':
+      case 'get_tide_predictions': // Alias for compatibility
+        return await this.getTides(args);
+      case 'calculate_tidal_windows':
+      case 'find_navigation_windows': // Alias for compatibility
+        return await this.calculateTidalWindows(args);
+      default:
+        throw new Error(`Unknown tool: ${toolName}`);
+    }
+  }
 }
 
 // Start the agent if run directly

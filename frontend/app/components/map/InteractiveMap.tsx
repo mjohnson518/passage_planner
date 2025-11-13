@@ -19,6 +19,7 @@ export default function InteractiveMap({
   zoom = 2
 }: InteractiveMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
+  const mapInstanceRef = useRef<any>(null)
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return

@@ -58,4 +58,7 @@ export * from './types/errors';
 export * from './services/retry';
 export * from './services/circuit-breaker';
 export * from './services/api-client';
-export * from './services/data-freshness'; 
+export * from './services/data-freshness';
+
+// Export utilities
+export * from './utils/validateEnv'; 

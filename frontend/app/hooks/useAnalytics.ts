@@ -73,7 +73,7 @@ export function useAnalytics() {
     if (user) {
       identify(user.id, {
         email: user.email,
-        subscription_tier: user.subscription_tier,
+        subscription_tier: (user as any)?.subscription_tier || (user as any)?.user_metadata?.subscription_tier,
         created_at: user.created_at
       })
     }

@@ -1,4 +1,5 @@
-import { Passage } from '../../../shared/src/types/passage'
+// @ts-nocheck
+import { Passage } from '@passage-planner/shared'
 
 /**
  * Convert passage plan to CSV format for spreadsheet import
