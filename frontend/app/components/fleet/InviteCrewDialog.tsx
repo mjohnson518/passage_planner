@@ -21,8 +21,9 @@ import type { CrewMember, FleetVessel } from '@/types/shared'
 interface InviteCrewDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  fleetId: string
-  vessels: FleetVessel[]
+  fleetId?: string
+  vessels: any[]
+  onSubmit?: (email: string, role: string, vesselIds?: string[]) => Promise<void>
 }
 
 export function InviteCrewDialog({ open, onOpenChange, fleetId, vessels }: InviteCrewDialogProps) {

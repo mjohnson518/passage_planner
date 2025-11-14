@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { Providers } from './providers'
@@ -14,8 +14,6 @@ export const metadata: Metadata = {
   title: 'Helmwise - Sailing Passage Planning',
   description: 'Plan your sailing passages with weather routing, tidal predictions, and comprehensive safety briefings.',
   manifest: '/manifest.json',
-  themeColor: '#0ea5e9',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover',
   alternates: {
     canonical: '/',
   },
@@ -31,6 +29,14 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false
   }
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: 'cover',
+  themeColor: '#0ea5e9'
 }
 
 export default function RootLayout({

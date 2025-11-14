@@ -10,10 +10,10 @@ interface ServiceWorkerState {
 
 export function useServiceWorker() {
   const [state, setState] = useState<ServiceWorkerState>({
-    isOffline: !navigator.onLine,
+    isOffline: typeof window !== 'undefined' ? !navigator.onLine : false,
     isUpdateAvailable: false,
     registration: null,
-    isSupported: 'serviceWorker' in navigator,
+    isSupported: typeof window !== 'undefined' && 'serviceWorker' in navigator,
   })
 
   const [syncRegistered, setSyncRegistered] = useState(false)

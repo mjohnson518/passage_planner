@@ -1,11 +1,11 @@
-// @ts-nocheck
-import { Passage, Waypoint, Coordinates } from '../../../shared/src/types/passage'
+// Import types - shared package not available, using any for now
+// TODO: Add shared package to frontend dependencies or define types locally
 
 /**
  * Convert a passage plan to GPX format
  * GPX (GPS Exchange Format) is widely supported by chartplotters and navigation apps
  */
-export function passageToGPX(passage: Passage): string {
+export function passageToGPX(passage: any): string {
   const timestamp = new Date().toISOString()
   
   // Build waypoints
@@ -40,7 +40,7 @@ export function passageToGPX(passage: Passage): string {
 </gpx>`
 }
 
-function buildWaypoints(passage: Passage): string {
+function buildWaypoints(passage: any): string {
   const waypoints: string[] = []
   
   // Add departure
@@ -72,7 +72,7 @@ function buildWaypoints(passage: Passage): string {
   return waypoints.join('\n  ')
 }
 
-function buildRoute(passage: Passage): string {
+function buildRoute(passage: any): string {
   const routePoints: string[] = []
   
   // Add all points in order
@@ -95,7 +95,7 @@ ${routePoints.join('\n')}
   </rte>`
 }
 
-function buildTrack(passage: Passage): string {
+function buildTrack(passage: any): string {
   if (!passage.route || passage.route.length === 0) {
     return ''
   }
@@ -132,7 +132,7 @@ ${trackPoints.join('\n')}
 }
 
 function createWaypointXML(
-  coords: Coordinates, 
+  coords: any, 
   name: string, 
   description?: string,
   symbol?: string
@@ -182,7 +182,7 @@ function formatDuration(hours: number): string {
 /**
  * Download GPX file
  */
-export function downloadGPX(passage: Passage): void {
+export function downloadGPX(passage: any): void {
   const gpxContent = passageToGPX(passage)
   const blob = new Blob([gpxContent], { type: 'application/gpx+xml' })
   const url = URL.createObjectURL(blob)

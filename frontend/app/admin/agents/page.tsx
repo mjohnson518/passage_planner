@@ -1,5 +1,7 @@
-
 'use client'
+
+// Force dynamic rendering to avoid SSR issues with browser APIs
+export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'

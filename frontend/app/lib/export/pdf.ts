@@ -1,7 +1,8 @@
-// @ts-nocheck
+// @ts-nocheck - Complex PDF generation utility with type issues from missing shared package
+// Import types - shared package not available, using any for now
+// TODO: Add shared package to frontend dependencies and remove @ts-nocheck
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
-import { Passage } from '../../../shared/src/types/passage'
 
 interface PDFExportOptions {
   includeCharts?: boolean
@@ -15,7 +16,7 @@ interface PDFExportOptions {
  * Generate a professional PDF passage plan
  */
 export async function generatePassagePDF(
-  passage: Passage, 
+  passage: any, 
   options: PDFExportOptions = {}
 ): Promise<jsPDF> {
   const {
@@ -82,7 +83,7 @@ export async function generatePassagePDF(
 
 function addTitlePage(
   pdf: jsPDF, 
-  passage: Passage, 
+  passage: any, 
   y: number, 
   margin: number, 
   contentWidth: number
@@ -162,7 +163,7 @@ function addTitlePage(
 
 function addRouteOverview(
   pdf: jsPDF,
-  passage: Passage,
+  passage: any,
   y: number,
   margin: number,
   contentWidth: number
@@ -248,7 +249,7 @@ function addRouteOverview(
 
 function addWaypointDetails(
   pdf: jsPDF,
-  passage: Passage,
+  passage: any,
   y: number,
   margin: number,
   contentWidth: number
@@ -353,7 +354,7 @@ function addWaypointInfo(
 
 function addWeatherInformation(
   pdf: jsPDF,
-  passage: Passage,
+  passage: any,
   y: number,
   margin: number,
   contentWidth: number
@@ -396,7 +397,7 @@ function addWeatherInformation(
 
 function addTidalInformation(
   pdf: jsPDF,
-  passage: Passage,
+  passage: any,
   y: number,
   margin: number,
   contentWidth: number
@@ -443,7 +444,7 @@ function addTidalInformation(
 
 function addSafetyInformation(
   pdf: jsPDF,
-  passage: Passage,
+  passage: any,
   y: number,
   margin: number,
   contentWidth: number
@@ -567,7 +568,7 @@ function truncateText(text: string, maxLength: number): string {
  * Download passage plan as PDF
  */
 export async function downloadPassagePDF(
-  passage: Passage,
+  passage: any,
   options?: PDFExportOptions
 ): Promise<void> {
   try {
@@ -584,7 +585,7 @@ export async function downloadPassagePDF(
  * Generate PDF with chart image
  */
 export async function generatePDFWithChart(
-  passage: Passage,
+  passage: any,
   chartElement: HTMLElement,
   options?: PDFExportOptions
 ): Promise<void> {
