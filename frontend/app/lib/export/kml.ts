@@ -1,11 +1,11 @@
-// @ts-nocheck
-import { Passage, Waypoint, Coordinates } from '../../../shared/src/types/passage'
+// Import types - shared package not available, using any for now
+// TODO: Add shared package to frontend dependencies or define types locally
 
 /**
  * Convert a passage plan to KML format
  * KML (Keyhole Markup Language) is used by Google Earth and many marine apps
  */
-export function passageToKML(passage: Passage): string {
+export function passageToKML(passage: any): string {
   // Build styles
   const styles = buildStyles()
   
@@ -96,7 +96,7 @@ function buildStyles(): string {
     </Style>`
 }
 
-function buildPlacemarks(passage: Passage): string {
+function buildPlacemarks(passage: any): string {
   const placemarks: string[] = []
   
   // Departure
@@ -129,7 +129,7 @@ function buildPlacemarks(passage: Passage): string {
   return placemarks.join('\n      ')
 }
 
-function buildLineString(passage: Passage): string {
+function buildLineString(passage: any): string {
   const coordinates: string[] = []
   
   // Add all coordinates in order
@@ -155,7 +155,7 @@ function buildLineString(passage: Passage): string {
       </Placemark>`
 }
 
-function buildWeatherOverlay(passage: Passage): string {
+function buildWeatherOverlay(passage: any): string {
   if (!passage.weather || passage.weather.length === 0) {
     return ''
   }
@@ -180,7 +180,7 @@ function buildWeatherOverlay(passage: Passage): string {
 }
 
 function createPlacemark(
-  coords: Coordinates,
+  coords: any,
   name: string,
   description: string,
   styleId: string
@@ -197,7 +197,7 @@ function createPlacemark(
 }
 
 function createWindArrow(
-  location: Coordinates,
+  location: any,
   direction: number,
   speed: number,
   time: Date
@@ -215,7 +215,7 @@ function createWindArrow(
       </Placemark>`
 }
 
-function formatCoordinate(coord: Coordinates): string {
+function formatCoordinate(coord: any): string {
   return `${coord.lng},${coord.lat},0`
 }
 
@@ -242,7 +242,7 @@ function escapeXML(text: string): string {
 /**
  * Download KML file
  */
-export function downloadKML(passage: Passage): void {
+export function downloadKML(passage: any): void {
   const kmlContent = passageToKML(passage)
   const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' })
   const url = URL.createObjectURL(blob)

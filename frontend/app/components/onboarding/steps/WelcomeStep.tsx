@@ -3,7 +3,8 @@ import { Card } from '../../ui/card'
 import { Sailboat, Compass, MapPin, Wind, Anchor } from 'lucide-react'
 
 interface WelcomeStepProps {
-  onNext: () => void
+  onNext?: () => void
+  userName?: string
 }
 
 export function WelcomeStep({ onNext }: WelcomeStepProps) {

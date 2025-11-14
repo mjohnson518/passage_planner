@@ -14,9 +14,11 @@ import { toRelativeTime } from '../../lib/utils'
 
 interface FleetVesselCardProps {
   vessel: FleetVessel
+  canEdit?: boolean
+  onUpdate?: () => void | Promise<void>
 }
 
-export function FleetVesselCard({ vessel }: FleetVesselCardProps) {
+export function FleetVesselCard({ vessel, canEdit, onUpdate }: FleetVesselCardProps) {
   const getStatusColor = (status: FleetVessel['status']) => {
     switch (status) {
       case 'active':

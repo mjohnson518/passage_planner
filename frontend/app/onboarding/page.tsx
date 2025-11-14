@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -181,7 +180,7 @@ export default function OnboardingPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
             {currentStep === 0 && (
               <WelcomeStep 
-                userName={user.display_name || user.email?.split('@')[0] || 'Sailor'}
+                userName={(user as any)?.display_name || (user as any)?.user_metadata?.display_name || user.email?.split('@')[0] || 'Sailor'}
               />
             )}
             

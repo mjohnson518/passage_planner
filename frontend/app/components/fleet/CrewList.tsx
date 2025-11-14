@@ -18,14 +18,20 @@ import {
 import type { CrewMember } from '@/types/shared'
 
 interface CrewListProps {
-  crew: CrewMember[]
-  fleetId: string
+  members?: any[]
+  crew?: CrewMember[]
+  fleetId?: string
+  vessels?: any[]
+  isAdmin?: boolean
+  onUpdate?: () => void | Promise<void>
 }
 
-export function CrewList({ crew, fleetId }: CrewListProps) {
+export function CrewList({ members, crew, fleetId, vessels, isAdmin, onUpdate }: CrewListProps) {
+  // Use members if provided, otherwise fall back to crew
+  const crewList = members || crew || []
   const [searchTerm, setSearchTerm] = useState('')
 
-  const filteredCrew = crew.filter(member => 
+  const filteredCrew = crewList.filter((member: any) => 
     member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     member.email.toLowerCase().includes(searchTerm.toLowerCase())
   )

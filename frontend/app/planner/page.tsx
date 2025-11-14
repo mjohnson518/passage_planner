@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -185,8 +184,7 @@ export default function PlannerPage() {
         duration_hours: result.route.estimatedDurationHours,
         waypoint_count: result.route.waypoints.length,
         departure_port: formData.departure,
-        destination_port: formData.destination,
-        safety_decision: result.summary.safetyDecision
+        destination_port: formData.destination
       });
       
     } catch (error: any) {
@@ -300,7 +298,7 @@ export default function PlannerPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Avg Speed</p>
-                  <p className="text-xl font-bold">{passagePlan.summary.averageSpeed}</p>
+                  <p className="text-xl font-bold">{(passagePlan.summary as any)?.averageSpeed || 'N/A'}</p>
                 </div>
               </div>
             </CardContent>

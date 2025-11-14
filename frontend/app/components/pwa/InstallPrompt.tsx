@@ -11,6 +11,8 @@ export function InstallPrompt() {
   const [isIOS, setIsIOS] = useState(false)
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     // Check if iOS
     const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
     setIsIOS(isIOSDevice)

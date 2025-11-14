@@ -1,10 +1,10 @@
-// @ts-nocheck
-import { Passage } from '@passage-planner/shared'
+// Import types - shared package not available in frontend, using any
+// TODO: Add shared package to frontend or define types locally
 
 /**
  * Convert passage plan to CSV format for spreadsheet import
  */
-export function passageToCSV(passage: Passage): string {
+export function passageToCSV(passage: any): string {
   const headers = [
     'Waypoint',
     'Latitude',
@@ -80,7 +80,7 @@ export function passageToCSV(passage: Passage): string {
 /**
  * Export weather data to CSV
  */
-export function weatherToCSV(passage: Passage): string {
+export function weatherToCSV(passage: any): string {
   if (!passage.weather || passage.weather.length === 0) {
     return ''
   }
@@ -122,7 +122,7 @@ export function weatherToCSV(passage: Passage): string {
 /**
  * Export tidal data to CSV
  */
-export function tidesToCSV(passage: Passage): string {
+export function tidesToCSV(passage: any): string {
   if (!passage.tides || passage.tides.length === 0) {
     return ''
   }
@@ -169,7 +169,7 @@ function escapeCSV(value: string): string {
  * Download CSV file
  */
 export function downloadCSV(
-  passage: Passage, 
+  passage: any, 
   type: 'route' | 'weather' | 'tides' = 'route'
 ): void {
   let csvContent: string

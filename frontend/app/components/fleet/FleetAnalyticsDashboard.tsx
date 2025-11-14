@@ -22,6 +22,8 @@ import type { FleetAnalytics } from '@/types/shared'
 
 interface FleetAnalyticsDashboardProps {
   fleetId: string
+  vessels?: any[]
+  members?: any[]
 }
 
 const COLORS = ['#0ea5e9', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444']
