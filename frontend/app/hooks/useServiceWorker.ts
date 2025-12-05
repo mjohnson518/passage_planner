@@ -123,18 +123,28 @@ export function useServiceWorker() {
 
   // Store data for offline sync
   const storeOfflineData = useCallback(async (type: string, data: any) => {
-    if (!('indexedDB' in window)) return
+    if (!('indexedDB' in window)) return false
 
     try {
       const db = await openDB()
-      const tx = db.transaction(type === 'passage' ? 'pending_passages' : 'offline_analytics', 'readwrite')
-      const store = tx.objectStore(type === 'passage' ? 'pending_passages' : 'offline_analytics')
+      const storeName = type === 'passage' ? 'pending_passages' : 'offline_analytics'
       
-      await store.add({
-        id: `${Date.now()}-${Math.random()}`,
-        data,
-        timestamp: Date.now(),
-        token: localStorage.getItem('auth_token'),
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite')
+        const store = tx.objectStore(storeName)
+        
+        const request = store.add({
+          id: `${Date.now()}-${Math.random()}`,
+          data,
+          timestamp: Date.now(),
+          token: localStorage.getItem('auth_token'),
+        })
+        
+        request.onsuccess = () => resolve()
+        request.onerror = () => reject(request.error)
+        
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
       })
 
       // Request sync when back online

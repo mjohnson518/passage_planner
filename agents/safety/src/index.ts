@@ -9,7 +9,7 @@ import { AreaChecker } from './utils/area-checker';
 import { SafetyAuditLogger } from './utils/audit-logger';
 import { WeatherPatternAnalyzer } from './utils/weather-pattern-analyzer';
 import { SafetyOverrideManager } from './utils/override-manager';
-import { CrewExperience } from '../../../shared/src/types/safety';
+import { CrewExperience } from '@passage-planner/shared';
 
 export class SafetyAgent {
   private server: Server;

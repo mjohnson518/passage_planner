@@ -31,7 +31,7 @@ export default function HomePage() {
             </h1>
             
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              helmwise helps you plan safer passages with real‑time weather, tidal predictions, and intelligent route optimization.
+              Helmwise helps you plan safer passages with real‑time weather, tidal predictions, and intelligent route optimization.
               Built by sailors, for sailors.
             </p>
             
@@ -161,7 +161,7 @@ export default function HomePage() {
             Ready to Plan Your Next Adventure?
           </h2>
              <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
-            Join thousands of sailors who trust helmwise for their voyages
+            Join thousands of sailors who trust Helmwise for their voyages
           </p>
           <div className="mt-10">
             <Link href="/signup">

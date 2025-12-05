@@ -86,14 +86,10 @@ export class SimpleOrchestrator {
       
       const routePromise = Promise.race([
         this.agents['route'].callTool('calculate_route', {
-          start: {
-            lat: request.departure.latitude,
-            lon: request.departure.longitude
-          },
-          end: {
-            lat: request.destination.latitude,
-            lon: request.destination.longitude
-          },
+          startLat: request.departure.latitude,
+          startLon: request.departure.longitude,
+          endLat: request.destination.latitude,
+          endLon: request.destination.longitude,
           speed: request.vessel?.cruiseSpeed || 5
         }),
         new Promise((_, reject) => 
@@ -116,10 +112,10 @@ export class SimpleOrchestrator {
       });
       
       const weatherDeparturePromise = Promise.race([
-        this.agents['weather'].callTool('get_marine_forecast', {
+        this.agents['weather'].callTool('get_marine_weather', {
           latitude: request.departure.latitude,
           longitude: request.departure.longitude,
-          hours: 72
+          days: 3
         }),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Weather fetch timeout')), agentTimeout)
@@ -130,10 +126,10 @@ export class SimpleOrchestrator {
       });
       
       const weatherArrivalPromise = Promise.race([
-        this.agents['weather'].callTool('get_marine_forecast', {
+        this.agents['weather'].callTool('get_marine_weather', {
           latitude: request.destination.latitude,
           longitude: request.destination.longitude,
-          hours: 72
+          days: 3
         }),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Weather fetch timeout')), agentTimeout)
@@ -144,11 +140,11 @@ export class SimpleOrchestrator {
       });
       
       const tidalDeparturePromise = Promise.race([
-        this.agents['tidal'].callTool('get_tide_predictions', {
+        this.agents['tidal'].callTool('get_tides', {
           latitude: request.departure.latitude,
           longitude: request.departure.longitude,
-          start_date: request.departure.time || new Date().toISOString(),
-          end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          startDate: request.departure.time || new Date().toISOString(),
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         }),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Tidal fetch timeout')), agentTimeout)
@@ -159,11 +155,11 @@ export class SimpleOrchestrator {
       });
       
       const tidalArrivalPromise = Promise.race([
-        this.agents['tidal'].callTool('get_tide_predictions', {
+        this.agents['tidal'].callTool('get_tides', {
           latitude: request.destination.latitude,
           longitude: request.destination.longitude,
-          start_date: request.departure.time || new Date().toISOString(),
-          end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          startDate: request.departure.time || new Date().toISOString(),
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         }),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Tidal fetch timeout')), agentTimeout)

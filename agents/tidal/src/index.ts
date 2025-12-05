@@ -63,15 +63,17 @@ export class TidalAgent extends BaseAgent {
           },
           {
             name: 'get_tides',
-            description: 'Get tidal predictions for a specific station',
+            description: 'Get tidal predictions for a location or specific station',
             inputSchema: {
               type: 'object',
               properties: {
-                stationId: { type: 'string' },
+                stationId: { type: 'string', description: 'Station ID or "nearest" to auto-find' },
+                latitude: { type: 'number', minimum: -90, maximum: 90 },
+                longitude: { type: 'number', minimum: -180, maximum: 180 },
                 startDate: { type: 'string', format: 'date-time' },
                 endDate: { type: 'string', format: 'date-time' }
               },
-              required: ['stationId', 'startDate', 'endDate']
+              required: ['startDate', 'endDate']
             }
           },
           {
@@ -153,11 +155,43 @@ export class TidalAgent extends BaseAgent {
   }
   
   private async getTides(args: any): Promise<any> {
-    const { stationId, startDate, endDate } = args;
+    const { stationId, latitude, longitude, startDate, endDate } = args;
     
     try {
+      // If stationId is 'nearest' or not provided, find nearest station by coordinates
+      let resolvedStationId = stationId;
+      if (!stationId || stationId === 'nearest') {
+        if (!latitude || !longitude) {
+          return {
+            content: [{
+              type: 'text',
+              text: 'Either stationId or latitude/longitude coordinates are required'
+            }],
+            isError: true
+          };
+        }
+        
+        // Find nearest station
+        const stations = await this.tidalService.findNearestStations(latitude, longitude, 50);
+        if (stations.length === 0) {
+          return {
+            content: [{
+              type: 'text',
+              text: `No tidal stations found within 50nm of ${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`
+            }],
+            isError: true
+          };
+        }
+        resolvedStationId = stations[0].id;
+        this.logger.info({ 
+          latitude, 
+          longitude, 
+          station: stations[0].name 
+        }, 'Found nearest tidal station');
+      }
+      
       const predictions = await this.tidalService.getTidalPredictions(
-        stationId,
+        resolvedStationId,
         new Date(startDate),
         new Date(endDate)
       );
@@ -166,7 +200,7 @@ export class TidalAgent extends BaseAgent {
         content: [
           {
             type: 'text',
-            text: this.formatTidalSummary(predictions, stationId)
+            text: this.formatTidalSummary(predictions, resolvedStationId)
           },
           {
             type: 'data',

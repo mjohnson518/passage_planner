@@ -1,4 +1,4 @@
-import { BaseAgent, NOAAWeatherService, CacheManager } from '@passage-planner/shared';
+import { BaseAgent, NOAAWeatherService, CacheManager, CircuitBreakerFactory } from '@passage-planner/shared';
 import { ValidationError, NOAAAPIError, toMCPError } from '@passage-planner/shared/dist/errors/mcp-errors';
 import { Logger } from 'pino';
 import pino from 'pino';
@@ -464,9 +464,6 @@ export class WeatherAgent extends BaseAgent {
     }
   }
 }
-
-// Import CircuitBreakerFactory for health checks
-const { CircuitBreakerFactory } = require('@passage-planner/shared/dist/services/resilience/circuit-breaker');
 
 // Start the agent if run directly
 if (require.main === module) {

@@ -13,6 +13,9 @@ import { getTidalData, getTidalDataGlobal, getNextTide, formatTidalPrediction } 
 import { analyzeSafety } from './services/safetyService';
 import { getPortInfo, findEmergencyHarbors } from './services/portService';
 
+// Export OrchestratorService for server.ts
+export { OrchestratorService } from './OrchestratorService';
+
 dotenv.config();
 
 const app = express();
