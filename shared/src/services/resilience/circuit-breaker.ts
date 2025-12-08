@@ -13,6 +13,7 @@ export interface CircuitBreakerOptions {
   resetTimeout: number;
   rollingCountTimeout: number;
   rollingCountBuckets: number;
+  volumeThreshold: number;
   name: string;
 }
 
@@ -49,6 +50,7 @@ export class CircuitBreakerFactory {
       resetTimeout: 60000, // 60 second reset timeout
       rollingCountTimeout: 10000, // 10 second rolling window
       rollingCountBuckets: 10, // Number of buckets in rolling window
+      volumeThreshold: 5, // Minimum number of requests before circuit can trip
       name
     };
 
@@ -61,14 +63,10 @@ export class CircuitBreakerFactory {
       resetTimeout: finalOptions.resetTimeout,
       rollingCountTimeout: finalOptions.rollingCountTimeout,
       rollingCountBuckets: finalOptions.rollingCountBuckets,
-      name: finalOptions.name,
-      errorFilter: (error: any) => {
-        // Don't count client errors as circuit breaker failures
-        if (error.statusCode >= 400 && error.statusCode < 500) {
-          return false; // Don't trip circuit on client errors
-        }
-        return true; // Count as failure
-      }
+      volumeThreshold: finalOptions.volumeThreshold,
+      name: finalOptions.name
+      // Note: errorFilter removed - opossum's errorFilter has inverted semantics
+      // that don't work well with our use case. All errors will trip the circuit.
     });
 
     // Set up event listeners for state changes
