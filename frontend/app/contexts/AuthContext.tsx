@@ -113,6 +113,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
+    if (!supabase) {
+      toast.error('Authentication not available', { 
+        description: 'Please configure Supabase environment variables.' 
+      })
+      throw new Error('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.')
+    }
+    
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -129,6 +136,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    if (!supabase) {
+      toast.error('Authentication not available')
+      return
+    }
+    
     try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error

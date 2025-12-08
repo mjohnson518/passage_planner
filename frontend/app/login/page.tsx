@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Anchor, Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { Anchor, Mail, Lock, Eye, EyeOff, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/ui/toaster'
-import { getSupabase } from '../lib/supabase-client'
+import { getSupabase, isSupabaseConfigured } from '../lib/supabase-client'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -20,6 +20,7 @@ export default function LoginPage() {
   const { signIn } = useAuth()
   const router = useRouter()
   const supabase = getSupabase()
+  const supabaseConfigured = isSupabaseConfigured()
 
   // Handle OAuth callback errors using window.location (avoids useSearchParams suspense issue)
   useEffect(() => {
@@ -127,6 +128,18 @@ export default function LoginPage() {
 
         {/* Login Form */}
         <div className="glass rounded-lg p-8">
+          {!supabaseConfigured && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-amber-800 text-sm font-medium">Authentication not configured</p>
+                <p className="text-amber-700 text-xs mt-1">
+                  Supabase environment variables are not set. Please configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
+                </p>
+              </div>
+            </div>
+          )}
+          
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
               <p className="text-red-600 text-sm">{error}</p>

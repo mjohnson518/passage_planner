@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Anchor, Mail, Lock, User, Eye, EyeOff, Check } from 'lucide-react'
+import { Anchor, Mail, Lock, User, Eye, EyeOff, Check, AlertTriangle } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
@@ -12,6 +12,7 @@ import { Checkbox } from '../components/ui/checkbox'
 import { useAuth } from '../contexts/AuthContext'
 import { cn } from '../lib/utils'
 import { analytics } from '../lib/analytics'
+import { isSupabaseConfigured } from '../lib/supabase-client'
 
 const passwordRequirements = [
   { regex: /.{8,}/, text: 'At least 8 characters' },
@@ -32,6 +33,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const { signUp } = useAuth()
   const router = useRouter()
+  const supabaseConfigured = isSupabaseConfigured()
 
   const passwordStrength = passwordRequirements.filter(req => 
     req.regex.test(formData.password)
@@ -92,6 +94,18 @@ export default function SignupPage() {
 
         {/* Signup Form */}
         <div className="glass rounded-lg p-8">
+          {!supabaseConfigured && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-amber-800 text-sm font-medium">Authentication not configured</p>
+                <p className="text-amber-700 text-xs mt-1">
+                  Supabase environment variables are not set. Please configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
+                </p>
+              </div>
+            </div>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
