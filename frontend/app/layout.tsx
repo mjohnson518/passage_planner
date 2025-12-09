@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { Providers } from './providers'
 import { MobileNav } from './components/navigation/MobileNav'
@@ -7,12 +6,10 @@ import { FeedbackWidget } from './components/FeedbackWidget'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
-
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'),
-  title: 'Helmwise - Sailing Passage Planning',
-  description: 'Plan your sailing passages with weather routing, tidal predictions, and comprehensive safety briefings.',
+  title: 'Helmwise - AI-Powered Sailing Passage Planning',
+  description: 'Plan safer sailing passages with real-time weather routing, tidal predictions, and comprehensive safety briefings. AI agents orchestrate your perfect voyage.',
   manifest: '/manifest.json',
   alternates: {
     canonical: '/',
@@ -28,7 +25,19 @@ export const metadata: Metadata = {
   },
   formatDetection: {
     telephone: false
-  }
+  },
+  openGraph: {
+    title: 'Helmwise - AI-Powered Sailing Passage Planning',
+    description: 'Plan safer sailing passages with real-time weather routing, tidal predictions, and comprehensive safety briefings.',
+    type: 'website',
+    locale: 'en_US',
+    siteName: 'Helmwise',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Helmwise - AI-Powered Sailing Passage Planning',
+    description: 'Plan safer sailing passages with real-time weather routing, tidal predictions, and comprehensive safety briefings.',
+  },
 }
 
 export const viewport: Viewport = {
@@ -36,7 +45,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: 'cover',
-  themeColor: '#0ea5e9'
+  themeColor: '#1a5f8c'
 }
 
 export default function RootLayout({
@@ -45,17 +54,32 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+    <html lang="en" suppressHydrationWarning className="scroll-smooth">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
+      <body className="font-body antialiased">
         <Providers>
           <ErrorBoundary>
-            {children}
+            <div className="min-h-screen flex flex-col">
+              {children}
+            </div>
           </ErrorBoundary>
           <MobileNav />
-          <Toaster richColors position="top-right" />
+          <Toaster
+            richColors
+            position="top-right"
+            toastOptions={{
+              className: 'font-body',
+              style: {
+                borderRadius: 'var(--radius)',
+              }
+            }}
+          />
           <FeedbackWidget />
         </Providers>
       </body>
     </html>
   )
-} 
+}

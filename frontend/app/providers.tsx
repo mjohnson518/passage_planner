@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { SessionProvider } from 'next-auth/react'
+import { ThemeProvider } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { Toaster } from 'sonner'
 import { AuthProvider } from './contexts/AuthContext'
@@ -11,7 +12,7 @@ import { useServiceWorker } from './hooks/useServiceWorker'
 
 function ServiceWorkerProvider({ children }: { children: React.ReactNode }) {
   const { isOffline } = useServiceWorker()
-  
+
   useEffect(() => {
     // Show offline indicator
     if (isOffline) {
@@ -20,7 +21,7 @@ function ServiceWorkerProvider({ children }: { children: React.ReactNode }) {
       document.body.classList.remove('offline')
     }
   }, [isOffline])
-  
+
   return <>{children}</>
 }
 
@@ -38,18 +39,25 @@ export function Providers({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <SessionProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <SocketProvider>
-            <ServiceWorkerProvider>
-              {children}
-            </ServiceWorkerProvider>
-          </SocketProvider>
-        </AuthProvider>
-        <Toaster richColors closeButton />
-        <ReactQueryDevtools initialIsOpen={false} />
-      </QueryClientProvider>
-    </SessionProvider>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange={false}
+    >
+      <SessionProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <SocketProvider>
+              <ServiceWorkerProvider>
+                {children}
+              </ServiceWorkerProvider>
+            </SocketProvider>
+          </AuthProvider>
+          <Toaster richColors closeButton />
+          <ReactQueryDevtools initialIsOpen={false} />
+        </QueryClientProvider>
+      </SessionProvider>
+    </ThemeProvider>
   )
-} 
+}

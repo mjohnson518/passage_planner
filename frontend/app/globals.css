@@ -1,51 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 201 82% 46%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 201 82% 46%;
-    --radius: 0.5rem;
+    /* Maritime Cartography Theme - Light Mode */
+    --background: 40 33% 98%;
+    --foreground: 220 30% 12%;
+    --card: 40 30% 99%;
+    --card-foreground: 220 30% 12%;
+    --popover: 40 30% 99%;
+    --popover-foreground: 220 30% 12%;
+
+    /* Deep Ocean Primary */
+    --primary: 205 85% 28%;
+    --primary-foreground: 40 30% 98%;
+
+    /* Warm Sand Secondary */
+    --secondary: 35 40% 92%;
+    --secondary-foreground: 220 30% 12%;
+
+    /* Compass Brass Accent */
+    --accent: 38 70% 50%;
+    --accent-foreground: 220 30% 12%;
+
+    --muted: 40 20% 94%;
+    --muted-foreground: 220 15% 45%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 40 20% 88%;
+    --input: 40 20% 88%;
+    --ring: 205 85% 28%;
+    --radius: 0.625rem;
+
+    /* Extended palette */
+    --ocean-deep: 205 85% 20%;
+    --ocean-mid: 205 75% 35%;
+    --ocean-light: 200 65% 55%;
+    --brass: 38 70% 50%;
+    --brass-dark: 35 65% 40%;
+    --parchment: 40 33% 96%;
+    --ink: 220 30% 15%;
+    --success: 158 64% 40%;
+    --warning: 38 92% 50%;
+    --chart-grid: 205 30% 85%;
   }
- 
+
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 201 82% 46%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 201 82% 46%;
+    /* Maritime Night Watch Theme */
+    --background: 220 35% 8%;
+    --foreground: 40 20% 92%;
+    --card: 220 32% 12%;
+    --card-foreground: 40 20% 92%;
+    --popover: 220 32% 12%;
+    --popover-foreground: 40 20% 92%;
+
+    --primary: 200 70% 55%;
+    --primary-foreground: 220 35% 8%;
+
+    --secondary: 220 25% 18%;
+    --secondary-foreground: 40 20% 92%;
+
+    --accent: 38 75% 55%;
+    --accent-foreground: 220 35% 8%;
+
+    --muted: 220 25% 15%;
+    --muted-foreground: 220 15% 60%;
+
+    --destructive: 0 65% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 25% 20%;
+    --input: 220 25% 20%;
+    --ring: 200 70% 55%;
+
+    --ocean-deep: 205 70% 50%;
+    --ocean-mid: 200 65% 45%;
+    --ocean-light: 195 60% 60%;
+    --brass: 38 75% 55%;
+    --brass-dark: 35 70% 45%;
+    --parchment: 40 15% 15%;
+    --ink: 40 20% 92%;
+    --success: 158 55% 50%;
+    --warning: 38 85% 55%;
+    --chart-grid: 220 20% 25%;
   }
 }
 
@@ -53,178 +95,545 @@
   * {
     @apply border-border;
   }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-family: 'Source Sans 3', system-ui, sans-serif;
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  /* Maritime Typography */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Libre Baskerville', Georgia, serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+
+  h1 { @apply text-4xl md:text-5xl lg:text-6xl; }
+  h2 { @apply text-3xl md:text-4xl; }
+  h3 { @apply text-xl md:text-2xl; }
+
+  /* Selection styling */
+  ::selection {
+    background: hsl(var(--primary) / 0.25);
+    color: hsl(var(--foreground));
   }
 }
 
 @layer components {
-  /* Glass morphism effect */
+  /* Nautical Chart Background Pattern */
+  .chart-grid {
+    background-image:
+      linear-gradient(hsl(var(--chart-grid) / 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--chart-grid) / 0.5) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .chart-grid-dense {
+    background-image:
+      linear-gradient(hsl(var(--chart-grid) / 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--chart-grid) / 0.3) 1px, transparent 1px),
+      linear-gradient(hsl(var(--chart-grid) / 0.15) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--chart-grid) / 0.15) 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+  }
+
+  /* Parchment texture overlay */
+  .parchment-texture {
+    position: relative;
+  }
+
+  .parchment-texture::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+
+  /* Glass morphism - refined */
   .glass {
-    @apply backdrop-blur-md bg-white/70 dark:bg-gray-900/70 border border-white/20 dark:border-gray-700/20;
+    @apply backdrop-blur-xl bg-background/80 border border-border/50;
+    box-shadow:
+      0 4px 6px -1px hsl(var(--foreground) / 0.05),
+      0 2px 4px -2px hsl(var(--foreground) / 0.05),
+      inset 0 1px 0 0 hsl(var(--background) / 0.5);
   }
-  
-  /* Button variants */
-  .btn-primary {
-    @apply bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md font-medium transition-all duration-200 hover:scale-105 active:scale-95;
+
+  .glass-heavy {
+    @apply backdrop-blur-2xl bg-background/90 border border-border/60;
+    box-shadow:
+      0 25px 50px -12px hsl(var(--foreground) / 0.15),
+      inset 0 1px 0 0 hsl(var(--background) / 0.5);
   }
-  
-  .btn-secondary {
-    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 px-4 py-2 rounded-md font-medium transition-all duration-200;
-  }
-  
-  .btn-ghost {
-    @apply hover:bg-accent hover:text-accent-foreground px-4 py-2 rounded-md font-medium transition-all duration-200;
-  }
-  
-  /* Card styles */
+
+  /* Maritime Cards */
   .card {
-    @apply rounded-lg border bg-card text-card-foreground shadow-sm;
+    @apply rounded-lg border bg-card text-card-foreground;
+    box-shadow:
+      0 1px 3px 0 hsl(var(--foreground) / 0.05),
+      0 1px 2px -1px hsl(var(--foreground) / 0.05);
   }
-  
+
+  .card-nautical {
+    @apply card relative overflow-hidden;
+    border-top-width: 3px;
+    border-top-color: hsl(var(--primary));
+  }
+
+  .card-nautical::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.08) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
   .card-hover {
-    @apply card hover:shadow-lg transition-shadow duration-200 cursor-pointer hover:border-primary/20;
+    @apply card transition-all duration-300 ease-out cursor-pointer;
   }
-  
-  /* Input styles */
+
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      0 20px 40px -15px hsl(var(--primary) / 0.15),
+      0 8px 16px -8px hsl(var(--foreground) / 0.1);
+    border-color: hsl(var(--primary) / 0.3);
+  }
+
+  /* Compass Rose Decorative Element */
+  .compass-rose {
+    position: relative;
+  }
+
+  .compass-rose::after {
+    content: '✧';
+    position: absolute;
+    font-size: 0.75em;
+    color: hsl(var(--brass));
+    opacity: 0.6;
+  }
+
+  /* Maritime Buttons */
+  .btn-maritime {
+    @apply relative inline-flex items-center justify-center font-semibold transition-all duration-200;
+    font-family: 'Source Sans 3', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.875rem;
+  }
+
+  .btn-primary {
+    @apply btn-maritime px-6 py-3 rounded-md;
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--ocean-deep)) 100%);
+    color: hsl(var(--primary-foreground));
+    box-shadow:
+      0 4px 14px 0 hsl(var(--primary) / 0.35),
+      inset 0 1px 0 0 hsl(var(--ocean-light) / 0.2);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 6px 20px 0 hsl(var(--primary) / 0.45),
+      inset 0 1px 0 0 hsl(var(--ocean-light) / 0.3);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    @apply btn-maritime px-6 py-3 rounded-md border-2;
+    border-color: hsl(var(--primary) / 0.3);
+    background: hsl(var(--background));
+    color: hsl(var(--primary));
+  }
+
+  .btn-secondary:hover {
+    border-color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.05);
+  }
+
+  .btn-brass {
+    @apply btn-maritime px-6 py-3 rounded-md;
+    background: linear-gradient(135deg, hsl(var(--brass)) 0%, hsl(var(--brass-dark)) 100%);
+    color: hsl(var(--ink));
+    box-shadow:
+      0 4px 14px 0 hsl(var(--brass) / 0.35),
+      inset 0 1px 0 0 hsl(40 80% 70% / 0.3);
+  }
+
+  .btn-brass:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 6px 20px 0 hsl(var(--brass) / 0.45),
+      inset 0 1px 0 0 hsl(40 80% 70% / 0.4);
+  }
+
+  .btn-ghost {
+    @apply btn-maritime px-4 py-2 rounded-md;
+    background: transparent;
+    color: hsl(var(--foreground));
+  }
+
+  .btn-ghost:hover {
+    background: hsl(var(--muted));
+  }
+
+  /* Form Inputs - Maritime Style */
   .input {
-    @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply flex h-11 w-full rounded-md border border-input bg-background px-4 py-2 text-sm transition-all duration-200;
+    box-shadow: inset 0 1px 2px hsl(var(--foreground) / 0.05);
   }
-  
-  /* Loading states */
-  .skeleton {
-    @apply animate-pulse bg-muted rounded;
+
+  .input:focus {
+    @apply outline-none ring-2 ring-primary/20 border-primary;
   }
-  
-  /* Badge styles */
+
+  .input::placeholder {
+    @apply text-muted-foreground;
+  }
+
+  /* Badges */
   .badge {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors;
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold transition-colors;
+    font-family: 'Source Sans 3', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
-  
+
   .badge-primary {
-    @apply badge bg-primary/10 text-primary hover:bg-primary/20;
+    @apply badge;
+    background: hsl(var(--primary) / 0.12);
+    color: hsl(var(--primary));
+    border: 1px solid hsl(var(--primary) / 0.2);
   }
-  
+
   .badge-success {
-    @apply badge bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400;
+    @apply badge;
+    background: hsl(var(--success) / 0.12);
+    color: hsl(var(--success));
+    border: 1px solid hsl(var(--success) / 0.2);
   }
-  
+
   .badge-warning {
-    @apply badge bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400;
+    @apply badge;
+    background: hsl(var(--warning) / 0.12);
+    color: hsl(var(--brass-dark));
+    border: 1px solid hsl(var(--warning) / 0.3);
   }
-  
+
   .badge-error {
-    @apply badge bg-destructive/10 text-destructive hover:bg-destructive/20;
+    @apply badge;
+    background: hsl(var(--destructive) / 0.12);
+    color: hsl(var(--destructive));
+    border: 1px solid hsl(var(--destructive) / 0.2);
+  }
+
+  .badge-brass {
+    @apply badge;
+    background: linear-gradient(135deg, hsl(var(--brass) / 0.15) 0%, hsl(var(--brass-dark) / 0.1) 100%);
+    color: hsl(var(--brass-dark));
+    border: 1px solid hsl(var(--brass) / 0.3);
+  }
+
+  /* Loading States */
+  .skeleton {
+    @apply animate-pulse rounded;
+    background: linear-gradient(90deg, hsl(var(--muted)) 0%, hsl(var(--muted-foreground) / 0.1) 50%, hsl(var(--muted)) 100%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Dividers */
+  .divider-nautical {
+    @apply relative flex items-center justify-center my-8;
+  }
+
+  .divider-nautical::before,
+  .divider-nautical::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, hsl(var(--border)), transparent);
+  }
+
+  .divider-nautical::before {
+    margin-right: 1rem;
+  }
+
+  .divider-nautical::after {
+    margin-left: 1rem;
+  }
+
+  /* Section styling */
+  .section-hero {
+    @apply relative overflow-hidden;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -20%, hsl(var(--primary) / 0.08) 0%, transparent 50%),
+      linear-gradient(to bottom, hsl(var(--background)) 0%, hsl(var(--parchment)) 100%);
+  }
+
+  .section-alt {
+    @apply relative;
+    background: hsl(var(--secondary) / 0.5);
+  }
+
+  .section-ocean {
+    @apply relative overflow-hidden;
+    background: linear-gradient(135deg, hsl(var(--ocean-deep)) 0%, hsl(var(--primary)) 50%, hsl(var(--ocean-mid)) 100%);
+    color: hsl(var(--primary-foreground));
+  }
+
+  .section-ocean::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    pointer-events: none;
   }
 }
 
 @layer utilities {
-  /* Text gradient */
+  /* Text Utilities */
   .text-gradient {
-    background: linear-gradient(to right, #0ea5e9, #0284c7);
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--ocean-light)) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-  
+
+  .text-gradient-brass {
+    background: linear-gradient(135deg, hsl(var(--brass)) 0%, hsl(var(--brass-dark)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Font utilities */
+  .font-display {
+    font-family: 'Libre Baskerville', Georgia, serif;
+  }
+
+  .font-body {
+    font-family: 'Source Sans 3', system-ui, sans-serif;
+  }
+
   /* Smooth scrolling */
   .smooth-scroll {
     scroll-behavior: smooth;
   }
-  
+
   /* No scrollbar */
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
-  
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  
-  /* Focus ring */
+
+  /* Focus styling */
   .focus-ring {
     @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background;
   }
-  
-  /* Ocean wave animation */
-  .ocean-wave {
-    background: linear-gradient(
-      45deg,
-      #0ea5e9 25%,
-      #0284c7 25%,
-      #0284c7 50%,
-      #0ea5e9 50%,
-      #0ea5e9 75%,
-      #0284c7 75%,
-      #0284c7
-    );
-    background-size: 40px 40px;
-    animation: wave 2s linear infinite;
+
+  /* Wave Animation - Refined */
+  .wave-lines {
+    position: relative;
+    overflow: hidden;
   }
-  
-  @keyframes wave {
-    0% {
-      background-position: 0 0;
+
+  .wave-lines::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background:
+      repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 2px,
+        hsl(var(--primary) / 0.2) 2px,
+        hsl(var(--primary) / 0.2) 4px
+      );
+    animation: wave-shift 3s linear infinite;
+  }
+
+  @keyframes wave-shift {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(40px); }
+  }
+
+  /* Compass animation */
+  .compass-spin {
+    animation: compass-needle 4s ease-in-out infinite;
+  }
+
+  @keyframes compass-needle {
+    0%, 100% { transform: rotate(-5deg); }
+    50% { transform: rotate(5deg); }
+  }
+
+  /* Floating animation - subtle */
+  .float {
+    animation: float-gentle 6s ease-in-out infinite;
+  }
+
+  @keyframes float-gentle {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  /* Stagger animations for lists */
+  .stagger-fade-in > * {
+    opacity: 0;
+    animation: fade-in-up 0.5s ease-out forwards;
+  }
+
+  .stagger-fade-in > *:nth-child(1) { animation-delay: 0.1s; }
+  .stagger-fade-in > *:nth-child(2) { animation-delay: 0.2s; }
+  .stagger-fade-in > *:nth-child(3) { animation-delay: 0.3s; }
+  .stagger-fade-in > *:nth-child(4) { animation-delay: 0.4s; }
+  .stagger-fade-in > *:nth-child(5) { animation-delay: 0.5s; }
+  .stagger-fade-in > *:nth-child(6) { animation-delay: 0.6s; }
+
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
     }
-    100% {
-      background-position: 40px 40px;
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
   }
-  
-  /* Primary button styles */
-  .btn-primary {
-    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+
+  /* Entrance animation */
+  .animate-in {
+    animation: fade-in-up 0.6s ease-out;
   }
-  
+
+  /* Pulse glow effect */
+  .pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+    }
+    50% {
+      box-shadow: 0 0 20px 10px hsl(var(--primary) / 0);
+    }
+  }
+
+  /* Status indicator */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .status-dot-active {
+    @apply status-dot bg-success;
+    box-shadow: 0 0 0 3px hsl(var(--success) / 0.2);
+  }
+
+  .status-dot-warning {
+    @apply status-dot bg-warning;
+    box-shadow: 0 0 0 3px hsl(var(--warning) / 0.2);
+  }
+
+  .status-dot-error {
+    @apply status-dot bg-destructive;
+    box-shadow: 0 0 0 3px hsl(var(--destructive) / 0.2);
+  }
+
+  /* Floating action button */
+  .fab {
+    @apply fixed bottom-24 right-6 z-40 rounded-full shadow-lg transition-all duration-300;
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--ocean-deep)) 100%);
+    color: hsl(var(--primary-foreground));
+    box-shadow:
+      0 8px 24px -4px hsl(var(--primary) / 0.4),
+      inset 0 1px 0 0 hsl(var(--ocean-light) / 0.2);
+  }
+
+  .fab:hover {
+    transform: scale(1.1);
+    box-shadow:
+      0 12px 32px -4px hsl(var(--primary) / 0.5),
+      inset 0 1px 0 0 hsl(var(--ocean-light) / 0.3);
+  }
+
+  .fab:active {
+    transform: scale(1.05);
+  }
+
   /* Mobile-optimized styles */
   @media (max-width: 768px) {
-    /* Prevent horizontal scroll */
     html, body {
       overflow-x: hidden;
     }
-    
-    /* Improve touch targets */
+
     button, a {
       min-height: 44px;
     }
-    
-    /* Adjust typography for mobile */
-    h1 {
-      @apply text-3xl sm:text-4xl;
-    }
-    
-    h2 {
-      @apply text-2xl sm:text-3xl;
-    }
-    
-    h3 {
-      @apply text-xl sm:text-2xl;
-    }
-    
-    /* Reduce spacing on mobile */
+
     section {
-      @apply py-12 sm:py-20;
+      @apply py-12 sm:py-16 lg:py-20;
     }
   }
-  
+
   /* Safe area insets for notched devices */
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
-  
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
   /* Improve tap highlight on mobile */
   * {
     -webkit-tap-highlight-color: transparent;
   }
-  
-  /* Smooth scrolling on iOS */
+
+  /* iOS scroll */
   .ios-scroll {
     -webkit-overflow-scrolling: touch;
   }
-  
-  /* Floating action button */
-  .fab {
-    @apply fixed bottom-20 right-4 lg:bottom-8 lg:right-8 z-40 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 active:scale-95;
+
+  /* Print styles */
+  @media print {
+    .no-print {
+      display: none !important;
+    }
   }
-} 
+}
