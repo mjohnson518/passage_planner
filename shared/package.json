@@ -12,7 +12,7 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.20.1",
+    "@modelcontextprotocol/sdk": "^1.24.0",
     "@types/helmet": "^4.0.0",
     "@types/opossum": "^8.1.9",
     "@types/p-retry": "^3.0.1",

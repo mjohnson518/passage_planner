@@ -16,7 +16,23 @@ interface WeatherForecast {
   pressure: number;
   cloudCover: number;
   source?: string;
-  confidence?: string;
+  confidence: 'high' | 'medium' | 'low' | 'unknown';
+  forecastHorizonHours?: number;
+}
+
+// SAFETY CRITICAL: Data freshness tracking for maritime safety
+interface CachedWeatherData<T> {
+  data: T;
+  fetchedAt: number; // Unix timestamp
+  source: string;
+  expiresAt: number;
+}
+
+interface DataFreshnessResult {
+  isStale: boolean;
+  ageMinutes: number;
+  maxAgeMinutes: number;
+  warning?: string;
 }
 
 interface MarineZone {
@@ -61,6 +77,64 @@ export class WeatherAgent extends BaseAgent {
     } else {
       console.log('UK Met Office API key not configured - using NOAA only (will auto-enable when key provided)');
     }
+  }
+
+  // SAFETY CRITICAL: Maximum data age thresholds in minutes
+  // Stale weather data is dangerous for maritime safety
+  private readonly DATA_FRESHNESS_LIMITS = {
+    forecast: 30, // Weather forecasts: stale after 30 minutes
+    warnings: 10, // Weather warnings: stale after 10 minutes (critical)
+    cyclones: 30, // Tropical cyclone data: stale after 30 minutes
+    seaState: 30, // Sea state analysis: stale after 30 minutes
+  };
+
+  /**
+   * SAFETY CRITICAL: Validate data freshness and warn if stale
+   * Stale weather data can lead to dangerous navigation decisions
+   */
+  private validateDataFreshness(
+    fetchedAt: number,
+    dataType: keyof typeof this.DATA_FRESHNESS_LIMITS
+  ): DataFreshnessResult {
+    const now = Date.now();
+    const ageMs = now - fetchedAt;
+    const ageMinutes = Math.round(ageMs / (60 * 1000));
+    const maxAgeMinutes = this.DATA_FRESHNESS_LIMITS[dataType];
+    const isStale = ageMinutes > maxAgeMinutes;
+
+    return {
+      isStale,
+      ageMinutes,
+      maxAgeMinutes,
+      warning: isStale
+        ? `⚠️ STALE DATA WARNING: Weather data is ${ageMinutes} minutes old (max recommended: ${maxAgeMinutes} min). ` +
+          `Conditions may have changed significantly. Refresh data before making navigation decisions.`
+        : undefined,
+    };
+  }
+
+  /**
+   * Calculate forecast confidence based on horizon and data age
+   * Confidence decreases with both forecast horizon and data staleness
+   */
+  private calculateConfidence(
+    forecastHorizonHours: number,
+    dataAgeMinutes: number
+  ): 'high' | 'medium' | 'low' | 'unknown' {
+    // Confidence degrades with forecast horizon
+    // 0-24h: generally high confidence
+    // 24-72h: medium confidence
+    // 72h+: low confidence
+
+    // Additional penalty for stale data
+    const stalenessPenalty = dataAgeMinutes > 30 ? 1 : dataAgeMinutes > 15 ? 0.5 : 0;
+
+    const effectiveHorizon = forecastHorizonHours + (stalenessPenalty * 24);
+
+    if (effectiveHorizon <= 24) return 'high';
+    if (effectiveHorizon <= 72) return 'medium';
+    if (effectiveHorizon <= 168) return 'low'; // Up to 7 days
+    return 'unknown';
   }
 
   getTools(): Tool[] {
@@ -205,23 +279,55 @@ export class WeatherAgent extends BaseAgent {
     }
   }
 
-  private async getMarineForecast(lat: number, lon: number, hours: number = 72): Promise<WeatherForecast[]> {
+  private async getMarineForecast(lat: number, lon: number, hours: number = 72): Promise<{
+    forecasts: WeatherForecast[];
+    metadata: {
+      fetchedAt: string;
+      dataAgeMinutes: number;
+      freshnessStatus: DataFreshnessResult;
+      source: string;
+    };
+  }> {
     const cacheKey = this.generateCacheKey('forecast', lat.toString(), lon.toString(), hours.toString());
-    const cached = await this.getCachedData(cacheKey);
-    if (cached) return cached;
+    const cached = await this.getCachedData<CachedWeatherData<WeatherForecast[]>>(cacheKey);
+
+    // If cached, validate freshness and return with warning if stale
+    if (cached && cached.fetchedAt) {
+      const freshnessStatus = this.validateDataFreshness(cached.fetchedAt, 'forecast');
+      const dataAgeMinutes = freshnessStatus.ageMinutes;
+
+      // Update confidence based on data age
+      const forecasts = cached.data.map((f, idx) => ({
+        ...f,
+        confidence: this.calculateConfidence(idx, dataAgeMinutes),
+        forecastHorizonHours: idx,
+      }));
+
+      return {
+        forecasts,
+        metadata: {
+          fetchedAt: new Date(cached.fetchedAt).toISOString(),
+          dataAgeMinutes,
+          freshnessStatus,
+          source: cached.source,
+        },
+      };
+    }
+
+    const fetchedAt = Date.now();
 
     try {
-      return await this.withRetry(async () => {
+      const forecasts = await this.withRetry(async () => {
         // Get NOAA point forecast
         const pointResponse = await axios.get(
           `https://api.weather.gov/points/${lat},${lon}`
         );
         const forecastUrl = pointResponse.data.properties.forecastGridData;
-        
+
         // Get gridded forecast data
         const forecastResponse = await axios.get(forecastUrl);
         const forecastData = forecastResponse.data.properties;
-        
+
         // Get marine-specific data from OpenWeather Marine API
         const marineResponse = await axios.get(
           `https://api.openweathermap.org/data/2.5/onecall`,
@@ -237,12 +343,12 @@ export class WeatherAgent extends BaseAgent {
         );
 
         // Combine and format forecast data
-        const forecasts: WeatherForecast[] = [];
+        const forecastResults: WeatherForecast[] = [];
         const hourlyData = marineResponse.data.hourly.slice(0, hours);
-        
+
         for (let i = 0; i < hourlyData.length; i++) {
           const hour = hourlyData[i];
-          forecasts.push({
+          forecastResults.push({
             time: new Date(hour.dt * 1000),
             windSpeed: hour.wind_speed * 1.94384, // m/s to knots
             windDirection: hour.wind_deg,
@@ -254,13 +360,36 @@ export class WeatherAgent extends BaseAgent {
             visibility: hour.visibility / 1000, // meters to km
             temperature: hour.temp,
             pressure: hour.pressure,
-            cloudCover: hour.clouds
+            cloudCover: hour.clouds,
+            confidence: this.calculateConfidence(i, 0), // Fresh data, age = 0
+            forecastHorizonHours: i,
+            source: 'NOAA/OpenWeather',
           });
         }
 
-        await this.setCachedData(cacheKey, forecasts);
-        return forecasts;
+        return forecastResults;
       });
+
+      // Cache with timestamp metadata
+      const cacheData: CachedWeatherData<WeatherForecast[]> = {
+        data: forecasts,
+        fetchedAt,
+        source: 'NOAA/OpenWeather',
+        expiresAt: fetchedAt + (this.DATA_FRESHNESS_LIMITS.forecast * 60 * 1000),
+      };
+      await this.setCachedData(cacheKey, cacheData);
+
+      const freshnessStatus = this.validateDataFreshness(fetchedAt, 'forecast');
+
+      return {
+        forecasts,
+        metadata: {
+          fetchedAt: new Date(fetchedAt).toISOString(),
+          dataAgeMinutes: 0,
+          freshnessStatus,
+          source: 'NOAA/OpenWeather',
+        },
+      };
     } catch (error: any) {
       await this.reportHealth('degraded', { error: error.message });
       throw error;

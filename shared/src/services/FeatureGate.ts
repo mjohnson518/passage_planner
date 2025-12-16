@@ -1,6 +1,25 @@
 import { Subscription, SubscriptionTier, SubscriptionLimits } from '../types/core';
+import { Pool } from 'pg';
+
+// Database pool - must be initialized before use
+let dbPool: Pool | null = null;
 
 export class FeatureGate {
+  /**
+   * Initialize the FeatureGate with a database connection
+   * MUST be called before any usage tracking methods
+   */
+  static initialize(pool: Pool): void {
+    dbPool = pool;
+  }
+
+  /**
+   * Check if FeatureGate has been initialized with a database connection
+   */
+  static isInitialized(): boolean {
+    return dbPool !== null;
+  }
+
   private static readonly LIMITS: Record<SubscriptionTier, SubscriptionLimits> = {
     free: {
       passagesPerMonth: 2,
@@ -128,18 +147,118 @@ export class FeatureGate {
     return this.LIMITS[tier].forecastDays;
   }
   
+  /**
+   * Get usage count for the current month
+   * Queries the usage_events table for actions within the current calendar month
+   */
   private static async getMonthlyUsage(userId: string, action: string): Promise<number> {
-    // This would query the database for usage metrics
-    // For now, return a placeholder
-    return 0;
+    if (!dbPool) {
+      console.warn('FeatureGate: Database not initialized, cannot track usage. Returning 0.');
+      return 0;
+    }
+
+    try {
+      const result = await dbPool.query(
+        `SELECT COUNT(*) as count
+         FROM usage_events
+         WHERE user_id = $1
+           AND action = $2
+           AND created_at >= date_trunc('month', CURRENT_DATE)`,
+        [userId, action]
+      );
+      return parseInt(result.rows[0]?.count || '0', 10);
+    } catch (error) {
+      console.error('FeatureGate: Failed to get monthly usage:', error);
+      // Fail open - if we can't track, allow the action
+      // but log for monitoring
+      return 0;
+    }
   }
-  
+
+  /**
+   * Get usage count for the current day (UTC)
+   * Queries the usage_events table for actions within the current calendar day
+   */
   private static async getDailyUsage(userId: string, action: string): Promise<number> {
-    // This would query the database for usage metrics
-    // For now, return a placeholder
-    return 0;
+    if (!dbPool) {
+      console.warn('FeatureGate: Database not initialized, cannot track usage. Returning 0.');
+      return 0;
+    }
+
+    try {
+      const result = await dbPool.query(
+        `SELECT COUNT(*) as count
+         FROM usage_events
+         WHERE user_id = $1
+           AND action = $2
+           AND created_at >= date_trunc('day', CURRENT_DATE)`,
+        [userId, action]
+      );
+      return parseInt(result.rows[0]?.count || '0', 10);
+    } catch (error) {
+      console.error('FeatureGate: Failed to get daily usage:', error);
+      // Fail open - if we can't track, allow the action
+      return 0;
+    }
   }
-  
+
+  /**
+   * Record a usage event for tracking against subscription limits
+   * Call this after a user successfully performs a billable action
+   */
+  static async incrementUsage(
+    userId: string,
+    action: string,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    if (!dbPool) {
+      console.warn('FeatureGate: Database not initialized, cannot record usage.');
+      return;
+    }
+
+    try {
+      await dbPool.query(
+        `INSERT INTO usage_events (user_id, action, metadata, created_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [userId, action, metadata ? JSON.stringify(metadata) : null]
+      );
+    } catch (error) {
+      console.error('FeatureGate: Failed to record usage:', error);
+      // Don't throw - usage tracking failure shouldn't break the user's action
+    }
+  }
+
+  /**
+   * Get detailed usage summary for a user
+   * Useful for displaying in user dashboard
+   */
+  static async getUsageSummary(
+    userId: string,
+    subscription?: Subscription
+  ): Promise<{
+    passagesThisMonth: number;
+    passagesLimit: number;
+    apiCallsToday: number;
+    apiCallsLimit: number;
+    resetAt: Date;
+  }> {
+    const tier = subscription?.tier || 'free';
+    const limits = this.LIMITS[tier];
+
+    const [passagesThisMonth, apiCallsToday] = await Promise.all([
+      this.getMonthlyUsage(userId, 'passage_planned'),
+      this.getDailyUsage(userId, 'api_call'),
+    ]);
+
+    return {
+      passagesThisMonth,
+      passagesLimit: limits.passagesPerMonth,
+      apiCallsToday,
+      apiCallsLimit: limits.apiCallsPerDay,
+      resetAt: this.getNextResetTime(),
+    };
+  }
+
   private static getNextResetTime(): Date {
     const now = new Date();
     const tomorrow = new Date(now);

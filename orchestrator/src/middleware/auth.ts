@@ -23,7 +23,15 @@ export class AuthMiddleware {
   constructor(db: Pool, logger: Logger) {
     this.db = db;
     this.logger = logger.child({ middleware: 'auth' });
-    this.jwtSecret = process.env.JWT_SECRET || 'development-secret';
+
+    // SECURITY: JWT_SECRET is required - never use fallback in production
+    if (!process.env.JWT_SECRET) {
+      throw new Error(
+        'JWT_SECRET environment variable is required. ' +
+        'Generate a secure secret with: openssl rand -base64 32'
+      );
+    }
+    this.jwtSecret = process.env.JWT_SECRET;
   }
 
   async authenticate(req: AuthRequest, res: Response, next: NextFunction) {
