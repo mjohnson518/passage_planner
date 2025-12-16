@@ -1,19 +1,44 @@
 /**
  * Area Checker Utility
- * 
+ *
  * SAFETY CRITICAL: Checks if routes intersect restricted or hazardous areas.
  * Uses point-in-polygon algorithms to detect area conflicts.
+ *
+ * Supports both:
+ * - Database-backed areas (production) - loaded from PostgreSQL
+ * - Default areas (fallback) - hardcoded for resilience
  */
 
+import { Pool } from 'pg';
 import { Waypoint, RestrictedArea, GeographicBounds } from '../../../../shared/src/types/safety';
+
+// Database pool for loading restricted areas
+let dbPool: Pool | null = null;
+
+/**
+ * Initialize the AreaChecker with database support
+ * Call this at application startup to enable database loading
+ */
+export function initializeAreaCheckerDatabase(pool: Pool): void {
+  dbPool = pool;
+}
 
 export class AreaChecker {
   private restrictedAreas: RestrictedArea[] = [];
+  private lastDatabaseRefresh: Date | null = null;
+  private readonly REFRESH_INTERVAL_MS = 5 * 60 * 1000; // Refresh every 5 minutes
 
   constructor() {
-    // Initialize with default restricted areas
-    // In production, this would load from a database
+    // Initialize with default restricted areas (fallback)
     this.loadDefaultRestrictedAreas();
+  }
+
+  /**
+   * Initialize and load areas from database
+   * SAFETY CRITICAL: Ensures we have the latest restricted area data
+   */
+  async initialize(): Promise<void> {
+    await this.refreshFromDatabase();
   }
 
   /**
@@ -95,6 +120,77 @@ export class AreaChecker {
         penalty: 'Violation of COLREGS Rule 10',
       },
     ];
+  }
+
+  /**
+   * Refresh restricted areas from database
+   * Merges database areas with default fallback areas
+   */
+  async refreshFromDatabase(): Promise<void> {
+    if (!dbPool) {
+      return; // No database configured, use defaults only
+    }
+
+    try {
+      const result = await dbPool.query(
+        `SELECT
+          id, name, type, description, restrictions, active,
+          bounds_north, bounds_south, bounds_east, bounds_west,
+          polygon, schedule_start, schedule_end, schedule_recurring,
+          authority, penalty, source, last_verified, created_at, updated_at
+        FROM restricted_areas
+        WHERE active = true`
+      );
+
+      const dbAreas: RestrictedArea[] = result.rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        bounds: row.bounds_north != null ? {
+          north: row.bounds_north,
+          south: row.bounds_south,
+          east: row.bounds_east,
+          west: row.bounds_west,
+        } : undefined,
+        polygon: row.polygon ? JSON.parse(row.polygon) : undefined,
+        description: row.description,
+        restrictions: row.restrictions || [],
+        active: row.active,
+        schedule: row.schedule_start ? {
+          start: row.schedule_start,
+          end: row.schedule_end,
+          recurring: row.schedule_recurring,
+        } : undefined,
+        authority: row.authority,
+        penalty: row.penalty,
+      }));
+
+      // Merge database areas with defaults (database takes precedence by ID)
+      const defaultAreas = this.restrictedAreas.filter(
+        (a) => !dbAreas.find((db) => db.id === a.id)
+      );
+      this.restrictedAreas = [...dbAreas, ...defaultAreas];
+      this.lastDatabaseRefresh = new Date();
+
+    } catch (error) {
+      console.error('Failed to refresh restricted areas from database:', error);
+      // Keep using current areas (defaults or previous DB load)
+    }
+  }
+
+  /**
+   * Ensure areas are fresh, refresh if needed
+   */
+  private async ensureFreshData(): Promise<void> {
+    if (!dbPool) return;
+
+    const shouldRefresh =
+      !this.lastDatabaseRefresh ||
+      Date.now() - this.lastDatabaseRefresh.getTime() > this.REFRESH_INTERVAL_MS;
+
+    if (shouldRefresh) {
+      await this.refreshFromDatabase();
+    }
   }
 
   /**
@@ -240,6 +336,85 @@ export class AreaChecker {
    */
   getAreasByType(type: RestrictedArea['type']): RestrictedArea[] {
     return this.restrictedAreas.filter(a => a.type === type && a.active);
+  }
+
+  /**
+   * Query restricted areas by geographic bounds from database
+   * SAFETY CRITICAL: Used to find all areas in a passage region
+   */
+  async queryAreasByBounds(bounds: GeographicBounds): Promise<RestrictedArea[]> {
+    // First ensure we have fresh data
+    await this.ensureFreshData();
+
+    // Filter in-memory areas by bounds
+    return this.restrictedAreas.filter((area) => {
+      if (!area.active) return false;
+
+      if (area.bounds) {
+        // Check if area bounds overlap with query bounds
+        return this.boundsOverlap(area.bounds, bounds);
+      } else if (area.polygon && area.polygon.length > 0) {
+        // Check if any polygon point is within bounds
+        return area.polygon.some((p) => this.isPointInBounds(p, bounds));
+      }
+      return false;
+    });
+  }
+
+  /**
+   * Check if two bounds rectangles overlap
+   */
+  private boundsOverlap(a: GeographicBounds, b: GeographicBounds): boolean {
+    return !(
+      a.east < b.west ||
+      a.west > b.east ||
+      a.north < b.south ||
+      a.south > b.north
+    );
+  }
+
+  /**
+   * Get restricted areas near a point (within a given radius in nm)
+   */
+  async queryAreasNearPoint(
+    point: Waypoint,
+    radiusNm: number = 50
+  ): Promise<Array<{ area: RestrictedArea; distanceNm: number }>> {
+    await this.ensureFreshData();
+
+    const results: Array<{ area: RestrictedArea; distanceNm: number }> = [];
+
+    for (const area of this.restrictedAreas) {
+      if (!area.active) continue;
+
+      const distance = this.calculateDistanceToArea(point, area);
+      if (distance <= radiusNm) {
+        results.push({ area, distanceNm: distance });
+      }
+    }
+
+    // Sort by distance
+    return results.sort((a, b) => a.distanceNm - b.distanceNm);
+  }
+
+  /**
+   * Get count of areas by type (for analytics)
+   */
+  getAreaCountsByType(): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const area of this.restrictedAreas) {
+      if (area.active) {
+        counts[area.type] = (counts[area.type] || 0) + 1;
+      }
+    }
+    return counts;
+  }
+
+  /**
+   * Get last refresh timestamp
+   */
+  getLastRefreshTime(): Date | null {
+    return this.lastDatabaseRefresh;
   }
 
   /**

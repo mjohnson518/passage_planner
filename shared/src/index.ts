@@ -35,6 +35,8 @@ export {
   Port as PortInfo 
 } from './services/PortDatabaseService';
 export * from './services/SafetyService';
+export * from './services/BathymetryService';
+export * from './services/NOAANavigationWarningsService';
 
 // Export middleware
 export * from './middleware/InputValidation';

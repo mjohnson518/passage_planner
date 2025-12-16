@@ -9,19 +9,21 @@ import { AreaChecker } from './utils/area-checker';
 import { SafetyAuditLogger } from './utils/audit-logger';
 import { WeatherPatternAnalyzer } from './utils/weather-pattern-analyzer';
 import { SafetyOverrideManager } from './utils/override-manager';
-import { CrewExperience } from '@passage-planner/shared';
+import { CrewExperience, BathymetryService, DepthResult, NOAANavigationWarningsService, CacheManager } from '@passage-planner/shared';
 
 export class SafetyAgent {
   private server: Server;
   private noaaApiKey: string;
   protected logger: Logger;
-  
+
   // Production-grade utilities
   private depthCalculator: DepthCalculator;
   private areaChecker: AreaChecker;
   private auditLogger: SafetyAuditLogger;
   private weatherAnalyzer: WeatherPatternAnalyzer;
   private overrideManager: SafetyOverrideManager;
+  private bathymetryService: BathymetryService;
+  private navigationWarningsService: NOAANavigationWarningsService;
 
   constructor() {
     this.logger = pino({
@@ -52,7 +54,12 @@ export class SafetyAgent {
     this.auditLogger = new SafetyAuditLogger(this.logger);
     this.weatherAnalyzer = new WeatherPatternAnalyzer();
     this.overrideManager = new SafetyOverrideManager(this.logger);
-    
+    this.bathymetryService = new BathymetryService(this.logger);
+
+    // Create cache for navigation warnings service
+    const navWarningsCache = new CacheManager(this.logger);
+    this.navigationWarningsService = new NOAANavigationWarningsService(navWarningsCache, this.logger);
+
     this.setupTools();
   }
 
@@ -338,17 +345,52 @@ export class SafetyAgent {
 
       // Check for shallow water hazards if vessel draft is provided
       if (vessel_draft) {
-        // In production, this would query actual depth database
-        // For now, simulate depth checking
-        const simulatedDepth = 15 + Math.random() * 20; // 15-35 feet
-        const simulatedTide = -1 + Math.random() * 3; // -1 to +2 feet
-        
         try {
+          // SAFETY CRITICAL: Query real bathymetric data from NOAA GEBCO/ETOPO
+          const depthResult = await this.bathymetryService.getDepth(
+            segment.from.latitude,
+            segment.from.longitude
+          );
+
+          // Log if we couldn't get reliable depth data
+          if (isNaN(depthResult.depth) || depthResult.confidence === 'unknown') {
+            this.logger.warn({
+              location: segment.from,
+              source: depthResult.source,
+              confidence: depthResult.confidence,
+              requestId,
+            }, 'SAFETY WARNING: Unable to obtain reliable depth data for segment');
+
+            warnings.push({
+              id: uuidv4(),
+              type: 'data_unavailable',
+              location: segment.from,
+              description: 'Unable to obtain reliable depth data for this area. Exercise extreme caution.',
+              severity: 'warning',
+              issued: new Date().toISOString(),
+              source: 'BathymetryService',
+            });
+          }
+
+          // Convert meters to feet for consistency with vessel draft (typically in feet)
+          const chartedDepthFeet = depthResult.depthFeet;
+          // TODO: Integrate real tidal data from Tidal Agent
+          const tidalAdjustment = 0; // Placeholder - should come from tidal predictions
+
           const depthCalc = this.depthCalculator.calculateDepthSafety(
             segment.from,
-            simulatedDepth,
+            chartedDepthFeet,
             vessel_draft,
-            simulatedTide
+            tidalAdjustment
+          );
+
+          // Log depth data source and confidence for audit
+          this.auditLogger.logDataSource(
+            requestId,
+            'bathymetry',
+            depthResult.source,
+            depthResult.confidence,
+            segment.from
           );
 
           if (depthCalc.isGroundingRisk) {
@@ -462,47 +504,42 @@ export class SafetyAgent {
     if (bounds.north < bounds.south) {
       throw new Error('North latitude must be greater than south latitude');
     }
-    
-    try {
-      // In production, query NOAA or other navigation warning services
-      const warnings = [
-        {
-          id: 'LNM-2024-0123',
-          type: 'obstruction',
-          title: 'Submerged Object Reported',
-          description: 'Submerged container reported 2nm SW of Point Alpha',
-          location: {
-            latitude: (bounds.north + bounds.south) / 2,
-            longitude: (bounds.east + bounds.west) / 2
-          },
-          issued: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          expires: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString(),
-          severity: 'urgent'
-        },
-        {
-          id: 'NTM-2024-0456',
-          type: 'military_exercise',
-          title: 'Military Exercise Area',
-          description: 'Naval exercises in progress, area closed to civilian traffic',
-          area: 'Box bounded by coordinates...',
-          schedule: 'Daily 0800-1600 local',
-          issued: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          severity: 'warning'
-        },
-        {
-          id: 'SM-2024-0789',
-          type: 'weather',
-          title: 'Small Craft Advisory',
-          description: 'Winds 20-25 kts, seas 6-8 ft',
-          area: 'Coastal waters from Cape X to Cape Y',
-          issued: new Date().toISOString(),
-          expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          severity: 'advisory'
-        }
-      ];
 
-      this.logger.info({ count: warnings.length }, 'Navigation warnings retrieved');
+    try {
+      // SAFETY CRITICAL: Fetch real navigation warnings from NOAA NWS
+      const response = await this.navigationWarningsService.getWarningsForArea({
+        north: bounds.north,
+        south: bounds.south,
+        east: bounds.east,
+        west: bounds.west,
+      });
+
+      // Transform warnings to standard format for output
+      const warnings = response.warnings.map((warning) => ({
+        id: warning.id,
+        type: warning.type,
+        title: warning.title,
+        description: warning.description,
+        area: warning.area,
+        location: warning.location,
+        bounds: warning.bounds,
+        severity: this.mapNWSSeverityToSafetyLevel(warning.severity),
+        urgency: warning.urgency,
+        issued: warning.issued.toISOString(),
+        expires: warning.expires?.toISOString(),
+        effective: warning.effective?.toISOString(),
+        source: warning.source,
+        instruction: warning.instruction,
+        event: warning.event,
+      }));
+
+      // Log data source for audit
+      this.logger.info({
+        source: response.source,
+        warningCount: response.totalCount,
+        fetchedAt: response.fetchedAt,
+      }, 'Navigation warnings retrieved from NOAA');
+
       return {
         content: [{
           type: 'text',
@@ -510,13 +547,37 @@ export class SafetyAgent {
             area: bounds,
             warningCount: warnings.length,
             warnings,
-            lastUpdated: new Date().toISOString()
+            lastUpdated: response.fetchedAt.toISOString(),
+            source: response.source,
+            dataFreshness: {
+              fetchedAt: response.fetchedAt.toISOString(),
+              isStale: false,
+              note: 'Real-time data from NOAA National Weather Service',
+            },
           }, null, 2)
         }]
       };
     } catch (error) {
       this.logger.error({ error, bounds }, 'Failed to get navigation warnings');
       throw error;
+    }
+  }
+
+  /**
+   * Map NWS severity levels to safety agent levels
+   */
+  private mapNWSSeverityToSafetyLevel(severity: string): string {
+    switch (severity) {
+      case 'extreme':
+        return 'urgent';
+      case 'severe':
+        return 'urgent';
+      case 'moderate':
+        return 'warning';
+      case 'minor':
+        return 'advisory';
+      default:
+        return 'info';
     }
   }
 

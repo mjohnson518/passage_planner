@@ -37,6 +37,71 @@ jest.mock('@modelcontextprotocol/sdk/types', () => ({
   CallToolRequestSchema: { method: 'tools/call' }
 }));
 
+// Mock axios to prevent real API calls in tests
+const mockAxiosInstance = {
+  get: jest.fn().mockResolvedValue({
+    data: {
+      features: [
+        {
+          properties: {
+            id: 'test-warning-001',
+            event: 'Small Craft Advisory',
+            headline: 'Small Craft Advisory in Effect',
+            description: 'Winds 20-25 kts, seas 6-8 ft',
+            instruction: 'Exercise caution',
+            severity: 'Moderate',
+            urgency: 'Expected',
+            onset: new Date().toISOString(),
+            expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            effective: new Date().toISOString(),
+            sent: new Date().toISOString(),
+            areaDesc: 'Test coastal waters',
+            senderName: 'NWS Boston',
+          },
+        },
+      ],
+    },
+  }),
+  post: jest.fn().mockResolvedValue({ data: {} }),
+  put: jest.fn().mockResolvedValue({ data: {} }),
+  delete: jest.fn().mockResolvedValue({ data: {} }),
+  defaults: { headers: { common: {} } },
+  interceptors: {
+    request: { use: jest.fn(), eject: jest.fn() },
+    response: { use: jest.fn(), eject: jest.fn() },
+  },
+};
+
+jest.mock('axios', () => ({
+  __esModule: true,
+  default: {
+    create: jest.fn(() => mockAxiosInstance),
+    get: jest.fn().mockResolvedValue({ data: { features: [] } }),
+    isAxiosError: jest.fn(() => false),
+  },
+  create: jest.fn(() => mockAxiosInstance),
+  isAxiosError: jest.fn(() => false),
+}));
+
+// Mock axios-retry to prevent issues with axios mocking
+jest.mock('axios-retry', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  isNetworkOrIdempotentRequestError: jest.fn(() => false),
+}));
+
+// Mock redis client for CacheManager
+jest.mock('redis', () => ({
+  createClient: jest.fn(() => ({
+    connect: jest.fn().mockResolvedValue(undefined),
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue('OK'),
+    setEx: jest.fn().mockResolvedValue('OK'),
+    on: jest.fn(),
+    quit: jest.fn().mockResolvedValue(undefined),
+  })),
+}));
+
 import SafetyAgent from '../index';
 
 describe('SafetyAgent: getNavigationWarnings - REAL-TIME HAZARD AWARENESS', () => {

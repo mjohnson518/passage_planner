@@ -150,7 +150,7 @@ export interface SafetyAuditLog {
   timestamp: string;
   userId?: string;
   requestId: string;
-  action: 'route_analyzed' | 'warning_generated' | 'override_applied' | 'hazard_detected' | 'recommendation_made';
+  action: 'route_analyzed' | 'warning_generated' | 'override_applied' | 'hazard_detected' | 'recommendation_made' | 'data_source_used';
   details: {
     route?: Waypoint[];
     hazardsFound?: number;
