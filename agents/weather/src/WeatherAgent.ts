@@ -569,13 +569,14 @@ export class WeatherAgent extends BaseAgent {
     daysAhead: number = 7
   ): Promise<any> {
     // Get forecast for the next N days
-    const forecast = await this.getMarineForecast(lat, lon, daysAhead * 24);
+    const forecastResult = await this.getMarineForecast(lat, lon, daysAhead * 24);
+    const forecasts = forecastResult.forecasts;
 
     const windows: any[] = [];
     let currentWindow: any = null;
 
-    for (let i = 0; i < forecast.length; i++) {
-      const period = forecast[i];
+    for (let i = 0; i < forecasts.length; i++) {
+      const period = forecasts[i];
       const acceptable = period.windSpeed <= maxWind && period.waveHeight <= maxWave;
 
       if (acceptable) {
@@ -649,9 +650,9 @@ export class WeatherAgent extends BaseAgent {
    * NEW: Analyze sea state with Douglas scale
    */
   private async analyzeSeaState(lat: number, lon: number, hours: number = 48): Promise<any> {
-    const forecast = await this.getMarineForecast(lat, lon, hours);
+    const forecastResult = await this.getMarineForecast(lat, lon, hours);
 
-    const seaStates = forecast.map(period => {
+    const seaStates = forecastResult.forecasts.map(period => {
       const douglasScale = this.waveHeightToDouglasScale(period.waveHeight);
       
       return {

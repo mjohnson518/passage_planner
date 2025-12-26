@@ -47,20 +47,20 @@ export class SimpleOrchestrator {
   }
 
   private async initializeAgents() {
-    console.log('Initializing agents...');
-    
+    logger.info('Initializing agents...');
+
     // Initialize all three agents - RouteAgent now works with geolib!
     this.agents['weather'] = new WeatherAgent();
-    console.log('✓ weather agent initialized');
-    
+    logger.info('Weather agent initialized');
+
     this.agents['tidal'] = new TidalAgent();
-    console.log('✓ tidal agent initialized');
-    
+    logger.info('Tidal agent initialized');
+
     // RouteAgent now working with geolib (no more Turf.js ESM issues)
     this.agents['route'] = new RouteAgent();
-    console.log('✓ route agent initialized');
-    
-    console.log('All agents initialized');
+    logger.info('Route agent initialized');
+
+    logger.info('All agents initialized');
   }
 
   private async planPassage(request: any): Promise<any> {
@@ -74,12 +74,11 @@ export class SimpleOrchestrator {
       request
     });
     
-    console.log(`Planning passage ${planningId}...`);
     logger.info({ planningId, request }, 'Starting passage planning with PARALLEL execution');
-    
+
     try {
       // PARALLEL EXECUTION - All agents at once for <3 second response!
-      console.log('🚀 Executing all agents in PARALLEL...');
+      logger.info({ planningId }, 'Executing all agents in parallel');
       
       // Prepare all agent calls with timeout protection
       const agentTimeout = 30000; // 30 second timeout
@@ -96,7 +95,7 @@ export class SimpleOrchestrator {
           setTimeout(() => reject(new Error('Route calculation timeout')), agentTimeout)
         )
       ]).catch(error => {
-        console.error('Route agent error:', error);
+        logger.error({ error }, 'Route agent error');
         // Fallback to simple calculation
         const distance = this.calculateSimpleDistance(
           request.departure.latitude,
@@ -121,7 +120,7 @@ export class SimpleOrchestrator {
           setTimeout(() => reject(new Error('Weather fetch timeout')), agentTimeout)
         )
       ]).catch(error => {
-        console.error('Weather departure error:', error);
+        logger.error({ error }, 'Weather departure error');
         return null;
       });
       
@@ -135,7 +134,7 @@ export class SimpleOrchestrator {
           setTimeout(() => reject(new Error('Weather fetch timeout')), agentTimeout)
         )
       ]).catch(error => {
-        console.error('Weather arrival error:', error);
+        logger.error({ error }, 'Weather arrival error');
         return null;
       });
       
@@ -150,7 +149,7 @@ export class SimpleOrchestrator {
           setTimeout(() => reject(new Error('Tidal fetch timeout')), agentTimeout)
         )
       ]).catch(error => {
-        console.error('Tidal departure error:', error);
+        logger.error({ error }, 'Tidal departure error');
         return null;
       });
       
@@ -165,7 +164,7 @@ export class SimpleOrchestrator {
           setTimeout(() => reject(new Error('Tidal fetch timeout')), agentTimeout)
         )
       ]).catch(error => {
-        console.error('Tidal arrival error:', error);
+        logger.error({ error }, 'Tidal arrival error');
         return null;
       });
       
@@ -180,8 +179,7 @@ export class SimpleOrchestrator {
       ]);
       
       const parallelTime = Date.now() - parallelStart;
-      console.log(`⚡ All agents completed in ${parallelTime}ms (PARALLEL EXECUTION)`);
-      logger.info({ parallelTime, planningId }, 'Parallel execution completed');
+      logger.info({ parallelTime, planningId }, 'All agents completed in parallel execution');
       
       // Compile comprehensive passage plan
       const passagePlan = {
@@ -214,8 +212,11 @@ export class SimpleOrchestrator {
         }
       };
       
-      console.log(`✅ Passage plan complete in ${passagePlan.performance.totalTime}ms`);
-      console.log(`📊 Performance: ${passagePlan.performance.totalTime < 3000 ? '✅ UNDER 3 SECONDS!' : '⚠️ Over 3 seconds'}`);
+      logger.info({
+        planningId,
+        totalTime: passagePlan.performance.totalTime,
+        under3Seconds: passagePlan.performance.totalTime < 3000
+      }, 'Passage plan complete');
       
       // Broadcast completion
       this.broadcastUpdate({
@@ -227,7 +228,7 @@ export class SimpleOrchestrator {
       return passagePlan;
       
     } catch (error: any) {
-      console.error('Planning error:', error);
+      logger.error({ error, planningId }, 'Planning error');
       this.broadcastUpdate({
         type: 'planning_error',
         planningId,
@@ -261,7 +262,7 @@ export class SimpleOrchestrator {
           warnings.push('Rough seas anticipated - ensure crew is prepared');
         }
       } catch (error) {
-        console.error('Error generating warnings:', error);
+        logger.error({ error }, 'Error generating warnings');
       }
     }
     
@@ -287,14 +288,14 @@ export class SimpleOrchestrator {
 
   private setupWebSocket() {
     this.wss.on('connection', (ws: WebSocket) => {
-      console.log('WebSocket client connected');
-      
+      logger.debug('WebSocket client connected');
+
       ws.on('close', () => {
-        console.log('WebSocket client disconnected');
+        logger.debug('WebSocket client disconnected');
       });
-      
+
       ws.on('error', (error: any) => {
-        console.error('WebSocket error:', error);
+        logger.error({ error }, 'WebSocket error');
       });
     });
   }
@@ -336,11 +337,14 @@ export class SimpleOrchestrator {
     // REST endpoint for passage planning
     this.app.post('/api/plan', async (req, res) => {
       try {
-        console.log('Received planning request:', req.body.departure?.port, '→', req.body.destination?.port);
+        logger.info({
+          departure: req.body.departure?.port,
+          destination: req.body.destination?.port
+        }, 'Received planning request');
         const plan = await this.planPassage(req.body);
         res.json({ success: true, plan });
       } catch (error: any) {
-        console.error('Planning failed:', error);
+        logger.error({ error }, 'Planning failed');
         res.status(500).json({
           success: false,
           error: error.message
@@ -391,42 +395,42 @@ export class SimpleOrchestrator {
     const httpPort = parseInt(process.env.PORT || '8080', 10);
     await new Promise<void>((resolve) => {
       this.httpServer.listen(httpPort, () => {
-        console.log('');
-        console.log('🚀 Orchestrator started successfully!');
-        console.log(`📡 HTTP server: http://localhost:${httpPort}`);
-        console.log(`🔌 WebSocket server: ws://localhost:${httpPort}`);
-        console.log(`💚 Health endpoint: http://localhost:${httpPort}/health`);
-        console.log('');
+        logger.info({
+          httpPort,
+          httpServer: `http://localhost:${httpPort}`,
+          wsServer: `ws://localhost:${httpPort}`,
+          healthEndpoint: `http://localhost:${httpPort}/health`
+        }, 'Orchestrator started successfully');
         resolve();
       });
     });
   }
 
   async shutdown() {
-    console.log('\nShutting down orchestrator...');
-    
+    logger.info('Shutting down orchestrator...');
+
     for (const agent of Object.values(this.agents)) {
       try {
         await agent.shutdown();
       } catch (error) {
-        console.error('Error shutting down agent:', error);
+        logger.error({ error }, 'Error shutting down agent');
       }
     }
-    
+
     try {
       await this.redis.quit();
     } catch (error) {
-      // Ignore Redis errors
+      // Ignore Redis errors during shutdown
     }
-    
+
     this.wss.clients.forEach((client: WebSocket) => {
       client.close();
     });
     this.wss.close();
-    
+
     await new Promise<void>((resolve) => {
       this.httpServer.close(() => {
-        console.log('Orchestrator shutdown complete');
+        logger.info('Orchestrator shutdown complete');
         resolve();
       });
     });

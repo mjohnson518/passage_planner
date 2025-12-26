@@ -1,7 +1,9 @@
 import { Resend } from 'resend'
 import { createClient } from '@supabase/supabase-js'
+import pino from 'pino'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' })
 
 export class EmailService {
   private supabase: any
@@ -27,7 +29,7 @@ export class EmailService {
       // Log email sent
       await this.logEmailSent(userId, 'welcome', email)
     } catch (error) {
-      console.error('Failed to send welcome email:', error)
+      logger.error({ error, userId, email }, 'Failed to send welcome email')
       throw error
     }
   }
@@ -58,7 +60,7 @@ export class EmailService {
         await this.logEmailSent(user.id, 'trial_ending', user.email)
       }
     } catch (error) {
-      console.error('Failed to send trial ending reminders:', error)
+      logger.error({ error }, 'Failed to send trial ending reminders')
       throw error
     }
   }
@@ -94,7 +96,7 @@ export class EmailService {
         }
       }
     } catch (error) {
-      console.error('Failed to send monthly usage reports:', error)
+      logger.error({ error }, 'Failed to send monthly usage reports')
       throw error
     }
   }
@@ -115,7 +117,7 @@ export class EmailService {
 
       await this.logEmailSent(userId, 'subscription_confirmation', email)
     } catch (error) {
-      console.error('Failed to send subscription confirmation:', error)
+      logger.error({ error, userId, tier }, 'Failed to send subscription confirmation')
       throw error
     }
   }
@@ -136,7 +138,7 @@ export class EmailService {
 
       await this.logEmailSent(userId, 'cancellation_confirmation', email)
     } catch (error) {
-      console.error('Failed to send cancellation confirmation:', error)
+      logger.error({ error, userId }, 'Failed to send cancellation confirmation')
       throw error
     }
   }
@@ -179,7 +181,7 @@ export class EmailService {
         sent_at: new Date().toISOString(),
       })
     } catch (error) {
-      console.error('Failed to log email:', error)
+      logger.error({ error, userId, type }, 'Failed to log email')
     }
   }
 

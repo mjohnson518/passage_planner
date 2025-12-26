@@ -11,6 +11,9 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import express from 'express';
 import http from 'http';
+import pino from 'pino';
+
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 interface AgentRegistry {
   [key: string]: BaseAgent;
@@ -103,11 +106,11 @@ export class Orchestrator {
       try {
         await agent.initialize();
       } catch (error) {
-        console.error(`Failed to initialize agent:`, error);
+        logger.error({ error }, 'Failed to initialize agent');
       }
     }
-    
-    console.log('All agents initialized');
+
+    logger.info('All agents initialized');
   }
 
   private setupHandlers() {
@@ -252,7 +255,7 @@ export class Orchestrator {
           longitude: wp.longitude,
           hours: 72
         }).catch((error: any) => {
-          console.error('Weather fetch error:', error);
+          logger.error({ error }, 'Weather fetch error');
           return null; // Return null for failed forecasts
         })
       );
@@ -275,7 +278,7 @@ export class Orchestrator {
           end_date: new Date(new Date(request.departure.time).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
         });
       } catch (error: any) {
-        console.error('Tidal fetch error:', error);
+        logger.error({ error }, 'Tidal fetch error');
         // Continue without tidal data
       }
       
@@ -412,34 +415,34 @@ export class Orchestrator {
         });
       
       if (error) {
-        console.error('Failed to save passage:', error);
+        logger.error({ error }, 'Failed to save passage');
         throw error;
       }
     } catch (error) {
-      console.error('Error saving passage to database:', error);
+      logger.error({ error }, 'Error saving passage to database');
       // Don't throw - allow passage planning to complete even if save fails
     }
   }
 
   private setupWebSocket() {
     this.wss.on('connection', (ws: WebSocket) => {
-      console.log('WebSocket client connected');
-      
+      logger.debug('WebSocket client connected');
+
       ws.on('message', (message: any) => {
         try {
           const data = JSON.parse(message.toString());
           // Handle incoming messages if needed
         } catch (error) {
-          console.error('Invalid WebSocket message:', error);
+          logger.error({ error }, 'Invalid WebSocket message');
         }
       });
-      
+
       ws.on('close', () => {
-        console.log('WebSocket client disconnected');
+        logger.debug('WebSocket client disconnected');
       });
-      
+
       ws.on('error', (error: any) => {
-        console.error('WebSocket error:', error);
+        logger.error({ error }, 'WebSocket error');
       });
     });
   }
@@ -544,46 +547,45 @@ export class Orchestrator {
     const httpPort = parseInt(process.env.PORT || '8080', 10);
     await new Promise<void>((resolve) => {
       this.httpServer.listen(httpPort, () => {
-        console.log(`HTTP server listening on port ${httpPort}`);
-        console.log(`WebSocket server listening on port ${httpPort}`);
+        logger.info({ httpPort }, 'HTTP and WebSocket servers listening');
         resolve();
       });
     });
-    
+
     // Start MCP server on stdio
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.log('MCP server started on stdio');
+    logger.info('MCP server started on stdio');
   }
 
   async shutdown() {
-    console.log('Shutting down orchestrator...');
-    
+    logger.info('Shutting down orchestrator...');
+
     // Shutdown all agents
     for (const agent of Object.values(this.agents)) {
       try {
         await agent.shutdown();
       } catch (error) {
-        console.error('Error shutting down agent:', error);
+        logger.error({ error }, 'Error shutting down agent');
       }
     }
-    
+
     // Close connections
     await this.redis.quit();
-    
+
     this.wss.clients.forEach((client: WebSocket) => {
       client.close();
     });
     this.wss.close();
-    
+
     await new Promise<void>((resolve) => {
       this.httpServer.close(() => {
-        console.log('HTTP server closed');
+        logger.info('HTTP server closed');
         resolve();
       });
     });
-    
-    console.log('Orchestrator shutdown complete');
+
+    logger.info('Orchestrator shutdown complete');
   }
 }
 

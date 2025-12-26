@@ -16,6 +16,8 @@ import { createClient } from 'redis';
 import * as crypto from 'crypto';
 import pino from 'pino';
 
+const startupLogger = pino({ level: process.env.LOG_LEVEL || 'info' });
+
 // Extend Express Request type
 declare global {
   namespace Express {
@@ -1845,5 +1847,8 @@ if (require.main === module) {
     process.exit(0);
   });
   
-  server.start().catch(console.error);
+  server.start().catch((error) => {
+    startupLogger.fatal({ error }, 'Failed to start server');
+    process.exit(1);
+  });
 } 

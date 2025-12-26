@@ -35,7 +35,7 @@ export abstract class BaseAgent {
   abstract getTools(): Tool[];
   abstract handleToolCall(name: string, args: any): Promise<any>;
   
-  protected async getCachedData(key: string): Promise<any | null> {
+  protected async getCachedData<T = any>(key: string): Promise<T | null> {
     const cached = await this.redis.get(key);
     return cached ? JSON.parse(cached) : null;
   }

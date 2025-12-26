@@ -7,6 +7,9 @@
 
 import * as Sentry from '@sentry/node';
 import { getOptionalEnv, isProduction, isDevelopment } from '@passage-planner/shared';
+import pino from 'pino';
+
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 /**
  * Initialize Sentry error tracking
@@ -17,9 +20,7 @@ export function initSentry(): void {
   const dsn = getOptionalEnv('SENTRY_DSN');
   
   if (!dsn) {
-    console.warn('⚠️  SENTRY_DSN not set - error tracking disabled');
-    console.warn('   Errors will only be logged to console');
-    console.warn('   Get Sentry DSN from: https://sentry.io/settings/projects/YOUR_PROJECT/keys/');
+    logger.warn('SENTRY_DSN not set - error tracking disabled. Errors will only be logged.');
     return;
   }
   
@@ -61,13 +62,13 @@ export function initSentry(): void {
       }
     });
     
-    console.log('✅ Sentry initialized');
-    console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`   Sample rate: ${isProduction() ? '10%' : '100%'}`);
-    
+    logger.info({
+      environment: process.env.NODE_ENV || 'development',
+      sampleRate: isProduction() ? '10%' : '100%'
+    }, 'Sentry initialized');
+
   } catch (error) {
-    console.error('❌ Failed to initialize Sentry:', error);
-    console.error('   Continuing without error tracking...');
+    logger.error({ error }, 'Failed to initialize Sentry. Continuing without error tracking.');
   }
 }
 
@@ -89,8 +90,8 @@ export function captureError(
     user?: { id: string; email?: string };
   }
 ): void {
-  console.error('Error captured:', error);
-  
+  logger.error({ error, context }, 'Error captured');
+
   if (context) {
     Sentry.withScope((scope) => {
       if (context.tags) {
