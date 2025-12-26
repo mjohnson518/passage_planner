@@ -1078,6 +1078,396 @@ export class HttpServer {
       }
     );
 
+    // =====================================
+    // MISSING API IMPLEMENTATIONS
+    // =====================================
+
+    // Stripe Customer Portal - allows users to manage subscriptions
+    this.app.post('/api/subscription/customer-portal',
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const userId = req.user!.userId || req.user!.id;
+          const { returnUrl } = req.body;
+
+          // Get user's Stripe customer ID from subscription
+          const subscription = await this.postgres.query(
+            'SELECT stripe_customer_id FROM subscriptions WHERE user_id = $1',
+            [userId]
+          );
+
+          if (!subscription.rows[0]?.stripe_customer_id) {
+            return res.status(404).json({
+              error: 'No subscription found',
+              message: 'You need an active subscription to access the customer portal'
+            });
+          }
+
+          const { StripeService } = await import('@passage-planner/shared');
+          const stripeService = new StripeService(this.logger);
+
+          const session = await stripeService.createPortalSession(
+            subscription.rows[0].stripe_customer_id,
+            returnUrl || `${process.env.NEXT_PUBLIC_APP_URL}/profile`
+          );
+
+          res.json({ url: session.url, success: true });
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to create customer portal session');
+          res.status(500).json({ error: 'Failed to create customer portal session' });
+        }
+      }
+    );
+
+    // Passage Export - export a single passage in various formats
+    this.app.post('/api/passages/:passageId/export',
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const userId = req.user!.userId || req.user!.id;
+          const { passageId } = req.params;
+          const { format } = req.body; // 'gpx', 'kml', 'pdf', 'csv'
+
+          // Get passage data
+          const result = await this.postgres.query(
+            'SELECT * FROM passages WHERE id = $1 AND user_id = $2',
+            [passageId, userId]
+          );
+
+          if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Passage not found' });
+          }
+
+          const passage = result.rows[0];
+
+          // Generate export based on format
+          let exportData: string;
+          let contentType: string;
+          let filename: string;
+
+          switch (format) {
+            case 'gpx':
+              exportData = this.generateGPX(passage);
+              contentType = 'application/gpx+xml';
+              filename = `passage-${passageId}.gpx`;
+              break;
+            case 'kml':
+              exportData = this.generateKML(passage);
+              contentType = 'application/vnd.google-earth.kml+xml';
+              filename = `passage-${passageId}.kml`;
+              break;
+            case 'csv':
+              exportData = this.generateCSV(passage);
+              contentType = 'text/csv';
+              filename = `passage-${passageId}.csv`;
+              break;
+            default:
+              return res.status(400).json({ error: 'Invalid export format. Use gpx, kml, or csv' });
+          }
+
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          res.send(exportData);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to export passage');
+          res.status(500).json({ error: 'Failed to export passage' });
+        }
+      }
+    );
+
+    // Bulk Passage Export
+    this.app.post('/api/passages/export/bulk',
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const userId = req.user!.userId || req.user!.id;
+          const { passageIds, format } = req.body;
+
+          if (!passageIds || !Array.isArray(passageIds) || passageIds.length === 0) {
+            return res.status(400).json({ error: 'No passages selected for export' });
+          }
+
+          if (passageIds.length > 50) {
+            return res.status(400).json({ error: 'Maximum 50 passages can be exported at once' });
+          }
+
+          // Get all selected passages
+          const result = await this.postgres.query(
+            'SELECT * FROM passages WHERE id = ANY($1) AND user_id = $2',
+            [passageIds, userId]
+          );
+
+          if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'No passages found' });
+          }
+
+          // Generate combined export
+          let exportData: string;
+          let contentType: string;
+          let filename: string;
+
+          switch (format) {
+            case 'gpx':
+              exportData = this.generateBulkGPX(result.rows);
+              contentType = 'application/gpx+xml';
+              filename = `passages-export-${Date.now()}.gpx`;
+              break;
+            case 'csv':
+              exportData = this.generateBulkCSV(result.rows);
+              contentType = 'text/csv';
+              filename = `passages-export-${Date.now()}.csv`;
+              break;
+            default:
+              return res.status(400).json({ error: 'Invalid export format. Use gpx or csv for bulk export' });
+          }
+
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          res.send(exportData);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to bulk export passages');
+          res.status(500).json({ error: 'Failed to export passages' });
+        }
+      }
+    );
+
+    // Passage Cancellation - cancel an in-progress passage planning request
+    this.app.post('/api/passages/:passageId/cancel',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const userId = req.user!.userId || req.user!.id;
+          const { passageId } = req.params;
+
+          // Update passage status to cancelled
+          const result = await this.postgres.query(
+            `UPDATE passages SET status = 'cancelled', updated_at = NOW()
+             WHERE id = $1 AND user_id = $2 AND status IN ('planning', 'pending')
+             RETURNING id, status`,
+            [passageId, userId]
+          );
+
+          if (result.rows.length === 0) {
+            return res.status(404).json({
+              error: 'Passage not found or cannot be cancelled'
+            });
+          }
+
+          // Emit cancellation event to orchestrator
+          this.orchestrator.emit('passage:cancel', { passageId, userId });
+
+          res.json({
+            success: true,
+            passageId: result.rows[0].id,
+            status: 'cancelled'
+          });
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to cancel passage');
+          res.status(500).json({ error: 'Failed to cancel passage' });
+        }
+      }
+    );
+
+    // Fleet Crew Invitations
+    this.app.post('/api/fleet/:fleetId/invite',
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const userId = req.user!.userId || req.user!.id;
+          const { fleetId } = req.params;
+          const { invites } = req.body; // Array of { email, name, role, permissions }
+
+          // Verify user has admin access to fleet
+          const access = await this.postgres.query(
+            `SELECT role FROM fleet_members
+             WHERE fleet_id = $1 AND user_id = $2 AND role = 'admin'`,
+            [fleetId, userId]
+          );
+
+          if (access.rows.length === 0) {
+            return res.status(403).json({ error: 'Admin access required to invite crew' });
+          }
+
+          if (!invites || !Array.isArray(invites) || invites.length === 0) {
+            return res.status(400).json({ error: 'No invitations provided' });
+          }
+
+          if (invites.length > 10) {
+            return res.status(400).json({ error: 'Maximum 10 invitations at once' });
+          }
+
+          const results = [];
+
+          for (const invite of invites) {
+            if (!invite.email || !invite.name) continue;
+
+            try {
+              // Create invitation record
+              const inviteResult = await this.postgres.query(
+                `INSERT INTO fleet_invitations
+                 (fleet_id, email, name, role, permissions, invited_by, expires_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '7 days')
+                 ON CONFLICT (fleet_id, email) DO UPDATE SET
+                   name = EXCLUDED.name,
+                   role = EXCLUDED.role,
+                   permissions = EXCLUDED.permissions,
+                   invited_by = EXCLUDED.invited_by,
+                   expires_at = NOW() + INTERVAL '7 days',
+                   created_at = NOW()
+                 RETURNING id, email`,
+                [fleetId, invite.email, invite.name, invite.role || 'crew',
+                 JSON.stringify(invite.permissions || {}), userId]
+              );
+
+              results.push({
+                email: invite.email,
+                success: true,
+                invitationId: inviteResult.rows[0].id
+              });
+
+              // TODO: Send invitation email via email service
+              this.logger.info({
+                fleetId,
+                email: invite.email,
+                invitedBy: userId
+              }, 'Fleet invitation created');
+
+            } catch (err) {
+              results.push({
+                email: invite.email,
+                success: false,
+                error: 'Failed to create invitation'
+              });
+            }
+          }
+
+          res.json({
+            success: true,
+            invitations: results,
+            sent: results.filter(r => r.success).length,
+            failed: results.filter(r => !r.success).length
+          });
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to send fleet invitations');
+          res.status(500).json({ error: 'Failed to send invitations' });
+        }
+      }
+    );
+
+    // Agent Start - start a stopped agent (admin only)
+    this.app.post('/api/agents/:agentId/start',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          // Check if user is admin
+          const userResult = await this.postgres.query(
+            'SELECT role FROM users WHERE id = $1',
+            [req.user!.id]
+          );
+
+          if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+          }
+
+          const { agentId } = req.params;
+          await this.agentManager.startAgent(agentId);
+
+          res.json({
+            success: true,
+            message: `Agent ${agentId} start initiated`,
+            agentId
+          });
+        } catch (error: any) {
+          res.status(500).json({ error: error.message || 'Failed to start agent' });
+        }
+      }
+    );
+
+    // Agent Stop - stop a running agent (admin only)
+    this.app.post('/api/agents/:agentId/stop',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          // Check if user is admin
+          const userResult = await this.postgres.query(
+            'SELECT role FROM users WHERE id = $1',
+            [req.user!.id]
+          );
+
+          if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+          }
+
+          const { agentId } = req.params;
+          await this.agentManager.stopAgent(agentId);
+
+          res.json({
+            success: true,
+            message: `Agent ${agentId} stop initiated`,
+            agentId
+          });
+        } catch (error: any) {
+          res.status(500).json({ error: error.message || 'Failed to stop agent' });
+        }
+      }
+    );
+
+    // Weather Export - export weather data for a region
+    this.app.post('/api/weather/export',
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const { region, format, layer } = req.body;
+
+          if (!region || !region.bounds) {
+            return res.status(400).json({ error: 'Region bounds required' });
+          }
+
+          // Get weather data for the region
+          const { NOAAWeatherService, CacheManager } = await import('@passage-planner/shared');
+          const cache = new CacheManager(this.logger);
+          const weatherService = new NOAAWeatherService(cache, this.logger);
+
+          const centerLat = (region.bounds.north + region.bounds.south) / 2;
+          const centerLon = (region.bounds.east + region.bounds.west) / 2;
+
+          const forecast = await weatherService.getMarineForecast(centerLat, centerLon, 7);
+
+          // Generate export based on format
+          let exportData: string;
+          let contentType: string;
+          let filename: string;
+
+          switch (format) {
+            case 'json':
+              exportData = JSON.stringify(forecast, null, 2);
+              contentType = 'application/json';
+              filename = `weather-${Date.now()}.json`;
+              break;
+            case 'csv':
+              exportData = this.generateWeatherCSV(forecast);
+              contentType = 'text/csv';
+              filename = `weather-${Date.now()}.csv`;
+              break;
+            default:
+              return res.status(400).json({ error: 'Invalid format. Use json or csv' });
+          }
+
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          res.send(exportData);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to export weather data');
+          res.status(500).json({ error: 'Failed to export weather data' });
+        }
+      }
+    );
+
     // Frontend error logging endpoint - rate limited to prevent abuse
     this.app.post('/api/errors/log',
       this.rateLimiter!.limit.bind(this.rateLimiter!),
@@ -1272,6 +1662,161 @@ export class HttpServer {
         precipitation: forecast?.precipitation || (Math.random() * 30)
       };
     });
+  }
+
+  // =====================================
+  // EXPORT HELPER METHODS
+  // =====================================
+
+  private generateGPX(passage: any): string {
+    const waypoints = passage.waypoints || [];
+    const name = passage.name || 'Passage';
+    const description = passage.description || '';
+
+    let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Helmwise Passage Planner"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${this.escapeXML(name)}</name>
+    <desc>${this.escapeXML(description)}</desc>
+    <time>${new Date().toISOString()}</time>
+  </metadata>
+  <rte>
+    <name>${this.escapeXML(name)}</name>
+    <desc>${this.escapeXML(description)}</desc>
+`;
+
+    waypoints.forEach((wp: any, idx: number) => {
+      gpx += `    <rtept lat="${wp.latitude || wp.lat}" lon="${wp.longitude || wp.lon}">
+      <name>${this.escapeXML(wp.name || `Waypoint ${idx + 1}`)}</name>
+      <desc>${this.escapeXML(wp.notes || '')}</desc>
+    </rtept>\n`;
+    });
+
+    gpx += `  </rte>
+</gpx>`;
+
+    return gpx;
+  }
+
+  private generateKML(passage: any): string {
+    const waypoints = passage.waypoints || [];
+    const name = passage.name || 'Passage';
+
+    let kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>${this.escapeXML(name)}</name>
+    <description>Generated by Helmwise Passage Planner</description>
+    <Style id="routeStyle">
+      <LineStyle>
+        <color>ff0000ff</color>
+        <width>3</width>
+      </LineStyle>
+    </Style>
+`;
+
+    // Add placemarks for waypoints
+    waypoints.forEach((wp: any, idx: number) => {
+      kml += `    <Placemark>
+      <name>${this.escapeXML(wp.name || `Waypoint ${idx + 1}`)}</name>
+      <Point>
+        <coordinates>${wp.longitude || wp.lon},${wp.latitude || wp.lat},0</coordinates>
+      </Point>
+    </Placemark>\n`;
+    });
+
+    // Add route line
+    if (waypoints.length > 1) {
+      kml += `    <Placemark>
+      <name>Route</name>
+      <styleUrl>#routeStyle</styleUrl>
+      <LineString>
+        <coordinates>`;
+      waypoints.forEach((wp: any) => {
+        kml += `${wp.longitude || wp.lon},${wp.latitude || wp.lat},0 `;
+      });
+      kml += `</coordinates>
+      </LineString>
+    </Placemark>\n`;
+    }
+
+    kml += `  </Document>
+</kml>`;
+
+    return kml;
+  }
+
+  private generateCSV(passage: any): string {
+    const waypoints = passage.waypoints || [];
+    let csv = 'Waypoint,Name,Latitude,Longitude,Notes\n';
+
+    waypoints.forEach((wp: any, idx: number) => {
+      csv += `${idx + 1},"${wp.name || ''}",${wp.latitude || wp.lat},${wp.longitude || wp.lon},"${wp.notes || ''}"\n`;
+    });
+
+    return csv;
+  }
+
+  private generateBulkGPX(passages: any[]): string {
+    let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Helmwise Passage Planner"
+  xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Passage Export</name>
+    <time>${new Date().toISOString()}</time>
+  </metadata>
+`;
+
+    passages.forEach((passage) => {
+      const waypoints = passage.waypoints || [];
+      gpx += `  <rte>
+    <name>${this.escapeXML(passage.name || 'Passage')}</name>
+`;
+      waypoints.forEach((wp: any, idx: number) => {
+        gpx += `    <rtept lat="${wp.latitude || wp.lat}" lon="${wp.longitude || wp.lon}">
+      <name>${this.escapeXML(wp.name || `Waypoint ${idx + 1}`)}</name>
+    </rtept>\n`;
+      });
+      gpx += `  </rte>\n`;
+    });
+
+    gpx += `</gpx>`;
+    return gpx;
+  }
+
+  private generateBulkCSV(passages: any[]): string {
+    let csv = 'Passage ID,Passage Name,Departure,Destination,Status,Distance,Duration,Created\n';
+
+    passages.forEach((p) => {
+      csv += `"${p.id}","${p.name || ''}","${p.departure_port || ''}","${p.destination_port || ''}","${p.status || ''}",${p.distance || 0},"${p.estimated_duration || ''}","${p.created_at || ''}"\n`;
+    });
+
+    return csv;
+  }
+
+  private generateWeatherCSV(forecast: any): string {
+    let csv = 'Time,Temperature,Wind Speed,Wind Direction,Short Forecast,Precipitation %\n';
+
+    if (forecast.periods) {
+      forecast.periods.forEach((p: any) => {
+        csv += `"${p.startTime}",${p.temperature},"${p.windSpeed}","${p.windDirection}","${(p.shortForecast || '').replace(/"/g, '""')}",${p.precipitationChance || 0}\n`;
+      });
+    }
+
+    return csv;
+  }
+
+  private escapeXML(str: string): string {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
   }
 
   async start(port: number = 8080) {
