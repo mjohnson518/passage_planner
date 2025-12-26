@@ -818,29 +818,71 @@ export class HttpServer {
     );
 
     // Agent Management Routes
+    // Public health check - minimal info only (no sensitive details)
     this.app.get('/api/agents/health', async (req, res) => {
       try {
         const health = await this.agentManager.getHealthSummary();
-        res.json(health);
+        // Return only high-level status for public endpoint
+        res.json({
+          status: health.overallStatus || 'unknown',
+          timestamp: new Date().toISOString()
+        });
       } catch (error) {
-        res.status(500).json({ error: 'Failed to get health summary' });
+        res.status(500).json({ status: 'error', timestamp: new Date().toISOString() });
       }
     });
 
-    this.app.get('/api/agents/:agentId/status', async (req, res) => {
-      try {
-        const { agentId } = req.params;
-        const status = await this.agentManager.getAgentStatus(agentId);
-        
-        if (!status) {
-          return res.status(404).json({ error: 'Agent not found' });
+    // Detailed health check - requires authentication
+    this.app.get('/api/agents/health/detailed',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          // Check if user is admin
+          const userResult = await this.postgres.query(
+            'SELECT role FROM users WHERE id = $1',
+            [req.user!.id]
+          );
+
+          if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+          }
+
+          const health = await this.agentManager.getHealthSummary();
+          res.json(health);
+        } catch (error) {
+          res.status(500).json({ error: 'Failed to get health summary' });
         }
-        
-        res.json(status);
-      } catch (error) {
-        res.status(500).json({ error: 'Failed to get agent status' });
       }
-    });
+    );
+
+    // Agent status - requires authentication (admin only)
+    this.app.get('/api/agents/:agentId/status',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          // Check if user is admin
+          const userResult = await this.postgres.query(
+            'SELECT role FROM users WHERE id = $1',
+            [req.user!.id]
+          );
+
+          if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+          }
+
+          const { agentId } = req.params;
+          const status = await this.agentManager.getAgentStatus(agentId);
+
+          if (!status) {
+            return res.status(404).json({ error: 'Agent not found' });
+          }
+
+          res.json(status);
+        } catch (error) {
+          res.status(500).json({ error: 'Failed to get agent status' });
+        }
+      }
+    );
 
     this.app.post('/api/agents/:agentId/restart',
       this.authMiddleware.authenticate.bind(this.authMiddleware),
@@ -1008,20 +1050,35 @@ export class HttpServer {
       }
     );
 
-    // Agent registration
-    this.app.post('/api/agents/register', async (req, res) => {
-      try {
-        const agentSummary = req.body;
-        this.orchestrator.emit('agent:register', agentSummary);
-        res.json({ success: true });
-      } catch (error) {
-        res.status(500).json({ error: 'Registration failed' });
-      }
-    });
+    // Agent registration - requires admin authentication
+    this.app.post('/api/agents/register',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          // Check if user is admin
+          const userResult = await this.postgres.query(
+            'SELECT role FROM users WHERE id = $1',
+            [req.user!.id]
+          );
 
-    // Frontend error logging endpoint
-    this.app.post('/api/errors/log', async (req, res) => {
-      try {
+          if (!userResult.rows[0] || userResult.rows[0].role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required for agent registration' });
+          }
+
+          const agentSummary = req.body;
+          this.orchestrator.emit('agent:register', agentSummary);
+          res.json({ success: true });
+        } catch (error) {
+          res.status(500).json({ error: 'Registration failed' });
+        }
+      }
+    );
+
+    // Frontend error logging endpoint - rate limited to prevent abuse
+    this.app.post('/api/errors/log',
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
+      async (req, res) => {
+        try {
         const { message, stack, componentStack, timestamp, userAgent, url } = req.body;
         
         this.logger.error({

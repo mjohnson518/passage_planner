@@ -3,6 +3,7 @@ import { CacheManager } from './CacheManager';
 import { NOAAAPIClient } from './noaa-api-client';
 import { CircuitBreakerFactory } from './resilience/circuit-breaker';
 import CircuitBreaker from 'opossum';
+import { NDBCBuoyService } from './NDBCBuoyService';
 
 export interface MarineWeatherForecast {
   location: {
@@ -69,15 +70,19 @@ export class NOAAWeatherService {
   private logger: Logger;
   private gridPointBreaker: CircuitBreaker;
   private forecastBreaker: CircuitBreaker;
-  
+  private buoyService: NDBCBuoyService;
+
   constructor(
-    cache: CacheManager, 
+    cache: CacheManager,
     logger: Logger,
     apiClient?: NOAAAPIClient  // Optional for dependency injection in tests
   ) {
     this.cache = cache;
     this.logger = logger;
     this.noaaClient = apiClient ?? new NOAAAPIClient(logger, cache);
+
+    // Initialize NDBC buoy service for wave data
+    this.buoyService = new NDBCBuoyService(cache, logger);
     
     // Initialize circuit breakers for NOAA API calls
     this.gridPointBreaker = CircuitBreakerFactory.create(
@@ -140,6 +145,9 @@ export class NOAAWeatherService {
         this.noaaClient.getActiveAlerts(latitude, longitude)
       ]);
       
+      // Fetch wave data from NDBC buoys
+      const waveData = await this.getWaveDataForLocation(latitude, longitude);
+
       // Transform NOAA format to our internal format
       const marineForecast: MarineWeatherForecast = {
         location: {
@@ -171,9 +179,9 @@ export class NOAAWeatherService {
           expires: new Date(alert.expires),
           areas: alert.areaDesc.split('; ')
         })),
-        waveHeight: [], // TODO: Implement when we have marine buoy data
+        waveHeight: waveData,
         windData: this.extractWindData(forecast.periods),
-        visibility: [] // TODO: Implement when we have visibility data
+        visibility: this.extractVisibilityData(forecast.periods) // Parse from forecast text
       };
       
       // Cache the result with proper TTL (3 hours for weather data)
@@ -298,5 +306,130 @@ export class NOAAWeatherService {
     }
     
     return { safe, warnings };
+  }
+
+  /**
+   * Fetch wave data from nearby NDBC buoys
+   * CRITICAL SAFETY: Provides real wave height data for maritime safety assessment
+   */
+  private async getWaveDataForLocation(latitude: number, longitude: number): Promise<WaveData[]> {
+    try {
+      // Find nearest buoy stations
+      const nearbyStations = await this.buoyService.findNearestStations(latitude, longitude, 100, 3);
+
+      if (nearbyStations.length === 0) {
+        this.logger.debug({ latitude, longitude }, 'No NDBC buoys found near location');
+        return [];
+      }
+
+      // Fetch data from the nearest buoy
+      const waveData: WaveData[] = [];
+
+      for (const station of nearbyStations) {
+        const buoyData = await this.buoyService.getBuoyData(station.id);
+
+        if (buoyData && buoyData.observations.length > 0) {
+          // Convert buoy observations to our WaveData format
+          for (const obs of buoyData.observations.slice(0, 24)) { // Get last 24 hours
+            if (obs.significantWaveHeight !== null) {
+              waveData.push({
+                time: obs.timestamp,
+                height: obs.significantWaveHeight,
+                period: obs.dominantWavePeriod || 0,
+                direction: obs.meanWaveDirection || 0
+              });
+            }
+          }
+
+          // Log the data source for audit trail
+          this.logger.info({
+            latitude,
+            longitude,
+            stationId: station.id,
+            stationName: station.name,
+            observationCount: waveData.length,
+            latestWaveHeight: buoyData.currentConditions?.significantWaveHeight
+          }, 'Wave data fetched from NDBC buoy');
+
+          // Use data from first station with valid observations
+          if (waveData.length > 0) break;
+        }
+      }
+
+      return waveData;
+    } catch (error) {
+      this.logger.warn({ error, latitude, longitude }, 'Failed to fetch wave data from NDBC');
+      return [];
+    }
+  }
+
+  /**
+   * Extract visibility data from NOAA forecast text
+   * CRITICAL SAFETY: Parses fog and visibility conditions from forecast
+   */
+  private extractVisibilityData(periods: any[]): VisibilityData[] {
+    const visibilityData: VisibilityData[] = [];
+
+    for (const period of periods) {
+      const forecast = (period.shortForecast + ' ' + period.detailedForecast).toLowerCase();
+      const time = new Date(period.startTime);
+
+      // Default to good visibility
+      let distance = 10; // nautical miles (good visibility)
+      let conditions = 'clear';
+
+      // Check for fog conditions
+      if (forecast.includes('dense fog')) {
+        distance = 0.25; // Less than 1/4 mile
+        conditions = 'Dense Fog';
+      } else if (forecast.includes('patchy fog') || forecast.includes('areas of fog')) {
+        distance = 1; // 1-3 miles
+        conditions = 'Patchy Fog';
+      } else if (forecast.includes('fog')) {
+        distance = 0.5; // 1/2 mile
+        conditions = 'Fog';
+      } else if (forecast.includes('mist') || forecast.includes('haze')) {
+        distance = 3; // 3-5 miles
+        conditions = 'Mist/Haze';
+      } else if (forecast.includes('smoke')) {
+        distance = 2;
+        conditions = 'Smoke';
+      } else if (forecast.includes('rain') && forecast.includes('heavy')) {
+        distance = 2;
+        conditions = 'Heavy Rain';
+      } else if (forecast.includes('snow') && forecast.includes('heavy')) {
+        distance = 0.5;
+        conditions = 'Heavy Snow';
+      } else if (forecast.includes('thunderstorm')) {
+        distance = 2;
+        conditions = 'Thunderstorms';
+      }
+
+      // Parse explicit visibility values from detailed forecast
+      // Examples: "visibility 1 mile", "visibility one quarter mile"
+      const visMatch = forecast.match(/visibility[:\s]+(\d+(?:\.\d+)?)\s*(mile|nm|nautical)/i);
+      if (visMatch) {
+        distance = parseFloat(visMatch[1]);
+      }
+
+      const fractionMatch = forecast.match(/visibility[:\s]+(one\s+)?(?:quarter|half|three\s+quarter)/i);
+      if (fractionMatch) {
+        if (forecast.includes('quarter') && !forecast.includes('three quarter')) {
+          distance = 0.25;
+        } else if (forecast.includes('half')) {
+          distance = 0.5;
+        } else if (forecast.includes('three quarter')) {
+          distance = 0.75;
+        }
+      }
+
+      visibilityData.push({
+        time,
+        distance,
+        conditions
+      });
+    }
+
+    return visibilityData;
   }
 } 

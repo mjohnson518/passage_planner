@@ -37,6 +37,7 @@ export {
 export * from './services/SafetyService';
 export * from './services/BathymetryService';
 export * from './services/NOAANavigationWarningsService';
+export * from './services/NDBCBuoyService';
 
 // Export middleware
 export * from './middleware/InputValidation';
