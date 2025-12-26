@@ -669,8 +669,9 @@ export class HttpServer {
 
     // Stripe webhook is registered early in constructor to ensure raw body is available
 
-    // Fleet Management Routes (Pro tier only)
+    // Fleet Management Routes (Pro tier only) - Rate limited
     this.app.post('/api/fleet/create',
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
@@ -716,6 +717,7 @@ export class HttpServer {
     );
 
     this.app.get('/api/fleet',
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
@@ -742,6 +744,7 @@ export class HttpServer {
     );
 
     this.app.post('/api/fleet/:fleetId/vessels',
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
@@ -777,6 +780,7 @@ export class HttpServer {
     );
 
     this.app.get('/api/fleet/:fleetId/analytics',
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {

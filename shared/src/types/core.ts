@@ -408,14 +408,29 @@ export const PassagePlanRequestSchema = z.object({
   }).optional(),
 });
 
+// Strong password validation for production security
+const strongPassword = z.string()
+  .min(12, 'Password must be at least 12 characters')
+  .max(128)
+  .refine(
+    val =>
+      /[a-z]/.test(val) &&
+      /[A-Z]/.test(val) &&
+      /[0-9]/.test(val) &&
+      /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val),
+    {
+      message: 'Password must contain uppercase, lowercase, number, and special character'
+    }
+  );
+
 export const LoginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: strongPassword,
 });
 
 export const SignupSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: strongPassword,
   displayName: z.string().min(2).optional(),
   boatType: z.string().optional(),
 });

@@ -75,13 +75,21 @@ export class InputValidation {
     // Email
     email: z.string().email().max(255),
     
-    // Password (min 8 chars, must contain number and letter)
+    // Password (min 12 chars, must contain uppercase, lowercase, number, special char)
+    // Strengthened for production security
     password: z.string()
-      .min(8)
+      .min(12, 'Password must be at least 12 characters')
       .max(128)
-      .refine(val => /[a-zA-Z]/.test(val) && /[0-9]/.test(val), {
-        message: 'Password must contain at least one letter and one number'
-      }),
+      .refine(
+        val =>
+          /[a-z]/.test(val) &&
+          /[A-Z]/.test(val) &&
+          /[0-9]/.test(val) &&
+          /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val),
+        {
+          message: 'Password must contain uppercase, lowercase, number, and special character'
+        }
+      ),
     
     // Phone
     phone: z.string().refine(val => validator.isMobilePhone(val, 'any'), {

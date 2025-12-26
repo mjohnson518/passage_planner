@@ -29,12 +29,39 @@ export class SecurityHeaders {
     corsOrigins: []
   };
   
+  // Strict CSP for API routes (no inline scripts needed)
+  private strictCSP = {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'"],
+    styleSrc: ["'self'"],
+    imgSrc: ["'self'", "data:"],
+    connectSrc: ["'self'"],
+    fontSrc: ["'self'"],
+    objectSrc: ["'none'"],
+    mediaSrc: ["'none'"],
+    frameSrc: ["'none'"],
+    workerSrc: ["'none'"],
+    childSrc: ["'none'"],
+    formAction: ["'self'"],
+    frameAncestors: ["'none'"],
+    baseUri: ["'self'"],
+    upgradeInsecureRequests: []
+  };
+
+  // Default CSP for frontend (Next.js requires some flexibility)
+  // NOTE: For production, use nonce-based CSP via applyNonceCSP()
+  // 'strict-dynamic' allows scripts loaded by trusted scripts
   private defaultCSP = {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // For Next.js
-    styleSrc: ["'self'", "'unsafe-inline'"],
+    scriptSrc: ["'self'", "'strict-dynamic'"], // Removed unsafe-eval, use strict-dynamic
+    styleSrc: ["'self'", "'unsafe-inline'"], // Required for CSS-in-JS, use nonces for stricter
     imgSrc: ["'self'", "data:", "https:", "blob:"],
-    connectSrc: ["'self'", "https://api.weather.gov", "https://api.tidesandcurrents.noaa.gov"],
+    connectSrc: [
+      "'self'",
+      "https://api.weather.gov",
+      "https://api.tidesandcurrents.noaa.gov",
+      "https://www.ndbc.noaa.gov"
+    ],
     fontSrc: ["'self'"],
     objectSrc: ["'none'"],
     mediaSrc: ["'self'"],
@@ -43,6 +70,7 @@ export class SecurityHeaders {
     childSrc: ["'self'", "blob:"],
     formAction: ["'self'"],
     frameAncestors: ["'none'"],
+    baseUri: ["'self'"],
     upgradeInsecureRequests: []
   };
   
@@ -254,15 +282,33 @@ export class SecurityHeaders {
     return (req: Request, res: Response, next: NextFunction) => {
       const directives: any = { ...this.defaultCSP };
       directives.reportUri = [reportUri];
-      
+
       const cspString = Object.entries(directives)
         .map(([key, values]) => {
           if ((values as any).length === 0) return key;
           return `${this.kebabCase(key)} ${(values as any).join(' ')}`;
         })
         .join('; ');
-      
+
       res.setHeader('Content-Security-Policy-Report-Only', cspString);
+      next();
+    };
+  }
+
+  /**
+   * Apply strict CSP for API routes (no inline scripts/styles)
+   * Use this for all /api/* endpoints
+   */
+  applyStrictCSP() {
+    return (req: Request, res: Response, next: NextFunction) => {
+      const cspString = Object.entries(this.strictCSP)
+        .map(([key, values]) => {
+          if (values.length === 0) return key;
+          return `${this.kebabCase(key)} ${values.join(' ')}`;
+        })
+        .join('; ');
+
+      res.setHeader('Content-Security-Policy', cspString);
       next();
     };
   }
