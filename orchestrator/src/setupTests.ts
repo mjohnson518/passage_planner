@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 process.env.NODE_ENV = 'test'
 process.env.PORT = '8081'
 process.env.JWT_SECRET = 'test-jwt-secret'

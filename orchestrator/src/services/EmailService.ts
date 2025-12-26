@@ -143,6 +143,69 @@ export class EmailService {
     }
   }
 
+  async sendFleetInvitationEmail(
+    inviteeEmail: string,
+    inviteeName: string,
+    fleetName: string,
+    inviterName: string,
+    role: string,
+    invitationToken: string
+  ): Promise<void> {
+    try {
+      const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL}/fleet/invite/${invitationToken}`
+
+      await resend.emails.send({
+        from: this.from,
+        to: inviteeEmail,
+        subject: `You've been invited to join ${fleetName} on Passage Planner`,
+        html: this.getFleetInvitationHtml(inviteeName, fleetName, inviterName, role, acceptUrl),
+      })
+
+      logger.info({ email: inviteeEmail, fleetName, inviterName }, 'Fleet invitation email sent')
+    } catch (error) {
+      logger.error({ error, email: inviteeEmail, fleetName }, 'Failed to send fleet invitation email')
+      throw error
+    }
+  }
+
+  private getFleetInvitationHtml(
+    inviteeName: string,
+    fleetName: string,
+    inviterName: string,
+    role: string,
+    acceptUrl: string
+  ): string {
+    const roleLabel = role === 'admin' ? 'Administrator' : role === 'captain' ? 'Captain' : role === 'crew' ? 'Crew Member' : 'Viewer'
+
+    return `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background-color: #0ea5e9; padding: 24px; text-align: center;">
+          <h2 style="color: white; margin: 0; font-size: 24px;">⛵ You're Invited!</h2>
+        </div>
+        <div style="padding: 32px; background-color: #f8fafc;">
+          <h1 style="color: #1e293b; font-size: 24px; margin-top: 0;">Hello ${inviteeName},</h1>
+          <p style="color: #64748b; font-size: 16px; line-height: 24px;">
+            <strong>${inviterName}</strong> has invited you to join <strong>${fleetName}</strong> as a <strong>${roleLabel}</strong> on Passage Planner.
+          </p>
+          <p style="color: #64748b; font-size: 16px; line-height: 24px;">
+            As a ${roleLabel.toLowerCase()}, you'll be able to collaborate on passage planning, view fleet vessels, and share sailing insights with your team.
+          </p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${acceptUrl}" style="display: inline-block; background-color: #0ea5e9; color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+              Accept Invitation
+            </a>
+          </div>
+          <p style="color: #94a3b8; font-size: 14px; text-align: center;">
+            This invitation expires in 7 days. If you don't have a Passage Planner account, you'll be prompted to create one.
+          </p>
+        </div>
+        <div style="padding: 16px; text-align: center; color: #94a3b8; font-size: 12px;">
+          <p>If you don't want to join this fleet, you can safely ignore this email.</p>
+        </div>
+      </div>
+    `
+  }
+
   private async getUserMonthlyStats(userId: string, month: Date) {
     const startOfMonth = new Date(month.getFullYear(), month.getMonth(), 1)
     const endOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0)

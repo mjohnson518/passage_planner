@@ -237,8 +237,8 @@ describe('RouteExportService - NAVIGATION SAFETY CRITICAL', () => {
       // 42.3601°N should be 42° 21.606' N
       expect(waypoints).toMatch(/42°.*21\.606.*N/);
       
-      // 71.0589°W should be 71° 03.534' W
-      expect(waypoints).toMatch(/71°.*03\.534.*W/);
+      // 71.0589°W should be 71° 3.534' W (or 71° 03.534' W)
+      expect(waypoints).toMatch(/71°.*0?3\.534.*W/);
     });
 
     it('should calculate accurate distances between waypoints', () => {

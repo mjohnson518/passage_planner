@@ -11,6 +11,7 @@ import { AuthMiddleware } from './middleware/auth';
 import { AgentManager } from './services/AgentManager';
 import { RateLimiter } from './middleware/rateLimiter';
 import { createAdminGuard } from './middleware/adminGuard';
+import { emailService } from './services/EmailService';
 import { Pool } from 'pg';
 import { createClient } from 'redis';
 import * as crypto from 'crypto';
@@ -311,6 +312,70 @@ export class HttpServer {
         } catch (error) {
           this.logger.error({ error }, 'Failed to fetch dashboard stats');
           res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+        }
+      }
+    );
+
+    // Profile endpoints
+    this.app.get('/api/profile',
+      this.authenticateToken.bind(this),
+      async (req, res) => {
+        try {
+          const userId = req.user!.id;
+
+          const result = await this.postgres.query(
+            `SELECT
+               id, email, full_name, company_name, phone,
+               subscription_tier, subscription_status,
+               trial_ends_at, subscription_ends_at,
+               monthly_passage_count, usage_reset_at,
+               metadata, created_at, updated_at
+             FROM profiles
+             WHERE id = $1`,
+            [userId]
+          );
+
+          if (!result.rows[0]) {
+            return res.status(404).json({ error: 'Profile not found' });
+          }
+
+          res.json(result.rows[0]);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to fetch profile');
+          res.status(500).json({ error: 'Failed to fetch profile' });
+        }
+      }
+    );
+
+    this.app.put('/api/profile',
+      this.authenticateToken.bind(this),
+      async (req, res) => {
+        try {
+          const userId = req.user!.id;
+          const { full_name, company_name, phone, metadata } = req.body;
+
+          const result = await this.postgres.query(
+            `UPDATE profiles
+             SET full_name = COALESCE($2, full_name),
+                 company_name = COALESCE($3, company_name),
+                 phone = COALESCE($4, phone),
+                 metadata = COALESCE($5, metadata),
+                 updated_at = NOW()
+             WHERE id = $1
+             RETURNING id, email, full_name, company_name, phone,
+                       subscription_tier, subscription_status,
+                       metadata, updated_at`,
+            [userId, full_name, company_name, phone, metadata ? JSON.stringify(metadata) : null]
+          );
+
+          if (!result.rows[0]) {
+            return res.status(404).json({ error: 'Profile not found' });
+          }
+
+          res.json(result.rows[0]);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to update profile');
+          res.status(500).json({ error: 'Failed to update profile' });
         }
       }
     );
@@ -678,7 +743,7 @@ export class HttpServer {
       async (req, res) => {
         try {
           const { name, description } = req.body;
-          const userId = req.user!.userId;
+          const userId = req.user!.id;
           
           // Check subscription
           const subscription = await this.getSubscription(userId);
@@ -723,7 +788,7 @@ export class HttpServer {
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
-          const userId = req.user!.userId;
+          const userId = req.user!.id;
           
           const result = await this.postgres.query(
             `SELECT f.*, fm.role 
@@ -751,7 +816,7 @@ export class HttpServer {
       async (req, res) => {
         try {
           const { fleetId } = req.params;
-          const userId = req.user!.userId;
+          const userId = req.user!.id;
           const vesselData = req.body;
           
           // Verify user has admin access
@@ -787,7 +852,7 @@ export class HttpServer {
       async (req, res) => {
         try {
           const { fleetId } = req.params;
-          const userId = req.user!.userId;
+          const userId = req.user!.id;
           const { startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), endDate = new Date() } = req.query;
           
           // Verify access
@@ -919,7 +984,7 @@ export class HttpServer {
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
-          const userId = req.user!.userId;
+          const userId = req.user!.id;
           
           const result = await this.postgres.query(
             'SELECT key FROM api_keys WHERE user_id = $1 AND active = true',
@@ -942,7 +1007,7 @@ export class HttpServer {
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
-          const userId = req.user!.userId;
+          const userId = req.user!.id;
           
           // Check subscription
           const subscription = await this.getSubscription(userId);
@@ -981,7 +1046,7 @@ export class HttpServer {
       adminGuard,
       async (req, res) => {
         try {
-          const userId = req.user!.userId;
+          const userId = req.user!.id;
           
           const result = await this.postgres.query(
             'SELECT id, email, role, subscription_tier FROM users WHERE id = $1',
@@ -1090,7 +1155,7 @@ export class HttpServer {
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
-          const userId = req.user!.userId || req.user!.id;
+          const userId = req.user!.id;
           const { returnUrl } = req.body;
 
           // Get user's Stripe customer ID from subscription
@@ -1128,7 +1193,7 @@ export class HttpServer {
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
-          const userId = req.user!.userId || req.user!.id;
+          const userId = req.user!.id;
           const { passageId } = req.params;
           const { format } = req.body; // 'gpx', 'kml', 'pdf', 'csv'
 
@@ -1185,7 +1250,7 @@ export class HttpServer {
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
-          const userId = req.user!.userId || req.user!.id;
+          const userId = req.user!.id;
           const { passageIds, format } = req.body;
 
           if (!passageIds || !Array.isArray(passageIds) || passageIds.length === 0) {
@@ -1241,7 +1306,7 @@ export class HttpServer {
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
-          const userId = req.user!.userId || req.user!.id;
+          const userId = req.user!.id;
           const { passageId } = req.params;
 
           // Update passage status to cancelled
@@ -1279,7 +1344,7 @@ export class HttpServer {
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
-          const userId = req.user!.userId || req.user!.id;
+          const userId = req.user!.id;
           const { fleetId } = req.params;
           const { invites } = req.body; // Array of { email, name, role, permissions }
 
@@ -1302,28 +1367,61 @@ export class HttpServer {
             return res.status(400).json({ error: 'Maximum 10 invitations at once' });
           }
 
+          // Get fleet name and inviter info for emails
+          const fleetResult = await this.postgres.query(
+            'SELECT name FROM fleets WHERE id = $1',
+            [fleetId]
+          );
+          const fleetName = fleetResult.rows[0]?.name || 'Fleet';
+
+          const inviterResult = await this.postgres.query(
+            'SELECT email, full_name FROM profiles WHERE id = $1',
+            [userId]
+          );
+          const inviterName = inviterResult.rows[0]?.full_name || inviterResult.rows[0]?.email || 'A fleet admin';
+
           const results = [];
 
           for (const invite of invites) {
             if (!invite.email || !invite.name) continue;
 
             try {
-              // Create invitation record
+              // Generate unique invitation token
+              const token = crypto.randomBytes(32).toString('hex');
+
+              // Create invitation record with token
               const inviteResult = await this.postgres.query(
                 `INSERT INTO fleet_invitations
-                 (fleet_id, email, name, role, permissions, invited_by, expires_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '7 days')
+                 (fleet_id, email, name, role, permissions, invited_by, token, expires_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '7 days')
                  ON CONFLICT (fleet_id, email) DO UPDATE SET
                    name = EXCLUDED.name,
                    role = EXCLUDED.role,
                    permissions = EXCLUDED.permissions,
                    invited_by = EXCLUDED.invited_by,
+                   token = EXCLUDED.token,
                    expires_at = NOW() + INTERVAL '7 days',
                    created_at = NOW()
-                 RETURNING id, email`,
+                 RETURNING id, email, token`,
                 [fleetId, invite.email, invite.name, invite.role || 'crew',
-                 JSON.stringify(invite.permissions || {}), userId]
+                 JSON.stringify(invite.permissions || {}), userId, token]
               );
+
+              const invitationToken = inviteResult.rows[0].token;
+
+              // Send invitation email
+              try {
+                await emailService.sendFleetInvitationEmail(
+                  invite.email,
+                  invite.name,
+                  fleetName,
+                  inviterName,
+                  invite.role || 'crew',
+                  invitationToken
+                );
+              } catch (emailErr) {
+                this.logger.warn({ error: emailErr, email: invite.email }, 'Failed to send invitation email, but invitation was created');
+              }
 
               results.push({
                 email: invite.email,
@@ -1331,12 +1429,11 @@ export class HttpServer {
                 invitationId: inviteResult.rows[0].id
               });
 
-              // TODO: Send invitation email via email service
               this.logger.info({
                 fleetId,
                 email: invite.email,
                 invitedBy: userId
-              }, 'Fleet invitation created');
+              }, 'Fleet invitation created and email sent');
 
             } catch (err) {
               results.push({
@@ -1356,6 +1453,142 @@ export class HttpServer {
         } catch (error) {
           this.logger.error({ error }, 'Failed to send fleet invitations');
           res.status(500).json({ error: 'Failed to send invitations' });
+        }
+      }
+    );
+
+    // Accept fleet invitation
+    this.app.post('/api/fleet/invitations/:token/accept',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const userId = req.user!.id;
+          const { token } = req.params;
+
+          // Get invitation by token
+          const inviteResult = await this.postgres.query(
+            `SELECT fi.*, f.name as fleet_name, u.email as inviter_email
+             FROM fleet_invitations fi
+             JOIN fleets f ON f.id = fi.fleet_id
+             LEFT JOIN users u ON u.id = fi.invited_by
+             WHERE fi.token = $1
+               AND fi.expires_at > NOW()
+               AND fi.accepted_at IS NULL`,
+            [token]
+          );
+
+          if (inviteResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Invitation not found or expired' });
+          }
+
+          const invite = inviteResult.rows[0];
+
+          // Verify user email matches invitation
+          const userResult = await this.postgres.query(
+            'SELECT email FROM users WHERE id = $1',
+            [userId]
+          );
+
+          if (userResult.rows[0]?.email !== invite.email) {
+            return res.status(403).json({
+              error: 'This invitation was sent to a different email address'
+            });
+          }
+
+          // Add user to fleet_members
+          await this.postgres.query(
+            `INSERT INTO fleet_members (fleet_id, user_id, role)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (fleet_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+            [invite.fleet_id, userId, invite.role]
+          );
+
+          // Mark invitation as accepted
+          await this.postgres.query(
+            `UPDATE fleet_invitations
+             SET accepted_at = NOW()
+             WHERE token = $1`,
+            [token]
+          );
+
+          this.logger.info({
+            fleetId: invite.fleet_id,
+            userId,
+            role: invite.role
+          }, 'Fleet invitation accepted');
+
+          res.json({
+            success: true,
+            message: `Successfully joined ${invite.fleet_name}`,
+            fleet: {
+              id: invite.fleet_id,
+              name: invite.fleet_name,
+              role: invite.role
+            }
+          });
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to accept fleet invitation');
+          res.status(500).json({ error: 'Failed to accept invitation' });
+        }
+      }
+    );
+
+    // Reject fleet invitation
+    this.app.post('/api/fleet/invitations/:token/reject',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      async (req, res) => {
+        try {
+          const userId = req.user!.id;
+          const { token } = req.params;
+
+          // Get invitation by token
+          const inviteResult = await this.postgres.query(
+            `SELECT fi.*, f.name as fleet_name
+             FROM fleet_invitations fi
+             JOIN fleets f ON f.id = fi.fleet_id
+             WHERE fi.token = $1
+               AND fi.expires_at > NOW()
+               AND fi.accepted_at IS NULL`,
+            [token]
+          );
+
+          if (inviteResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Invitation not found or expired' });
+          }
+
+          const invite = inviteResult.rows[0];
+
+          // Verify user email matches invitation
+          const userResult = await this.postgres.query(
+            'SELECT email FROM users WHERE id = $1',
+            [userId]
+          );
+
+          if (userResult.rows[0]?.email !== invite.email) {
+            return res.status(403).json({
+              error: 'This invitation was sent to a different email address'
+            });
+          }
+
+          // Delete the invitation (or mark as rejected if you want to track)
+          await this.postgres.query(
+            `DELETE FROM fleet_invitations WHERE token = $1`,
+            [token]
+          );
+
+          this.logger.info({
+            fleetId: invite.fleet_id,
+            userId,
+            email: invite.email
+          }, 'Fleet invitation rejected');
+
+          res.json({
+            success: true,
+            message: `Declined invitation to ${invite.fleet_name}`
+          });
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to reject fleet invitation');
+          res.status(500).json({ error: 'Failed to reject invitation' });
         }
       }
     );

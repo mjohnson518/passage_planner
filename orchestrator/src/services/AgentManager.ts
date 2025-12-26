@@ -32,4 +32,18 @@ export class AgentManager extends EventEmitter {
   async restartAgent(agentId: string) {
     this.logger.info({ agentId }, 'Restart requested (noop)')
   }
+
+  async startAgent(agentId: string): Promise<void> {
+    this.logger.info({ agentId }, 'Agent start requested');
+    // In production, this would trigger actual agent process startup
+    // For now, emit an event that other components can listen to
+    this.emit('agent:start', { agentId, timestamp: new Date() });
+  }
+
+  async stopAgent(agentId: string): Promise<void> {
+    this.logger.info({ agentId }, 'Agent stop requested');
+    // In production, this would trigger graceful agent shutdown
+    // For now, emit an event that other components can listen to
+    this.emit('agent:stop', { agentId, timestamp: new Date() });
+  }
 }
