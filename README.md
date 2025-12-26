@@ -1,297 +1,132 @@
-# Helmwise - Production-Ready SaaS Maritime Navigation System
+# Helmwise
 
-A production-ready SaaS passage planning system built with the Model Context Protocol (MCP) that orchestrates specialized AI agents to provide comprehensive sailing route planning. The system features a complete business infrastructure including authentication, subscription billing, analytics, and real-time monitoring.
+**AI-powered passage planning for safer sailing.**
 
-Production URLs:
-- App: https://helmwise.co
-- API: https://api.helmwise.co
+Helmwise is a production-ready SaaS platform that helps sailors plan safer, smarter passages using real-time weather, tidal, and marine safety data.
 
-## 🌟 Key Features
+🌐 **Live:** [helmwise.co](https://helmwise.co)
 
-### Core Planning Features
-- **Hierarchical Agent Architecture**: Orchestrator pattern managing specialized MCP agents
-- **Dynamic Agent Creation**: Meta-agent capable of creating new agents for unforeseen requirements
-- **Real-time Visualization**: Live architecture diagram showing agent interactions and request flow
-- **Comprehensive Planning**: Weather, tides, currents, port facilities, safety considerations, and optimal routing
-- **Natural Language Interface**: Plan sailing passages using conversational queries
-- **Real-Time Data Integration**: Live weather, tidal predictions, and safety warnings
+## Features
 
-### SaaS Platform Features
-- **Authentication & Authorization**: Supabase-powered auth with JWT tokens
-- **Subscription Billing**: Stripe integration with three tiers (Free, Premium $19/mo, Pro $49/mo)
-- **Email System**: Beautiful transactional emails with React Email and Resend
-- **Analytics Dashboard**: Comprehensive business metrics and user behavior tracking
-- **Agent Health Monitoring**: Real-time monitoring with auto-restart capabilities
-- **Production Infrastructure**: Kubernetes-ready with comprehensive monitoring
+- **Intelligent Route Planning** — AI agents analyze weather, tides, currents, and hazards
+- **Real-Time Marine Data** — NOAA forecasts, NDBC buoy data, tidal predictions
+- **Safety First** — Restricted area warnings, depth calculations with tidal adjustments
+- **Fleet Management** — Multi-vessel tracking with crew collaboration (Pro tier)
+- **Beautiful Interface** — Modern, responsive design built with Next.js
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Web Client    │────▶│   Orchestrator  │────▶│  Specialized    │
-│   (Next.js)     │◀────│     (MCP)       │◀────│    Agents       │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-        │                      │                         │
-        │                      ▼                         ▼
-        │               ┌─────────────┐          ┌──────────────┐
-        │               │    Redis    │          │  PostgreSQL  │
-        │               │   (State)   │          │   (Data)     │
-        │               └─────────────┘          └──────────────┘
-        │
-        ▼
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Supabase      │     │    Stripe       │     │    Resend       │
-│   (Auth)        │     │   (Billing)     │     │   (Email)       │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
+Frontend (Next.js) → Orchestrator → Specialized Agents
+                          ↓              ↓
+                        Redis      Weather | Tidal | Safety | Route | Port
+                          ↓
+                     PostgreSQL (Supabase)
 ```
 
-### Specialized Agents
+## Quick Start
 
-- **Weather Agent**: NOAA weather data, marine forecasts, storm warnings
-- **Tidal Agent**: Tide predictions, current forecasts, water depth calculations
-- **Port Agent**: Port information, facilities, contacts, entry requirements
-- **Safety Agent**: Navigation warnings, emergency contacts, safety checklists
-- **Route Agent**: Route calculation, waypoint optimization, distance calculations
-- **Wind Agent**: Wind forecasts, gust analysis, optimal sail recommendations
-- **Agent Factory**: Dynamic agent creation for new capabilities
+```bash
+# Clone and install
+git clone https://github.com/mjohnson518/passage_planner.git
+cd passage-planner && npm install
 
-### Platform Components
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys
 
-- **Authentication Service**: User registration, login, password reset, session management
-- **Billing Service**: Subscription management, payment processing, webhook handling
-- **Email Service**: Transactional emails, usage reports, billing notifications
-- **Analytics Service**: Business metrics, user behavior tracking, cohort analysis
-- **Agent Manager**: Health monitoring, auto-restart, performance tracking
+# Start services
+npm run docker:up
+npm run dev
+```
 
-## 💰 Pricing Tiers
+**Local URLs:**
+- App: http://localhost:3000
+- API: http://localhost:8080
 
-- **Free Tier**: 5 passages/month, basic features
-- **Premium ($19/mo)**: 50 passages/month, advanced weather, priority support
-- **Pro ($49/mo)**: Unlimited passages, fleet management, API access, white-label options
+## Pricing
 
-### Pro Fleet Management Features
-- **Multi-Vessel Management**: Track and manage unlimited vessels in your fleet
-- **Crew Coordination**: Invite crew members with role-based permissions
-- **Fleet Analytics**: Utilization metrics, popular routes, and performance tracking
-- **Vessel Tracking**: Real-time location monitoring for all fleet vessels
-- **Maintenance Scheduling**: Track and schedule vessel maintenance
-- **Shared Passages**: Automatically share passage plans across your fleet
+| Tier | Price | Passages | Features |
+|------|-------|----------|----------|
+| Free | $0 | 5/month | Basic planning |
+| Premium | $19/mo | 50/month | Advanced weather, priority support |
+| Pro | $49/mo | Unlimited | Fleet management, API access |
 
-## 🛠️ Technical Stack
+## Tech Stack
 
-- **Framework**: Model Context Protocol (MCP) by Anthropic
-- **Language**: TypeScript/Node.js
-- **Frontend**: Next.js 14 with App Router, Tailwind CSS, shadcn/ui
-- **Authentication**: Supabase Auth with JWT tokens
-- **Payments**: Stripe with subscription management
-- **Email**: React Email + Resend for transactional emails
-- **Database**: PostgreSQL 15+ with Supabase
-- **Cache/Queue**: Redis 7+
-- **Monitoring**: Prometheus, Grafana, custom analytics
-- **Container**: Docker & Kubernetes-ready
-- **Testing**: Jest, React Testing Library, Supertest
+- **Frontend:** Next.js 14, TypeScript, Tailwind CSS
+- **Backend:** Node.js, Express, MCP (Model Context Protocol)
+- **Database:** PostgreSQL (Supabase)
+- **Cache:** Redis
+- **Payments:** Stripe
+- **Email:** Resend
 
-## 📊 Analytics & Monitoring
+## Deployment
 
-### Business Metrics Dashboard (Admin Only)
-- **Revenue Metrics**: MRR, ARR, ARPU, LTV
-- **User Metrics**: Total users, paid users, conversion rates
-- **Engagement**: MAU, feature usage, retention cohorts
-- **Performance**: Churn rate, growth trends, funnel analysis
+See [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md) for complete deployment instructions including:
+- Environment variables and API keys
+- Database migrations
+- Infrastructure setup
+- Pre-launch checklist
 
-### Agent Health Monitoring
-- Real-time status of all agents
-- Automatic restart on failure
-- Memory and CPU usage tracking
-- Request/response metrics
-- WebSocket-based live updates
+**Required Services:**
+- Supabase (auth + database)
+- Redis (Upstash recommended)
+- Stripe (payments)
+- Resend (email)
 
-## 🚀 Quick Start
+**API Keys (all free tiers available):**
+- NOAA Weather API
+- NDBC Buoy Data (no key needed)
+- OpenWeather API
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/mjohnson518/passage_planner.git
-   cd passage-planner
-   ```
+## Development
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+```bash
+# Run tests
+npm test
 
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   ```
+# Build for production
+npm run build
 
-   Refer to `docs/docker-dev.md` for Docker-specific defaults and required keys.
+# Type checking
+npm run typecheck
+```
 
-4. **Start infrastructure**
-   ```bash
-   npm run docker:up
-   ```
-
-5. **Run database migrations (if needed)**
-   ```bash
-   npm run db:migrate
-   ```
-
-6. **Start development servers**
-   ```bash
-   npm run dev
-   ```
-
-The application will be available at:
-- Frontend: http://localhost:3000
-- Orchestrator: http://localhost:8080
-- Agent Health Dashboard: http://localhost:3000/admin/agents (admin only)
-- Analytics Dashboard: http://localhost:3000/admin/analytics (admin only)
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 passage-planner/
-├── frontend/               # Next.js web application
-│   ├── app/               # App router pages and components
-│   ├── components/        # Reusable UI components
-│   ├── contexts/          # React contexts (Auth, Socket, etc.)
-│   ├── hooks/             # Custom React hooks
-│   └── lib/               # Utilities and services
-├── backend/               # Backend API service
-├── orchestrator/          # MCP orchestrator service
-│   ├── services/          # Core orchestrator services and agent orchestration
-│   └── Dockerfile         # Orchestrator container build
-├── agents/                # Specialized agent implementations
-│   ├── weather/           # Weather forecasting agent
-│   ├── tidal/             # Tidal prediction agent
-│   ├── safety/            # Safety analysis agent
-│   ├── route/             # Route optimization agent
-│   └── port/              # Port information agent
-├── shared/                # Shared types and utilities
-├── scripts/               # Deployment and setup scripts
-│   └── start-local.sh     # Local development startup script
-├── infrastructure/        # Docker, Kubernetes configs and SQL seeds
-├── docker/                # Docker build configurations
-│   └── Dockerfile         # Orchestrator Docker build file
-├── tests/                 # Organized test suite
-│   ├── integration/       # Integration tests & docker-compose files
-│   ├── scripts/           # Test scripts and utilities
-│   ├── config/            # Test configuration files
-│   ├── e2e/               # End-to-end tests
-│   ├── load/              # Load testing scripts
-│   ├── agents/            # Agent-specific tests
-│   └── playwright.config.ts # E2E test configuration
-└── docs/                  # Project documentation
-    ├── api/               # API documentation
-    ├── architecture/      # Architecture documentation
-    ├── deployment/        # Deployment guides
-    └── archive/           # Archived documentation
+├── frontend/          # Next.js web app
+├── orchestrator/      # MCP orchestrator service
+├── agents/            # Specialized AI agents
+│   ├── weather/       # NOAA weather forecasts
+│   ├── tidal/         # Tide predictions
+│   ├── safety/        # Navigation safety
+│   ├── route/         # Route optimization
+│   └── port/          # Port information
+├── shared/            # Shared types and utilities
+├── infrastructure/    # Docker, Kubernetes, SQL
+└── docs/              # Documentation
 ```
 
-## 🧪 Testing
-
-```bash
-# Run all tests
-npm test
-
-# Run frontend tests
-npm run test:frontend
-
-# Run backend tests
-npm run test:backend
-
-# Run integration tests
-npm run test:integration
-
-# Run E2E tests
-npm run test:e2e
-```
-
-## 🔒 Security
-
-- JWT authentication with secure token handling
-- Stripe webhook signature verification
-- Rate limiting and input validation
-- Encrypted sensitive data storage
-- Role-based access control for admin features
-- GDPR compliance with data export/deletion
-
-## 🚢 Example Usage
-
-```typescript
-// After authentication
-const { user } = useAuth();
-
-// Plan a passage (counts against subscription limit)
-const plan = await orchestrator.callTool('plan_passage', {
-  departure: 'Boston, MA',
-  destination: 'Portland, ME',
-  departure_time: '2024-07-15T10:00:00Z',
-  boat_type: 'sailboat',
-  preferences: {
-    avoid_night: true,
-    max_wind_speed: 25,
-    max_wave_height: 2
-  }
-});
-
-// Track analytics
-const { trackFeature } = useAnalytics();
-trackFeature('passage_planned', { 
-  distance: plan.total_distance,
-  duration: plan.estimated_duration 
-});
-```
-
-## 📧 Email Templates
-
-Beautiful, responsive email templates for:
-- Welcome emails with getting started guide
-- Trial ending reminders (3 days before)
-- Subscription confirmations
-- Payment failures
-- Usage reports (weekly/monthly)
-- Password reset
-
-## 🚀 Performance Optimizations
-
-The application is optimized for fast loading and smooth performance:
-
-- **Code Splitting**: Dynamic imports and lazy loading for heavy components
-- **Bundle Optimization**: Tree shaking, minification, and webpack optimizations
-- **Image Optimization**: Next.js Image component with WebP/AVIF support
-- **Caching Strategy**: Static assets cached for 1 year, API request deduplication
-- **Performance Utilities**: Debouncing, throttling, and memory leak prevention
-- **PWA Support**: Service worker for offline access and background sync
-- **Critical Path**: Preloading fonts, preconnecting to external domains
-- **Monitoring**: Bundle analyzer and Core Web Vitals tracking
-
-Target metrics: FCP < 1.8s, LCP < 2.5s, TTI < 3.8s, CLS < 0.1, FID < 100ms
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+2. Create a feature branch
 3. Write tests for your changes
-4. Commit your changes (`git commit -m 'Add amazing feature'`)
-5. Push to the branch (`git push origin feature/amazing-feature`)
-6. Open a Pull Request
+4. Submit a pull request
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE)
 
-## 🙏 Acknowledgments
+## Support
 
-- Model Context Protocol (MCP) by Anthropic
-- NOAA for weather and marine data APIs
-- Stripe for payment infrastructure
-- Supabase for authentication and database
-- The sailing community for inspiration
+- **Free:** GitHub Issues
+- **Premium:** support@helmwise.co
+- **Pro:** Priority support with SLA
 
-## 📞 Support
+---
 
-For questions and support:
-- Free tier: GitHub issues
-- Premium tier: Email support (support@helmwise.co)
-- Pro tier: Priority support with SLA
+Built with the [Model Context Protocol](https://modelcontextprotocol.io) by Anthropic
