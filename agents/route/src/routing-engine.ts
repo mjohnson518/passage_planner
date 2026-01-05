@@ -16,6 +16,7 @@ export interface Waypoint {
   lat: number;
   lon: number;
   distance: number; // Cumulative distance in nautical miles
+  distanceFromPrevious?: number; // Distance from previous waypoint in nautical miles
   bearing: number; // True bearing in degrees
   eta?: Date; // Estimated time of arrival
   name?: string;
@@ -87,14 +88,14 @@ export class RoutingEngine {
         });
       } else if (i === numWaypoints) {
         // End waypoint
+        const lastWp = waypoints[waypoints.length - 1];
+        const distFromPrev = this.calculateDistance(lastWp, end);
         waypoints.push({
           lat: end.lat,
           lon: end.lon,
           distance: totalDistanceNm,
-          bearing: this.calculateBearing(
-            waypoints[waypoints.length - 1],
-            end
-          ),
+          distanceFromPrevious: distFromPrev,
+          bearing: this.calculateBearing(lastWp, end),
           name: 'Arrival'
         });
       } else {
@@ -104,18 +105,19 @@ export class RoutingEngine {
           end,
           fraction
         );
-        
+
         const segmentDistance = this.calculateDistance(
           waypoints[waypoints.length - 1],
           intermediatePoint
         );
-        
+
         cumulativeDistance += segmentDistance;
-        
+
         waypoints.push({
           lat: intermediatePoint.lat,
           lon: intermediatePoint.lon,
           distance: cumulativeDistance,
+          distanceFromPrevious: segmentDistance,
           bearing: this.calculateBearing(
             waypoints[waypoints.length - 1],
             intermediatePoint
@@ -200,10 +202,13 @@ export class RoutingEngine {
           name: 'Departure'
         });
       } else if (i === numWaypoints) {
+        const lastWp = waypoints[waypoints.length - 1];
+        const distFromPrev = this.calculateDistance(lastWp, end);
         waypoints.push({
           lat: end.lat,
           lon: end.lon,
           distance: totalDistanceNm,
+          distanceFromPrevious: distFromPrev,
           bearing: bearing,
           name: 'Arrival'
         });
@@ -214,11 +219,16 @@ export class RoutingEngine {
           distanceToWaypoint * 1852, // Convert nm back to meters
           bearing
         );
-        
+
+        const lastWp = waypoints[waypoints.length - 1];
+        const intermediateLatLon = { lat: intermediatePoint.latitude, lon: intermediatePoint.longitude };
+        const distFromPrev = this.calculateDistance(lastWp, intermediateLatLon);
+
         waypoints.push({
           lat: intermediatePoint.latitude,
           lon: intermediatePoint.longitude,
           distance: distanceToWaypoint,
+          distanceFromPrevious: distFromPrev,
           bearing: bearing, // Constant for rhumb line
           name: `WP${i}`
         });
@@ -362,10 +372,15 @@ export class RoutingEngine {
 
   /**
    * Validate coordinates are within valid ranges
+   * SAFETY CRITICAL: Throws on invalid coordinates to prevent navigation errors
    */
-  validateCoordinates(point: LatLon): boolean {
-    return point.lat >= -90 && point.lat <= 90 &&
-           point.lon >= -180 && point.lon <= 180;
+  validateCoordinates(lat: number, lon: number): void {
+    if (lat < -90 || lat > 90) {
+      throw new Error(`Invalid latitude: ${lat}. Must be between -90 and 90`);
+    }
+    if (lon < -180 || lon > 180) {
+      throw new Error(`Invalid longitude: ${lon}. Must be between -180 and 180`);
+    }
   }
 
   /**
