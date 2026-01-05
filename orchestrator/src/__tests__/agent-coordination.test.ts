@@ -19,17 +19,17 @@ jest.mock('@supabase/supabase-js');
 jest.mock('ws');
 jest.mock('@modelcontextprotocol/sdk/server/index.js');
 jest.mock('@modelcontextprotocol/sdk/server/stdio.js');
-jest.mock('../../agents/weather/src/WeatherAgent');
-jest.mock('../../agents/tidal/src/TidalAgent');
-jest.mock('../../agents/route/src/RouteAgent');
+jest.mock('../../../agents/weather/src/WeatherAgent');
+jest.mock('../../../agents/tidal/src/TidalAgent');
+jest.mock('../../../agents/route/src/RouteAgent');
 jest.mock('uuid', () => ({
   v4: () => 'test-coordination-id-12345'
 }));
 
 import { Orchestrator } from '../Orchestrator';
-import { WeatherAgent } from '../../agents/weather/src/WeatherAgent';
-import { TidalAgent } from '../../agents/tidal/src/TidalAgent';
-import { RouteAgent } from '../../agents/route/src/RouteAgent';
+import { WeatherAgent } from '../../../agents/weather/src/WeatherAgent';
+import { TidalAgent } from '../../../agents/tidal/src/TidalAgent';
+import { RouteAgent } from '../../../agents/route/src/RouteAgent';
 
 describe('Orchestrator: Agent Coordination & Integration', () => {
   let orchestrator: Orchestrator;
@@ -235,7 +235,7 @@ describe('Orchestrator: Agent Coordination & Integration', () => {
         }
       };
 
-      const mockRoute = require('../../agents/route/src/RouteAgent').mock.results[0].value;
+      const mockRoute = require('../../../agents/route/src/RouteAgent').mock.results[0].value;
 
       await (orchestrator as any).planPassage(planRequest);
       
@@ -264,7 +264,7 @@ describe('Orchestrator: Agent Coordination & Integration', () => {
         }
       };
 
-      const mockWeather = require('../../agents/weather/src/WeatherAgent').mock.results[0].value;
+      const mockWeather = require('../../../agents/weather/src/WeatherAgent').mock.results[0].value;
 
       await (orchestrator as any).planPassage(planRequest);
       
@@ -297,7 +297,7 @@ describe('Orchestrator: Agent Coordination & Integration', () => {
         }
       };
 
-      const mockTidal = require('../../agents/tidal/src/TidalAgent').mock.results[0].value;
+      const mockTidal = require('../../../agents/tidal/src/TidalAgent').mock.results[0].value;
 
       await (orchestrator as any).planPassage(planRequest);
       
@@ -328,7 +328,7 @@ describe('Orchestrator: Agent Coordination & Integration', () => {
         }
       };
 
-      const mockTidal = require('../../agents/tidal/src/TidalAgent').mock.results[0].value;
+      const mockTidal = require('../../../agents/tidal/src/TidalAgent').mock.results[0].value;
 
       await (orchestrator as any).planPassage(planRequest);
       
@@ -456,8 +456,8 @@ describe('Orchestrator: Agent Coordination & Integration', () => {
 
   describe('Data Flow and Dependencies', () => {
     it('should use route waypoints for weather forecast locations', async () => {
-      const mockRoute = require('../../agents/route/src/RouteAgent').mock.results[0].value;
-      const mockWeather = require('../../agents/weather/src/WeatherAgent').mock.results[0].value;
+      const mockRoute = require('../../../agents/route/src/RouteAgent').mock.results[0].value;
+      const mockWeather = require('../../../agents/weather/src/WeatherAgent').mock.results[0].value;
 
       const planRequest = {
         departure: {
@@ -483,7 +483,7 @@ describe('Orchestrator: Agent Coordination & Integration', () => {
     });
 
     it('should use departure coordinates for tidal predictions', async () => {
-      const mockTidal = require('../../agents/tidal/src/TidalAgent').mock.results[0].value;
+      const mockTidal = require('../../../agents/tidal/src/TidalAgent').mock.results[0].value;
 
       const planRequest = {
         departure: {
@@ -511,7 +511,7 @@ describe('Orchestrator: Agent Coordination & Integration', () => {
     });
 
     it('should propagate vessel information to route calculation', async () => {
-      const mockRoute = require('../../agents/route/src/RouteAgent').mock.results[0].value;
+      const mockRoute = require('../../../agents/route/src/RouteAgent').mock.results[0].value;
 
       const planRequest = {
         departure: {
@@ -543,7 +543,7 @@ describe('Orchestrator: Agent Coordination & Integration', () => {
     });
 
     it('should default vessel speed if not provided', async () => {
-      const mockRoute = require('../../agents/route/src/RouteAgent').mock.results[0].value;
+      const mockRoute = require('../../../agents/route/src/RouteAgent').mock.results[0].value;
 
       const planRequest = {
         departure: {

@@ -18,15 +18,15 @@ import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals
 jest.mock('ioredis');
 jest.mock('@supabase/supabase-js');
 jest.mock('ws');
-jest.mock('../../agents/weather/src/WeatherAgent');
-jest.mock('../../agents/tidal/src/TidalAgent');
-jest.mock('../../agents/route/src/RouteAgent');
+jest.mock('../../../agents/weather/src/WeatherAgent');
+jest.mock('../../../agents/tidal/src/TidalAgent');
+jest.mock('../../../agents/route/src/RouteAgent');
 
 import { Orchestrator } from '../Orchestrator';
 import Redis from 'ioredis';
-import { WeatherAgent } from '../../agents/weather/src/WeatherAgent';
-import { TidalAgent } from '../../agents/tidal/src/TidalAgent';
-import { RouteAgent } from '../../agents/route/src/RouteAgent';
+import { WeatherAgent } from '../../../agents/weather/src/WeatherAgent';
+import { TidalAgent } from '../../../agents/tidal/src/TidalAgent';
+import { RouteAgent } from '../../../agents/route/src/RouteAgent';
 
 describe('Orchestrator: Agent Initialization', () => {
   let orchestrator: Orchestrator;

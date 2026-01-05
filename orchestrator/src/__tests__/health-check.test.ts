@@ -22,9 +22,9 @@ jest.mock('@supabase/supabase-js');
 jest.mock('ws');
 jest.mock('@modelcontextprotocol/sdk/server/index.js');
 jest.mock('@modelcontextprotocol/sdk/server/stdio.js');
-jest.mock('../../agents/weather/src/WeatherAgent');
-jest.mock('../../agents/tidal/src/TidalAgent');
-jest.mock('../../agents/route/src/RouteAgent');
+jest.mock('../../../agents/weather/src/WeatherAgent');
+jest.mock('../../../agents/tidal/src/TidalAgent');
+jest.mock('../../../agents/route/src/RouteAgent');
 
 import { Orchestrator } from '../Orchestrator';
 
@@ -85,21 +85,21 @@ describe('Orchestrator: Health Check & Monitoring', () => {
     require('@modelcontextprotocol/sdk/server/index.js').Server = jest.fn(() => mockMcpServer);
 
     // Setup agent mocks
-    require('../../agents/weather/src/WeatherAgent').default = jest.fn(() => ({
+    require('../../../agents/weather/src/WeatherAgent').default = jest.fn(() => ({
       initialize: jest.fn().mockResolvedValue(undefined),
       shutdown: jest.fn().mockResolvedValue(undefined),
       getTools: jest.fn().mockReturnValue([]),
       handleToolCall: jest.fn()
     }));
 
-    require('../../agents/tidal/src/TidalAgent').default = jest.fn(() => ({
+    require('../../../agents/tidal/src/TidalAgent').default = jest.fn(() => ({
       initialize: jest.fn().mockResolvedValue(undefined),
       shutdown: jest.fn().mockResolvedValue(undefined),
       getTools: jest.fn().mockReturnValue([]),
       handleToolCall: jest.fn()
     }));
 
-    require('../../agents/route/src/RouteAgent').default = jest.fn(() => ({
+    require('../../../agents/route/src/RouteAgent').default = jest.fn(() => ({
       initialize: jest.fn().mockResolvedValue(undefined),
       shutdown: jest.fn().mockResolvedValue(undefined),
       getTools: jest.fn().mockReturnValue([]),

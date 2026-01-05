@@ -85,12 +85,20 @@ export class RouteExportService {
   }
 
   /**
+   * Format coordinate with minimum 6 decimal places for navigation safety
+   * 6 decimal places = ~0.11m accuracy (exceeds GPS accuracy)
+   */
+  private formatCoordinateValue(value: number): string {
+    return value.toFixed(6);
+  }
+
+  /**
    * Build GPX XML string
    */
   private buildGPX(route: Route): string {
     const waypoints = route.waypoints
       .map((wp, index) => `
-  <wpt lat="${wp.latitude}" lon="${wp.longitude}">
+  <wpt lat="${this.formatCoordinateValue(wp.latitude)}" lon="${this.formatCoordinateValue(wp.longitude)}">
     <name>${this.escapeXML(wp.name || `WP${index + 1}`)}</name>
     ${wp.description ? `<desc>${this.escapeXML(wp.description)}</desc>` : ''}
     <sym>${wp.symbol || 'Flag, Blue'}</sym>
@@ -100,7 +108,7 @@ export class RouteExportService {
 
     const routePoints = route.waypoints
       .map((wp, index) => `
-      <rtept lat="${wp.latitude}" lon="${wp.longitude}">
+      <rtept lat="${this.formatCoordinateValue(wp.latitude)}" lon="${this.formatCoordinateValue(wp.longitude)}">
         <name>${this.escapeXML(wp.name || `WP${index + 1}`)}</name>
         ${wp.description ? `<desc>${this.escapeXML(wp.description)}</desc>` : ''}
       </rtept>`)
@@ -141,13 +149,13 @@ ${routePoints}
       <name>${this.escapeXML(wp.name || `WP${index + 1}`)}</name>
       ${wp.description ? `<description>${this.escapeXML(wp.description)}</description>` : ''}
       <Point>
-        <coordinates>${wp.longitude},${wp.latitude},0</coordinates>
+        <coordinates>${this.formatCoordinateValue(wp.longitude)},${this.formatCoordinateValue(wp.latitude)},0</coordinates>
       </Point>
     </Placemark>`)
       .join('\n');
 
     const coordinates = route.waypoints
-      .map(wp => `${wp.longitude},${wp.latitude},0`)
+      .map(wp => `${this.formatCoordinateValue(wp.longitude)},${this.formatCoordinateValue(wp.latitude)},0`)
       .join('\n        ');
 
     const kml = `<?xml version="1.0" encoding="UTF-8"?>

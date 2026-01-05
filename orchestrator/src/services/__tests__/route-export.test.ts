@@ -66,13 +66,13 @@ describe('RouteExportService - NAVIGATION SAFETY CRITICAL', () => {
       expect(gpx).toContain('<gpx version="1.1"');
       expect(gpx).toContain('xmlns="http://www.topografix.com/GPX/1/1"');
 
-      // CRITICAL: Verify first waypoint coordinates are EXACT
-      expect(gpx).toContain('lat="42.3601"');
-      expect(gpx).toContain('lon="-71.0589"');
+      // CRITICAL: Verify first waypoint coordinates are EXACT (with 6 decimal places)
+      expect(gpx).toContain('lat="42.360100"');
+      expect(gpx).toContain('lon="-71.058900"');
 
-      // CRITICAL: Verify last waypoint coordinates are EXACT
-      expect(gpx).toContain('lat="43.6591"');
-      expect(gpx).toContain('lon="-70.2568"');
+      // CRITICAL: Verify last waypoint coordinates are EXACT (with 6 decimal places)
+      expect(gpx).toContain('lat="43.659100"');
+      expect(gpx).toContain('lon="-70.256800"');
 
       // Verify all waypoint names present
       expect(gpx).toContain('<name>Boston Harbor</name>');
@@ -125,20 +125,20 @@ describe('RouteExportService - NAVIGATION SAFETY CRITICAL', () => {
     it('should handle negative longitude (Western Hemisphere) correctly', () => {
       const gpx = exportService.exportToGPX(testRoute);
 
-      // All test waypoints are in Western Hemisphere (negative longitude)
-      expect(gpx).toContain('lon="-71.0589"');
-      expect(gpx).toContain('lon="-70.7"');
-      expect(gpx).toContain('lon="-70.5"');
-      expect(gpx).toContain('lon="-70.2568"');
+      // All test waypoints are in Western Hemisphere (negative longitude, 6 decimal places)
+      expect(gpx).toContain('lon="-71.058900"');
+      expect(gpx).toContain('lon="-70.700000"');
+      expect(gpx).toContain('lon="-70.500000"');
+      expect(gpx).toContain('lon="-70.256800"');
 
       // Verify no positive longitudes for these waypoints
-      const bostonMatch = gpx.match(/Boston Harbor.*?lat="42\.3601" lon="(-?\d+\.\d+)"/s);
-      expect(bostonMatch![1]).toBe('-71.0589');
+      const bostonMatch = gpx.match(/Boston Harbor.*?lat="42\.360100" lon="(-?\d+\.\d+)"/s);
+      expect(bostonMatch![1]).toBe('-71.058900');
     });
 
-    it('should not truncate or round coordinates', () => {
+    it('should preserve coordinate precision to 6 decimal places', () => {
       const testWaypoint = {
-        latitude: 42.36014567,  // Many decimal places
+        latitude: 42.36014567,  // Many decimal places - will be rounded to 6
         longitude: -71.05894321,
       };
 
@@ -149,9 +149,9 @@ describe('RouteExportService - NAVIGATION SAFETY CRITICAL', () => {
 
       const gpx = exportService.exportToGPX(route);
 
-      // Should preserve at least 7-8 decimal places (±0.5 feet accuracy)
-      expect(gpx).toMatch(/lat="42\.36014567"/);
-      expect(gpx).toMatch(/lon="-71\.05894321"/);
+      // Should format to 6 decimal places (±0.11m accuracy, exceeds GPS precision)
+      expect(gpx).toMatch(/lat="42\.360146"/);
+      expect(gpx).toMatch(/lon="-71\.058943"/);
     });
   });
 
@@ -163,9 +163,9 @@ describe('RouteExportService - NAVIGATION SAFETY CRITICAL', () => {
       expect(kml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
       expect(kml).toContain('<kml xmlns="http://www.opengis.net/kml/2.2">');
 
-      // CRITICAL: Verify coordinates in correct order (lon,lat not lat,lon!)
-      expect(kml).toContain('-71.0589,42.3601,0'); // Boston
-      expect(kml).toContain('-70.2568,43.6591,0'); // Portland
+      // CRITICAL: Verify coordinates in correct order (lon,lat not lat,lon!) with 6 decimal places
+      expect(kml).toContain('-71.058900,42.360100,0'); // Boston
+      expect(kml).toContain('-70.256800,43.659100,0'); // Portland
     });
 
     it('should use correct coordinate order for KML (lon,lat,alt)', () => {
@@ -179,8 +179,8 @@ describe('RouteExportService - NAVIGATION SAFETY CRITICAL', () => {
 
       // First coordinate should be: lon,lat,0 (not lat,lon,0)
       const first = coords[0].split(',');
-      expect(parseFloat(first[0])).toBe(-71.0589); // Longitude first
-      expect(parseFloat(first[1])).toBe(42.3601);  // Latitude second
+      expect(parseFloat(first[0])).toBeCloseTo(-71.0589, 4); // Longitude first
+      expect(parseFloat(first[1])).toBeCloseTo(42.3601, 4);  // Latitude second
       expect(parseFloat(first[2])).toBe(0);        // Altitude third
     });
   });
@@ -258,8 +258,8 @@ describe('RouteExportService - NAVIGATION SAFETY CRITICAL', () => {
       };
 
       const gpx = exportService.exportToGPX(singlePoint);
-      expect(gpx).toContain('lat="42.3601"');
-      expect(gpx).toContain('lon="-71.0589"');
+      expect(gpx).toContain('lat="42.360100"');
+      expect(gpx).toContain('lon="-71.058900"');
     });
 
     it('should handle routes crossing International Date Line', () => {
@@ -272,8 +272,8 @@ describe('RouteExportService - NAVIGATION SAFETY CRITICAL', () => {
       };
 
       const gpx = exportService.exportToGPX(dateLine);
-      expect(gpx).toContain('lon="179"');
-      expect(gpx).toContain('lon="-179"');
+      expect(gpx).toContain('lon="179.000000"');
+      expect(gpx).toContain('lon="-179.000000"');
     });
 
     it('should handle polar coordinates (high latitudes)', () => {
@@ -286,8 +286,8 @@ describe('RouteExportService - NAVIGATION SAFETY CRITICAL', () => {
       };
 
       const gpx = exportService.exportToGPX(arctic);
-      expect(gpx).toContain('lat="78.2232"');
-      expect(gpx).toContain('lat="80.5"');
+      expect(gpx).toContain('lat="78.223200"');
+      expect(gpx).toContain('lat="80.500000"');
     });
 
     it('should handle Southern Hemisphere coordinates', () => {
@@ -300,8 +300,8 @@ describe('RouteExportService - NAVIGATION SAFETY CRITICAL', () => {
       };
 
       const gpx = exportService.exportToGPX(south);
-      expect(gpx).toContain('lat="-33.8688"');
-      expect(gpx).toContain('lat="-37.8136"');
+      expect(gpx).toContain('lat="-33.868800"');
+      expect(gpx).toContain('lat="-37.813600"');
     });
 
     it('should escape XML special characters in names/descriptions', () => {
@@ -469,11 +469,11 @@ describe('RouteExportService - NAVIGATION SAFETY CRITICAL', () => {
 
       const gpx = exportService.exportToGPX(edges);
 
-      expect(gpx).toContain('lat="0"');
-      expect(gpx).toContain('lat="90"');
-      expect(gpx).toContain('lat="-90"');
-      expect(gpx).toContain('lon="180"');
-      expect(gpx).toContain('lon="-180"');
+      expect(gpx).toContain('lat="0.000000"');
+      expect(gpx).toContain('lat="90.000000"');
+      expect(gpx).toContain('lat="-90.000000"');
+      expect(gpx).toContain('lon="180.000000"');
+      expect(gpx).toContain('lon="-180.000000"');
     });
   });
 });

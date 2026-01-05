@@ -30,25 +30,20 @@ jest.mock('@supabase/supabase-js');
 jest.mock('ws');
 jest.mock('@modelcontextprotocol/sdk/server/index.js');
 jest.mock('@modelcontextprotocol/sdk/server/stdio.js');
-jest.mock('../../agents/weather/src/WeatherAgent');
-jest.mock('../../agents/tidal/src/TidalAgent');
-jest.mock('../../agents/route/src/RouteAgent');
+jest.mock('../../../agents/weather/src/WeatherAgent');
+jest.mock('../../../agents/tidal/src/TidalAgent');
+jest.mock('../../../agents/route/src/RouteAgent');
 jest.mock('uuid', () => ({
   v4: () => 'test-error-id-12345'
 }));
 
 import { Orchestrator } from '../Orchestrator';
-// TODO: These imports need to be fixed - agents are in separate packages
-// import { WeatherAgent } from '../../agents/weather/src/WeatherAgent';
-// import { TidalAgent } from '../../agents/tidal/src/TidalAgent';
-// import { RouteAgent } from '../../agents/route/src/RouteAgent';
+// Agent imports (fixed paths)
+import { WeatherAgent } from '../../../agents/weather/src/WeatherAgent';
+import { TidalAgent } from '../../../agents/tidal/src/TidalAgent';
+import { RouteAgent } from '../../../agents/route/src/RouteAgent';
 
-// Placeholder types until imports are fixed
-type WeatherAgent = any;
-type TidalAgent = any;
-type RouteAgent = any;
-
-describe.skip('Orchestrator: Error Handling & Resilience', () => {
+describe('Orchestrator: Error Handling & Resilience', () => {
   let orchestrator: Orchestrator;
   let mockWeatherAgent: any;
   let mockTidalAgent: any;

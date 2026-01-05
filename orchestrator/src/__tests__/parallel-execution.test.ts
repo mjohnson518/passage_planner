@@ -24,17 +24,17 @@ jest.mock('@supabase/supabase-js');
 jest.mock('ws');
 jest.mock('@modelcontextprotocol/sdk/server/index.js');
 jest.mock('@modelcontextprotocol/sdk/server/stdio.js');
-jest.mock('../../agents/weather/src/WeatherAgent');
-jest.mock('../../agents/tidal/src/TidalAgent');
-jest.mock('../../agents/route/src/RouteAgent');
+jest.mock('../../../agents/weather/src/WeatherAgent');
+jest.mock('../../../agents/tidal/src/TidalAgent');
+jest.mock('../../../agents/route/src/RouteAgent');
 jest.mock('uuid', () => ({
   v4: () => 'test-planning-id-12345'
 }));
 
 import { Orchestrator } from '../Orchestrator';
-import { WeatherAgent } from '../../agents/weather/src/WeatherAgent';
-import { TidalAgent } from '../../agents/tidal/src/TidalAgent';
-import { RouteAgent } from '../../agents/route/src/RouteAgent';
+import { WeatherAgent } from '../../../agents/weather/src/WeatherAgent';
+import { TidalAgent } from '../../../agents/tidal/src/TidalAgent';
+import { RouteAgent } from '../../../agents/route/src/RouteAgent';
 
 describe('Orchestrator: Parallel Execution & Performance', () => {
   let orchestrator: Orchestrator;
