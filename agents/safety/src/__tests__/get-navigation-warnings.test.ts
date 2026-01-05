@@ -38,50 +38,88 @@ jest.mock('@modelcontextprotocol/sdk/types', () => ({
 }));
 
 // Mock axios to prevent real API calls in tests
-const mockAxiosInstance = {
-  get: jest.fn().mockResolvedValue({
-    data: {
-      features: [
-        {
-          properties: {
-            id: 'test-warning-001',
-            event: 'Small Craft Advisory',
-            headline: 'Small Craft Advisory in Effect',
-            description: 'Winds 20-25 kts, seas 6-8 ft',
-            instruction: 'Exercise caution',
-            severity: 'Moderate',
-            urgency: 'Expected',
-            onset: new Date().toISOString(),
-            expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            effective: new Date().toISOString(),
-            sent: new Date().toISOString(),
-            areaDesc: 'Test coastal waters',
-            senderName: 'NWS Boston',
-          },
+// Returns 3 different marine warning types for comprehensive testing
+// NOTE: Must use factory function to avoid hoisting issues with jest.mock
+jest.mock('axios', () => {
+  const mockData = {
+    features: [
+      {
+        properties: {
+          id: 'test-warning-001',
+          event: 'Small Craft Advisory',
+          headline: 'Small Craft Advisory in Effect',
+          description: 'Winds 20-25 kts, seas 6-8 ft',
+          instruction: 'Exercise caution',
+          severity: 'Moderate',
+          urgency: 'Expected',
+          onset: new Date().toISOString(),
+          expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          effective: new Date().toISOString(),
+          sent: new Date().toISOString(),
+          areaDesc: 'Test coastal waters',
+          senderName: 'NWS Boston',
         },
-      ],
-    },
-  }),
-  post: jest.fn().mockResolvedValue({ data: {} }),
-  put: jest.fn().mockResolvedValue({ data: {} }),
-  delete: jest.fn().mockResolvedValue({ data: {} }),
-  defaults: { headers: { common: {} } },
-  interceptors: {
-    request: { use: jest.fn(), eject: jest.fn() },
-    response: { use: jest.fn(), eject: jest.fn() },
-  },
-};
+      },
+      {
+        properties: {
+          id: 'test-warning-002',
+          event: 'Gale Warning',
+          headline: 'Gale Warning in Effect',
+          description: 'Winds 34-47 kts expected',
+          instruction: 'Mariners should seek safe harbor',
+          severity: 'Severe',
+          urgency: 'Immediate',
+          onset: new Date().toISOString(),
+          expires: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+          effective: new Date().toISOString(),
+          sent: new Date().toISOString(),
+          areaDesc: 'Offshore waters',
+          senderName: 'NWS Boston',
+        },
+      },
+      {
+        properties: {
+          id: 'test-warning-003',
+          event: 'Hazardous Seas Warning',
+          headline: 'Hazardous Seas Warning',
+          description: 'Combined seas 15-20 ft',
+          instruction: 'Avoid area if possible',
+          severity: 'Severe',
+          urgency: 'Expected',
+          onset: new Date().toISOString(),
+          expires: new Date(Date.now() + 18 * 60 * 60 * 1000).toISOString(),
+          effective: new Date().toISOString(),
+          sent: new Date().toISOString(),
+          areaDesc: 'Deep water areas',
+          senderName: 'NWS Boston',
+        },
+      },
+    ],
+  };
 
-jest.mock('axios', () => ({
-  __esModule: true,
-  default: {
+  const mockAxiosInstance = {
+    get: jest.fn().mockResolvedValue({ data: mockData }),
+    post: jest.fn().mockResolvedValue({ data: {} }),
+    put: jest.fn().mockResolvedValue({ data: {} }),
+    delete: jest.fn().mockResolvedValue({ data: {} }),
+    defaults: { headers: { common: {} } },
+    interceptors: {
+      request: { use: jest.fn(), eject: jest.fn() },
+      response: { use: jest.fn(), eject: jest.fn() },
+    },
+  };
+
+  return {
+    __esModule: true,
+    default: {
+      create: jest.fn(() => mockAxiosInstance),
+      get: jest.fn().mockResolvedValue({ data: mockData }),
+      isAxiosError: jest.fn(() => false),
+    },
     create: jest.fn(() => mockAxiosInstance),
-    get: jest.fn().mockResolvedValue({ data: { features: [] } }),
     isAxiosError: jest.fn(() => false),
-  },
-  create: jest.fn(() => mockAxiosInstance),
-  isAxiosError: jest.fn(() => false),
-}));
+  };
+});
 
 // Mock axios-retry to prevent issues with axios mocking
 jest.mock('axios-retry', () => ({
@@ -254,7 +292,7 @@ describe('SafetyAgent: getNavigationWarnings - REAL-TIME HAZARD AWARENESS', () =
       expect(() => new Date(response.lastUpdated)).not.toThrow();
     });
 
-    it('should return mock warnings (3 types: obstruction, military, weather)', async () => {
+    it('should return marine warnings from NOAA (3 types: small_craft, gale, hazardous_seas)', async () => {
       const result = await agent.handleToolCall('get_navigation_warnings', {
         bounds: {
           north: 43.0,
@@ -265,16 +303,16 @@ describe('SafetyAgent: getNavigationWarnings - REAL-TIME HAZARD AWARENESS', () =
       });
 
       const response = JSON.parse(result.content[0].text);
-      
-      // Implementation returns 3 mock warnings
+
+      // Should receive 3 warnings from mocked NOAA API
       expect(response.warnings.length).toBeGreaterThan(0);
-      expect(response.warnings.length).toBe(3); // Current implementation
-      
-      // Verify warning types present
+      expect(response.warnings.length).toBe(3);
+
+      // Verify NOAA warning types present (mapped from NWS events)
       const types = response.warnings.map((w: any) => w.type);
-      expect(types).toContain('obstruction');
-      expect(types).toContain('military_exercise');
-      expect(types).toContain('weather');
+      expect(types).toContain('small_craft_advisory');
+      expect(types).toContain('gale_warning');
+      expect(types).toContain('hazardous_seas');
     });
   });
 
@@ -307,7 +345,7 @@ describe('SafetyAgent: getNavigationWarnings - REAL-TIME HAZARD AWARENESS', () =
       }
     });
 
-    it('should include obstruction warning details', async () => {
+    it('should include small craft advisory warning details', async () => {
       const result = await agent.handleToolCall('get_navigation_warnings', {
         bounds: {
           north: 43.0,
@@ -318,20 +356,18 @@ describe('SafetyAgent: getNavigationWarnings - REAL-TIME HAZARD AWARENESS', () =
       });
 
       const response = JSON.parse(result.content[0].text);
-      
-      const obstructionWarnings = response.warnings.filter(
-        (w: any) => w.type === 'obstruction'
+
+      const scaWarnings = response.warnings.filter(
+        (w: any) => w.type === 'small_craft_advisory'
       );
-      
-      if (obstructionWarnings.length > 0) {
-        const warning = obstructionWarnings[0];
-        expect(warning.location).toBeDefined();
-        expect(warning.location.latitude).toBeDefined();
-        expect(warning.location.longitude).toBeDefined();
-      }
+
+      expect(scaWarnings.length).toBeGreaterThan(0);
+      const warning = scaWarnings[0];
+      expect(warning.area).toBeDefined();
+      expect(warning.description).toBeDefined();
     });
 
-    it('should include military exercise warning details', async () => {
+    it('should include gale warning details', async () => {
       const result = await agent.handleToolCall('get_navigation_warnings', {
         bounds: {
           north: 43.0,
@@ -342,19 +378,19 @@ describe('SafetyAgent: getNavigationWarnings - REAL-TIME HAZARD AWARENESS', () =
       });
 
       const response = JSON.parse(result.content[0].text);
-      
-      const militaryWarnings = response.warnings.filter(
-        (w: any) => w.type === 'military_exercise'
+
+      const galeWarnings = response.warnings.filter(
+        (w: any) => w.type === 'gale_warning'
       );
-      
-      if (militaryWarnings.length > 0) {
-        const warning = militaryWarnings[0];
-        expect(warning.area).toBeDefined();
-        expect(warning.schedule).toBeDefined();
-      }
+
+      expect(galeWarnings.length).toBeGreaterThan(0);
+      const warning = galeWarnings[0];
+      expect(warning.area).toBeDefined();
+      expect(warning.description).toBeDefined();
+      expect(warning.instruction).toBeDefined();
     });
 
-    it('should include weather warning details', async () => {
+    it('should include hazardous seas warning details', async () => {
       const result = await agent.handleToolCall('get_navigation_warnings', {
         bounds: {
           north: 43.0,
@@ -365,16 +401,15 @@ describe('SafetyAgent: getNavigationWarnings - REAL-TIME HAZARD AWARENESS', () =
       });
 
       const response = JSON.parse(result.content[0].text);
-      
-      const weatherWarnings = response.warnings.filter(
-        (w: any) => w.type === 'weather'
+
+      const hazardousWarnings = response.warnings.filter(
+        (w: any) => w.type === 'hazardous_seas'
       );
-      
-      if (weatherWarnings.length > 0) {
-        const warning = weatherWarnings[0];
-        expect(warning.area).toBeDefined();
-        expect(warning.description).toBeDefined();
-      }
+
+      expect(hazardousWarnings.length).toBeGreaterThan(0);
+      const warning = hazardousWarnings[0];
+      expect(warning.area).toBeDefined();
+      expect(warning.description).toBeDefined();
     });
 
     it('should include warning severity levels', async () => {
