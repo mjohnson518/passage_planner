@@ -162,11 +162,9 @@ export class RouteAgent extends BaseAgent {
       const start: LatLon = { lat: startLat, lon: startLon };
       const end: LatLon = { lat: endLat, lon: endLon };
       
-      // Validate coordinates
-      if (!this.routingEngine.validateCoordinates(start) || 
-          !this.routingEngine.validateCoordinates(end)) {
-        throw new Error('Invalid coordinates');
-      }
+      // Validate coordinates (throws on invalid)
+      this.routingEngine.validateCoordinates(start.lat, start.lon);
+      this.routingEngine.validateCoordinates(end.lat, end.lon);
       
       let route: Route;
       

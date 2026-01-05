@@ -315,10 +315,15 @@ export class RoutingEngine {
 
   /**
    * Validate coordinates are within valid ranges
+   * SAFETY CRITICAL: Throws on invalid coordinates to prevent navigation errors
    */
-  validateCoordinates(point: LatLon): boolean {
-    return point.lat >= -90 && point.lat <= 90 &&
-           point.lon >= -180 && point.lon <= 180;
+  validateCoordinates(lat: number, lon: number): void {
+    if (lat < -90 || lat > 90) {
+      throw new Error(`Invalid latitude: ${lat}. Must be between -90 and 90`);
+    }
+    if (lon < -180 || lon > 180) {
+      throw new Error(`Invalid longitude: ${lon}. Must be between -180 and 180`);
+    }
   }
 
   /**
