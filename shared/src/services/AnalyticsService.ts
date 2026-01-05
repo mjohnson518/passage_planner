@@ -173,16 +173,20 @@ export class AnalyticsService {
 
   /**
    * Get feature usage statistics
+   * SECURITY: Uses parameterized query to prevent SQL injection
    */
   async getFeatureUsage(days = 30): Promise<Record<string, number>> {
+    // Validate days is a positive integer to prevent any injection
+    const safeDays = Math.max(1, Math.min(365, Math.floor(Number(days) || 30)));
+
     const result = await this.db.query(
       `SELECT event_name, COUNT(*) as count
        FROM analytics_events
-       WHERE created_at >= NOW() - INTERVAL '${days} days'
+       WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
          AND event_name LIKE 'feature_%'
        GROUP BY event_name
        ORDER BY count DESC`,
-      []
+      [safeDays]
     )
 
     return result.rows.reduce((acc, row) => {
@@ -193,9 +197,16 @@ export class AnalyticsService {
 
   /**
    * Get cohort retention
+   * SECURITY: Uses parameterized queries to prevent SQL injection
    */
   async getCohortRetention(cohortMonth: string): Promise<number[]> {
     const retention: number[] = []
+
+    // Validate cohortMonth format (YYYY-MM-DD or YYYY-MM-01)
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/
+    if (!datePattern.test(cohortMonth)) {
+      throw new Error('Invalid cohort month format. Expected YYYY-MM-DD')
+    }
 
     for (let week = 0; week <= 12; week++) {
       const result = await this.db.query(
@@ -204,21 +215,21 @@ export class AnalyticsService {
           FROM users
           WHERE DATE_TRUNC('month', created_at) = $1::date
         )
-        SELECT 
+        SELECT
           COUNT(DISTINCT e.user_id) as active_users,
           (SELECT COUNT(*) FROM cohort) as cohort_size
         FROM cohort c
         JOIN analytics_events e ON c.user_id = e.user_id
-        WHERE e.created_at >= $1::date + INTERVAL '${week} weeks'
-          AND e.created_at < $1::date + INTERVAL '${week + 1} weeks'`,
-        [cohortMonth]
+        WHERE e.created_at >= $1::date + ($2 || ' weeks')::INTERVAL
+          AND e.created_at < $1::date + ($3 || ' weeks')::INTERVAL`,
+        [cohortMonth, week, week + 1]
       )
 
       const row = result.rows[0]
-      const retentionRate = row.cohort_size > 0 
-        ? (row.active_users / row.cohort_size) * 100 
+      const retentionRate = row.cohort_size > 0
+        ? (row.active_users / row.cohort_size) * 100
         : 0
-      
+
       retention.push(Math.round(retentionRate))
     }
 
