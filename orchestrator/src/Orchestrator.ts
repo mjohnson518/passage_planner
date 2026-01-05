@@ -302,17 +302,26 @@ export class Orchestrator {
       };
       
       // Save to database
+      let saveWarning: string | undefined;
       if (request.userId) {
-        await this.savePassage(passagePlan);
+        const saveResult = await this.savePassage(passagePlan);
+        if (!saveResult.saved) {
+          saveWarning = saveResult.error;
+          // Add warning to passage plan (warnings array expects strings)
+          passagePlan.summary.warnings.push(
+            `WARNING: ${saveResult.error}`
+          );
+        }
       }
-      
+
       // Broadcast completion
       this.broadcastUpdate({
         type: 'planning_completed',
         planningId,
-        plan: passagePlan
+        plan: passagePlan,
+        saveWarning
       });
-      
+
       return {
         content: [{
           type: 'text',
@@ -388,40 +397,78 @@ export class Orchestrator {
     return recommendations;
   }
 
-  private async savePassage(passagePlan: any): Promise<void> {
-    try {
-      const { data, error } = await this.supabase
-        .from('passages')
-        .insert({
-          id: passagePlan.id,
-          user_id: passagePlan.request.userId,
-          name: `${passagePlan.request.departure.port} to ${passagePlan.request.destination.port}`,
-          departure_port: passagePlan.request.departure.port,
-          departure_coords: `POINT(${passagePlan.request.departure.longitude} ${passagePlan.request.departure.latitude})`,
-          destination_port: passagePlan.request.destination.port,
-          destination_coords: `POINT(${passagePlan.request.destination.longitude} ${passagePlan.request.destination.latitude})`,
-          departure_time: passagePlan.request.departure.time,
-          estimated_arrival: passagePlan.summary.estimatedArrival,
-          distance_nm: passagePlan.summary.totalDistance,
-          route_points: passagePlan.route.waypoints,
-          weather_data: passagePlan.weather,
-          tidal_data: passagePlan.tides,
-          planning_parameters: passagePlan.request.preferences,
-          agent_responses: {
-            route: passagePlan.route,
-            weather: passagePlan.weather,
-            tides: passagePlan.tides
-          }
-        });
-      
-      if (error) {
-        logger.error({ error }, 'Failed to save passage');
-        throw error;
+  private async savePassage(passagePlan: any): Promise<{ saved: boolean; error?: string }> {
+    const maxRetries = 3;
+    const baseDelayMs = 1000;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const { data, error } = await this.supabase
+          .from('passages')
+          .insert({
+            id: passagePlan.id,
+            user_id: passagePlan.request.userId,
+            name: `${passagePlan.request.departure.port} to ${passagePlan.request.destination.port}`,
+            departure_port: passagePlan.request.departure.port,
+            departure_coords: `POINT(${passagePlan.request.departure.longitude} ${passagePlan.request.departure.latitude})`,
+            destination_port: passagePlan.request.destination.port,
+            destination_coords: `POINT(${passagePlan.request.destination.longitude} ${passagePlan.request.destination.latitude})`,
+            departure_time: passagePlan.request.departure.time,
+            estimated_arrival: passagePlan.summary.estimatedArrival,
+            distance_nm: passagePlan.summary.totalDistance,
+            route_points: passagePlan.route.waypoints,
+            weather_data: passagePlan.weather,
+            tidal_data: passagePlan.tides,
+            planning_parameters: passagePlan.request.preferences,
+            agent_responses: {
+              route: passagePlan.route,
+              weather: passagePlan.weather,
+              tides: passagePlan.tides
+            }
+          });
+
+        if (error) {
+          throw error;
+        }
+
+        logger.info({ passageId: passagePlan.id }, 'Passage saved successfully');
+        return { saved: true };
+
+      } catch (error) {
+        const isLastAttempt = attempt === maxRetries;
+        const delayMs = baseDelayMs * Math.pow(2, attempt - 1); // Exponential backoff
+
+        logger.warn({
+          error,
+          attempt,
+          maxRetries,
+          passageId: passagePlan.id,
+          willRetry: !isLastAttempt
+        }, `Failed to save passage (attempt ${attempt}/${maxRetries})`);
+
+        if (isLastAttempt) {
+          // Log to audit trail for safety-critical data loss tracking
+          logger.error({
+            error,
+            passageId: passagePlan.id,
+            userId: passagePlan.request.userId,
+            departure: passagePlan.request.departure.port,
+            destination: passagePlan.request.destination.port
+          }, 'CRITICAL: Passage save failed after all retries - user data may be lost');
+
+          return {
+            saved: false,
+            error: 'Failed to save passage to database. Please export your passage plan as a backup.'
+          };
+        }
+
+        // Wait before retry with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, delayMs));
       }
-    } catch (error) {
-      logger.error({ error }, 'Error saving passage to database');
-      // Don't throw - allow passage planning to complete even if save fails
     }
+
+    // Should not reach here, but return failure just in case
+    return { saved: false, error: 'Unexpected error saving passage' };
   }
 
   private setupWebSocket() {

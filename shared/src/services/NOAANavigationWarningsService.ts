@@ -150,7 +150,8 @@ export class NOAANavigationWarningsService {
     const cached = await this.cache.get<NavigationWarningsResponse>(cacheKey);
     if (cached) {
       this.logger.debug({ bounds }, 'Returning cached navigation warnings');
-      return cached;
+      // Rehydrate Date objects from cached JSON (dates become strings during serialization)
+      return this.rehydrateCachedResponse(cached);
     }
 
     try {
@@ -453,6 +454,23 @@ export class NOAANavigationWarningsService {
       const wIndex = severityOrder.indexOf(w.severity);
       return wIndex >= minIndex || w.severity === 'unknown';
     });
+  }
+
+  /**
+   * Rehydrate Date objects from cached response
+   * JSON serialization converts Date objects to strings, this converts them back
+   */
+  private rehydrateCachedResponse(cached: NavigationWarningsResponse): NavigationWarningsResponse {
+    return {
+      ...cached,
+      fetchedAt: new Date(cached.fetchedAt),
+      warnings: cached.warnings.map(warning => ({
+        ...warning,
+        issued: new Date(warning.issued),
+        expires: warning.expires ? new Date(warning.expires) : undefined,
+        effective: warning.effective ? new Date(warning.effective) : undefined,
+      })),
+    };
   }
 }
 
