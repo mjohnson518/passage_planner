@@ -341,59 +341,99 @@ export class Orchestrator {
 
   private generateWarnings(weather: any[], tidal: any): string[] {
     const warnings: string[] = [];
-    
-    // Check weather conditions
-    if (weather && weather.length > 0) {
-      const maxWindSpeed = Math.max(...weather.flatMap((w: any) => 
-        w ? w.map((f: any) => f.windSpeed) : [0]
-      ));
-      
-      if (maxWindSpeed > 25) {
-        warnings.push('Strong winds expected - consider delaying departure');
-      }
-      
-      const maxWaveHeight = Math.max(...weather.flatMap((w: any) =>
-        w ? w.map((f: any) => f.waveHeight) : [0]
-      ));
-      
-      if (maxWaveHeight > 3) {
-        warnings.push('Rough seas anticipated - ensure crew is prepared');
+
+    // Check weather conditions - handle various data formats defensively
+    if (weather && Array.isArray(weather) && weather.length > 0) {
+      try {
+        // Extract wind speeds from various possible data structures
+        const windSpeeds: number[] = [];
+        const waveHeights: number[] = [];
+
+        for (const w of weather) {
+          if (!w) continue;
+
+          // If w is an array (nested structure)
+          if (Array.isArray(w)) {
+            for (const f of w) {
+              if (f?.windSpeed != null) windSpeeds.push(Number(f.windSpeed) || 0);
+              if (f?.waveHeight != null) waveHeights.push(Number(f.waveHeight) || 0);
+            }
+          }
+          // If w is an object with windSpeed directly
+          else if (typeof w === 'object') {
+            if (w.windSpeed != null) windSpeeds.push(Number(w.windSpeed) || 0);
+            if (w.waveHeight != null) waveHeights.push(Number(w.waveHeight) || 0);
+          }
+        }
+
+        const maxWindSpeed = windSpeeds.length > 0 ? Math.max(...windSpeeds) : 0;
+        const maxWaveHeight = waveHeights.length > 0 ? Math.max(...waveHeights) : 0;
+
+        if (maxWindSpeed > 25) {
+          warnings.push('Strong winds expected - consider delaying departure');
+        }
+
+        if (maxWaveHeight > 3) {
+          warnings.push('Rough seas anticipated - ensure crew is prepared');
+        }
+      } catch {
+        // Graceful degradation - don't fail on malformed weather data
+        // No warnings returned is safer than crashing
       }
     }
-    
+
     return warnings;
   }
 
   private generateRecommendations(weather: any[], route: any, tidal: any): string[] {
     const recommendations: string[] = [];
-    
-    // Analyze weather conditions
-    if (weather && weather.length > 0) {
-      const avgWindSpeed = weather.reduce((sum: number, w: any) => {
-        if (!w) return sum;
-        const avg = w.reduce((s: number, f: any) => s + f.windSpeed, 0) / w.length;
-        return sum + avg;
-      }, 0) / weather.filter((w: any) => w).length;
-      
-      if (avgWindSpeed < 5) {
-        recommendations.push('Light winds expected - consider motor sailing');
-      } else if (avgWindSpeed > 20) {
-        recommendations.push('Strong winds forecast - reef early and monitor conditions');
+
+    // Analyze weather conditions - handle various data formats defensively
+    if (weather && Array.isArray(weather) && weather.length > 0) {
+      try {
+        const windSpeeds: number[] = [];
+
+        for (const w of weather) {
+          if (!w) continue;
+
+          // If w is an array (nested structure)
+          if (Array.isArray(w)) {
+            for (const f of w) {
+              if (f?.windSpeed != null) windSpeeds.push(Number(f.windSpeed) || 0);
+            }
+          }
+          // If w is an object with windSpeed directly
+          else if (typeof w === 'object' && w.windSpeed != null) {
+            windSpeeds.push(Number(w.windSpeed) || 0);
+          }
+        }
+
+        if (windSpeeds.length > 0) {
+          const avgWindSpeed = windSpeeds.reduce((a, b) => a + b, 0) / windSpeeds.length;
+
+          if (avgWindSpeed < 5) {
+            recommendations.push('Light winds expected - consider motor sailing');
+          } else if (avgWindSpeed > 20) {
+            recommendations.push('Strong winds forecast - reef early and monitor conditions');
+          }
+        }
+      } catch {
+        // Graceful degradation - skip weather-based recommendations
       }
     }
-    
+
     // Route-based recommendations
-    if (route.totalDistance > 200) {
+    if (route?.totalDistance > 200) {
       recommendations.push('Long passage - ensure adequate provisions and fuel');
     }
-    
-    if (route.estimatedDuration > 24) {
+
+    if (route?.estimatedDuration > 24) {
       recommendations.push('Multi-day passage - plan watch schedule and rest periods');
     }
-    
+
     recommendations.push('File a float plan with a trusted contact before departure');
     recommendations.push('Check all safety equipment is accessible and functional');
-    
+
     return recommendations;
   }
 
