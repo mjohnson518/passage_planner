@@ -56,7 +56,7 @@ export class RetryClient {
           retriesLeft: (finalOptions.retries || 3) - attemptNumber,
           error: error.message || error.toString()
         }, `Retry attempt ${attemptNumber} failed`);
-        
+
         if (finalOptions.onFailedAttempt) {
           finalOptions.onFailedAttempt({
             ...error,
@@ -65,7 +65,13 @@ export class RetryClient {
           });
         }
 
-        // Don't retry on client errors (400-499)
+        // Check if error is retryable FIRST (before client error check)
+        // This ensures 429 (rate limit) is retried even though it's a 4xx code
+        if (this.isRetryableError(error)) {
+          throw error; // Will trigger retry
+        }
+
+        // Don't retry on client errors (400-499 except retryable ones)
         if (this.isClientError(error)) {
           const statusCode = error.statusCode || error.response?.status;
           const message = error.message || error.toString();
@@ -73,14 +79,10 @@ export class RetryClient {
           return;
         }
 
-        // Retry on network errors, 503, 429
-        if (!this.isRetryableError(error)) {
-          const message = error.message || error.toString();
-          bail(new AbortError(`Non-retryable error: ${message}`));
-          return;
-        }
-        
-        throw error; // Will trigger retry
+        // Non-retryable server/unknown errors - abort
+        const message = error.message || error.toString();
+        bail(new AbortError(`Non-retryable error: ${message}`));
+        return; // bail() will throw
       }
     }, {
       retries: finalOptions.retries!,
@@ -180,7 +182,7 @@ export class RetryClient {
       ];
       return networkErrorCodes.includes(error.code);
     }
-    
+
     // HTTP status codes that are retryable
     const retryableStatusCodes = [
       429, // Too Many Requests
@@ -189,8 +191,10 @@ export class RetryClient {
       504, // Gateway Timeout
       500  // Internal Server Error (sometimes transient)
     ];
-    
-    return retryableStatusCodes.includes(error.statusCode);
+
+    // Handle both string and number status codes
+    const statusCode = Number(error.statusCode);
+    return retryableStatusCodes.includes(statusCode);
   }
 
   /**
@@ -198,9 +202,10 @@ export class RetryClient {
    */
   private static isClientError(error: any): boolean {
     if (error.isClientError) return true;
-    
-    // 4xx errors are client errors
-    return error.statusCode >= 400 && error.statusCode < 500;
+
+    // 4xx errors are client errors (except those handled by isRetryableError)
+    const statusCode = Number(error.statusCode);
+    return statusCode >= 400 && statusCode < 500;
   }
 }
 
