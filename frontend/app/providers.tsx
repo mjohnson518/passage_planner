@@ -2,7 +2,6 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
-import { SessionProvider } from 'next-auth/react'
 import { ThemeProvider } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { Toaster } from 'sonner'
@@ -45,19 +44,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange={false}
     >
-      <SessionProvider>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <SocketProvider>
-              <ServiceWorkerProvider>
-                {children}
-              </ServiceWorkerProvider>
-            </SocketProvider>
-          </AuthProvider>
-          <Toaster richColors closeButton />
-          <ReactQueryDevtools initialIsOpen={false} />
-        </QueryClientProvider>
-      </SessionProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <SocketProvider>
+            <ServiceWorkerProvider>
+              {children}
+            </ServiceWorkerProvider>
+          </SocketProvider>
+        </AuthProvider>
+        <Toaster richColors closeButton />
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
     </ThemeProvider>
   )
 }
