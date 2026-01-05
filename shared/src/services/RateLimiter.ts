@@ -1,5 +1,6 @@
 import { RedisClientType } from 'redis';
 import { Logger } from 'pino';
+import crypto from 'crypto';
 
 export interface RateLimitOptions {
   windowMs: number; // Time window in milliseconds
@@ -44,8 +45,8 @@ export class RateLimiter {
       // Count current entries
       multi.zCard(key);
       
-      // Add current request
-      multi.zAdd(key, { score: now, value: `${now}-${Math.random()}` });
+      // Add current request with cryptographically secure unique value
+      multi.zAdd(key, { score: now, value: `${now}-${crypto.randomUUID()}` });
       
       // Set expiry
       multi.expire(key, Math.ceil(options.windowMs / 1000));
@@ -162,9 +163,13 @@ export class RateLimiter {
       return `user:${req.user.userId}`;
     }
     
-    // Fall back to API key
+    // Fall back to API key - hash to avoid credential exposure in logs
     if (req.headers['x-api-key']) {
-      return `apikey:${req.headers['x-api-key'].substring(0, 8)}`;
+      const apiKeyHash = crypto.createHash('sha256')
+        .update(req.headers['x-api-key'] as string)
+        .digest('hex')
+        .substring(0, 16);
+      return `apikey:${apiKeyHash}`;
     }
     
     // Fall back to IP address

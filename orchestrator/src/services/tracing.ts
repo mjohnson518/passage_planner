@@ -7,6 +7,7 @@
 
 import { Logger } from 'pino';
 import { EventEmitter } from 'events';
+import crypto from 'crypto';
 
 export interface TraceSpan {
   traceId: string;
@@ -302,10 +303,10 @@ export class TracingService extends EventEmitter {
   }
 
   /**
-   * Generate unique span ID
+   * Generate unique span ID using cryptographically secure random
    */
   private generateSpanId(): string {
-    return `span-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `span-${Date.now()}-${crypto.randomUUID().split('-')[0]}`;
   }
 
   /**

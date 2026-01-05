@@ -6,7 +6,7 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 import { OrchestratorService } from './index';
-import { AuthService, FeatureGate, StripeService } from '@passage-planner/shared';
+import { AuthService, FeatureGate, StripeService, SecurityHeaders } from '@passage-planner/shared';
 import { AuthMiddleware } from './middleware/auth';
 import { AgentManager } from './services/AgentManager';
 import { RateLimiter } from './middleware/rateLimiter';
@@ -125,15 +125,34 @@ export class HttpServer {
   }
 
   private setupMiddleware() {
+    // CRITICAL: Configure trust proxy for proper IP detection behind reverse proxy
+    // This ensures rate limiting and logging work correctly in production
+    // Set to 1 for single proxy (e.g., nginx, CloudFlare), or number of trusted proxies
+    if (process.env.NODE_ENV === 'production') {
+      this.app.set('trust proxy', 1);
+      this.logger.info('Trust proxy enabled for production environment');
+    }
+
+    // CRITICAL: Apply security headers first, including HSTS
+    const securityHeaders = new SecurityHeaders({
+      enableHSTS: true,
+      enableCSP: true,
+      enableCORS: true,
+      corsOrigins: [
+        process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      ]
+    });
+    this.app.use(securityHeaders.apply());
+
     this.app.use(cors({
       origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
       credentials: true,
     }));
-    
+
     // NOTE: JSON parser is registered AFTER the early Stripe webhook route
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
-    
+
     // Request logging
     this.app.use((req, res, next) => {
       this.logger.info({
@@ -985,16 +1004,28 @@ export class HttpServer {
       async (req, res) => {
         try {
           const userId = req.user!.id;
-          
+
+          // SECURITY: We only store hashes now, so we can only confirm key exists
           const result = await this.postgres.query(
-            'SELECT key FROM api_keys WHERE user_id = $1 AND active = true',
+            `SELECT id, name, created_at, last_used_at, expires_at
+             FROM api_keys WHERE user_id = $1 AND active = true`,
             [userId]
           );
-          
+
           if (result.rows.length > 0) {
-            res.json({ apiKey: result.rows[0].key });
+            const keyInfo = result.rows[0];
+            res.json({
+              hasActiveKey: true,
+              keyInfo: {
+                name: keyInfo.name,
+                createdAt: keyInfo.created_at,
+                lastUsedAt: keyInfo.last_used_at,
+                expiresAt: keyInfo.expires_at
+              },
+              message: 'API key exists but cannot be retrieved. Generate a new one if needed.'
+            });
           } else {
-            res.json({ apiKey: null });
+            res.json({ hasActiveKey: false, apiKey: null });
           }
         } catch (error) {
           this.logger.error({ error }, 'Failed to fetch API key');
@@ -1008,29 +1039,38 @@ export class HttpServer {
       async (req, res) => {
         try {
           const userId = req.user!.id;
-          
+
           // Check subscription
           const subscription = await this.getSubscription(userId);
           if (!subscription || (subscription.tier !== 'pro' && subscription.tier !== 'enterprise')) {
             return res.status(403).json({ error: 'API access requires Pro subscription' });
           }
-          
+
           // Deactivate existing keys
           await this.postgres.query(
             'UPDATE api_keys SET active = false WHERE user_id = $1',
             [userId]
           );
-          
+
           // Generate new key
           const apiKey = `pk_${Buffer.from(crypto.randomBytes(32)).toString('hex')}`;
-          
+
+          // SECURITY: Store HMAC-SHA256 hash, not plaintext
+          // Use API_KEY_SECRET or JWT_SECRET as HMAC key to prevent rainbow table attacks
+          const apiKeySecret = process.env.API_KEY_SECRET || process.env.JWT_SECRET || '';
+          const keyHash = crypto
+            .createHmac('sha256', apiKeySecret)
+            .update(apiKey)
+            .digest('hex');
+
           await this.postgres.query(
-            `INSERT INTO api_keys (user_id, key, name, scopes, rate_limit) 
+            `INSERT INTO api_keys (user_id, key_hash, name, scopes, rate_limit)
              VALUES ($1, $2, $3, $4, $5)`,
-            [userId, apiKey, 'Primary API Key', ['read', 'write'], 1000]
+            [userId, keyHash, 'Primary API Key', ['read', 'write'], 1000]
           );
-          
-          res.json({ apiKey });
+
+          // Return plaintext key to user ONCE - they must store it securely
+          res.json({ apiKey, warning: 'Store this key securely. It cannot be retrieved again.' });
         } catch (error) {
           this.logger.error({ error }, 'Failed to generate API key');
           res.status(500).json({ error: 'Failed to generate API key' });

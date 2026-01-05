@@ -19,6 +19,7 @@ export class AuthMiddleware {
   private db: Pool;
   private logger: Logger;
   private jwtSecret: string;
+  private apiKeySecret: string;
 
   constructor(db: Pool, logger: Logger) {
     this.db = db;
@@ -32,6 +33,10 @@ export class AuthMiddleware {
       );
     }
     this.jwtSecret = process.env.JWT_SECRET;
+
+    // SECURITY: API_KEY_SECRET for HMAC-SHA256 hashing (prevents rainbow tables)
+    // Falls back to JWT_SECRET if not set, but should be separate in production
+    this.apiKeySecret = process.env.API_KEY_SECRET || process.env.JWT_SECRET;
   }
 
   async authenticate(req: AuthRequest, res: Response, next: NextFunction) {
@@ -86,8 +91,13 @@ export class AuthMiddleware {
 
   private async verifyApiKey(apiKey: string): Promise<any> {
     try {
-      const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
-      
+      // SECURITY: Use HMAC-SHA256 with server secret to prevent rainbow table attacks
+      // This is the industry standard for API key verification (Stripe, AWS, etc.)
+      const keyHash = crypto
+        .createHmac('sha256', this.apiKeySecret)
+        .update(apiKey)
+        .digest('hex');
+
       const result = await this.db.query(
         `SELECT u.id, u.email, ak.id as key_id
          FROM api_keys ak
