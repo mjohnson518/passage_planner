@@ -1,30 +1,31 @@
 import { screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { render } from '../utils/test-utils'
+import { render } from '../utils/testing-helpers'
 import LoginPage from '../../login/page'
 import { useAuth } from '../../contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 
 // Mock the modules
+const mockPush = jest.fn()
+const mockReplace = jest.fn()
+
 jest.mock('../../contexts/AuthContext')
-jest.mock('next/navigation')
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+    replace: mockReplace,
+    prefetch: jest.fn(),
+    back: jest.fn(),
+  }),
+}))
 
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>
-const mockUseRouter = useRouter as jest.MockedFunction<typeof useRouter>
 
 describe('LoginPage', () => {
-  const mockPush = jest.fn()
   const mockLogin = jest.fn()
 
   beforeEach(() => {
     jest.clearAllMocks()
-    
-    mockUseRouter.mockReturnValue({
-      push: mockPush,
-      replace: jest.fn(),
-      prefetch: jest.fn(),
-      back: jest.fn(),
-    } as any)
 
     mockUseAuth.mockReturnValue({
       user: null,
