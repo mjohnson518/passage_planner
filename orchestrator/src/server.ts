@@ -48,9 +48,28 @@ export class HttpServer {
   constructor() {
     this.app = express();
     this.httpServer = createServer(this.app);
+    // Define allowed origins for CORS - must include all production and development URLs
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://helmwise.co',
+      'https://www.helmwise.co',
+      'https://helmwise.pages.dev',
+      process.env.NEXT_PUBLIC_APP_URL,
+    ].filter(Boolean) as string[];
+
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+        origin: (origin, callback) => {
+          // Allow requests with no origin (mobile apps, curl, etc.)
+          if (!origin) return callback(null, true);
+          if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            this.logger.warn({ origin, allowedOrigins }, 'Blocked WebSocket CORS request');
+            callback(new Error('CORS not allowed'));
+          }
+        },
         credentials: true,
       },
     });
@@ -134,18 +153,35 @@ export class HttpServer {
     }
 
     // CRITICAL: Apply security headers first, including HSTS
+    // Use the same allowedOrigins list for consistency
+    const corsOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://helmwise.co',
+      'https://www.helmwise.co',
+      'https://helmwise.pages.dev',
+      process.env.NEXT_PUBLIC_APP_URL,
+    ].filter(Boolean) as string[];
+
     const securityHeaders = new SecurityHeaders({
       enableHSTS: true,
       enableCSP: true,
       enableCORS: true,
-      corsOrigins: [
-        process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-      ]
+      corsOrigins: corsOrigins
     });
     this.app.use(securityHeaders.apply());
 
     this.app.use(cors({
-      origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+      origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        if (corsOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          this.logger.warn({ origin }, 'Blocked CORS request from unauthorized origin');
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
     }));
 
