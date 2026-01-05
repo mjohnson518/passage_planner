@@ -21,6 +21,18 @@ import {
 } from 'lucide-react'
 import type { Passage } from '@/types/shared'
 
+// Helper function to convert degrees to compass direction
+function degreesToCompass(degrees: number): string {
+  const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+  const index = Math.round(degrees / 22.5) % 16
+  return directions[index]
+}
+
+// Helper to format time for display
+function formatTime(date: Date): string {
+  return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 // Mock data for demonstration
 const mockPassage: Passage = {
   id: '1',
@@ -57,8 +69,91 @@ const mockPassage: Passage = {
   estimatedArrivalTime: new Date('2024-07-16T00:00:00'),
   distance: 98,
   estimatedDuration: 16,
-  weather: [],
-  tides: [],
+  weather: [
+    {
+      startTime: new Date('2024-07-15T08:00:00'),
+      endTime: new Date('2024-07-15T14:00:00'),
+      location: { lat: 42.45, lng: -70.85 },
+      wind: { direction: 225, speed: 12, gusts: 18 },
+      waves: { height: 1.2, period: 6, direction: 200 },
+      visibility: 10,
+      precipitation: 0,
+      pressure: 1018,
+      temperature: 22
+    },
+    {
+      startTime: new Date('2024-07-15T14:00:00'),
+      endTime: new Date('2024-07-15T20:00:00'),
+      location: { lat: 42.80, lng: -70.65 },
+      wind: { direction: 240, speed: 15, gusts: 22 },
+      waves: { height: 1.5, period: 7, direction: 210 },
+      visibility: 8,
+      precipitation: 0,
+      pressure: 1016,
+      temperature: 24
+    },
+    {
+      startTime: new Date('2024-07-15T20:00:00'),
+      endTime: new Date('2024-07-16T00:00:00'),
+      location: { lat: 43.30, lng: -70.45 },
+      wind: { direction: 250, speed: 10, gusts: 15 },
+      waves: { height: 1.0, period: 5, direction: 220 },
+      visibility: 12,
+      precipitation: 0,
+      pressure: 1017,
+      temperature: 20
+    }
+  ],
+  tides: [
+    {
+      location: 'Boston Harbor',
+      coordinates: { lat: 42.3601, lng: -71.0589 },
+      type: 'high',
+      time: new Date('2024-07-15T06:30:00'),
+      height: 3.2,
+      current: { speed: 0.5, direction: 45 }
+    },
+    {
+      location: 'Boston Harbor',
+      coordinates: { lat: 42.3601, lng: -71.0589 },
+      type: 'low',
+      time: new Date('2024-07-15T12:45:00'),
+      height: 0.3,
+      current: { speed: 1.2, direction: 225 }
+    },
+    {
+      location: 'Portsmouth Harbor',
+      coordinates: { lat: 43.0718, lng: -70.7626 },
+      type: 'high',
+      time: new Date('2024-07-15T07:15:00'),
+      height: 2.9,
+      current: { speed: 0.8, direction: 60 }
+    },
+    {
+      location: 'Portsmouth Harbor',
+      coordinates: { lat: 43.0718, lng: -70.7626 },
+      type: 'low',
+      time: new Date('2024-07-15T13:30:00'),
+      height: 0.4,
+      current: { speed: 1.5, direction: 240 }
+    },
+    {
+      location: 'Portland Harbor',
+      coordinates: { lat: 43.6591, lng: -70.2568 },
+      type: 'high',
+      time: new Date('2024-07-15T07:45:00'),
+      height: 3.0,
+      current: { speed: 0.6, direction: 50 }
+    },
+    {
+      location: 'Portland Harbor',
+      coordinates: { lat: 43.6591, lng: -70.2568 },
+      type: 'low',
+      time: new Date('2024-07-15T14:00:00'),
+      height: 0.2,
+      current: { speed: 1.0, direction: 230 }
+    }
+  ],
   route: [
     {
       from: { lat: 42.3601, lng: -71.0589 },
@@ -323,15 +418,99 @@ export default function PassageDetailPage() {
         <TabsContent value="weather">
           <Card>
             <CardHeader>
-              <CardTitle>Weather Forecast</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Wind className="h-5 w-5" />
+                Weather Forecast
+              </CardTitle>
               <CardDescription>
                 Weather conditions along the route
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">
-                Weather data will be displayed here
-              </p>
+              {passage.weather && passage.weather.length > 0 ? (
+                <div className="space-y-4">
+                  {passage.weather.map((segment, index) => (
+                    <div key={index} className="p-4 rounded-lg border bg-card">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h4 className="font-semibold">
+                            {formatTime(segment.startTime)} - {formatTime(segment.endTime)}
+                          </h4>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(segment.startTime).toLocaleDateString()}
+                          </p>
+                        </div>
+                        {segment.temperature && (
+                          <Badge variant="secondary">{segment.temperature}°C</Badge>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="flex items-center gap-2">
+                          <Wind className="h-4 w-4 text-blue-500" />
+                          <div>
+                            <p className="text-sm font-medium">Wind</p>
+                            <p className="text-sm text-muted-foreground">
+                              {segment.wind.speed} kts {degreesToCompass(segment.wind.direction)}
+                              {segment.wind.gusts && ` (G${segment.wind.gusts})`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Waves className="h-4 w-4 text-cyan-500" />
+                          <div>
+                            <p className="text-sm font-medium">Waves</p>
+                            <p className="text-sm text-muted-foreground">
+                              {segment.waves.height}m @ {segment.waves.period}s
+                            </p>
+                          </div>
+                        </div>
+
+                        {segment.visibility && (
+                          <div>
+                            <p className="text-sm font-medium">Visibility</p>
+                            <p className="text-sm text-muted-foreground">{segment.visibility} nm</p>
+                          </div>
+                        )}
+
+                        {segment.pressure && (
+                          <div>
+                            <p className="text-sm font-medium">Pressure</p>
+                            <p className="text-sm text-muted-foreground">{segment.pressure} hPa</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Wind warning for safety */}
+                      {segment.wind.speed > 20 && (
+                        <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                          <span className="text-sm text-yellow-700 dark:text-yellow-300">
+                            Strong winds expected - consider timing or alternate route
+                          </span>
+                        </div>
+                      )}
+                      {segment.waves.height > 2 && (
+                        <div className="mt-3 p-2 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-600" />
+                          <span className="text-sm text-orange-700 dark:text-orange-300">
+                            Significant wave height - may affect comfort and safety
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Wind className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No weather data available</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Weather forecast will be fetched when the passage is planned
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -339,15 +518,90 @@ export default function PassageDetailPage() {
         <TabsContent value="tides">
           <Card>
             <CardHeader>
-              <CardTitle>Tidal Information</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Anchor className="h-5 w-5" />
+                Tidal Information
+              </CardTitle>
               <CardDescription>
-                Tide times and current predictions
+                Tide times and current predictions along the route
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">
-                Tidal data will be displayed here
-              </p>
+              {passage.tides && passage.tides.length > 0 ? (
+                <div className="space-y-6">
+                  {/* Group tides by location */}
+                  {Array.from(new Set(passage.tides.map(t => t.location))).map(location => (
+                    <div key={location} className="space-y-3">
+                      <h4 className="font-semibold flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        {location}
+                      </h4>
+                      <div className="grid gap-3">
+                        {passage.tides
+                          .filter(t => t.location === location)
+                          .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+                          .map((tide, index) => (
+                            <div
+                              key={index}
+                              className={`p-3 rounded-lg border flex items-center justify-between ${
+                                tide.type === 'high'
+                                  ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800'
+                                  : 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-full ${
+                                  tide.type === 'high' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-slate-100 dark:bg-slate-800'
+                                }`}>
+                                  {tide.type === 'high' ? (
+                                    <Waves className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                  ) : (
+                                    <Anchor className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="font-medium capitalize">{tide.type} Tide</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {formatTime(tide.time)} - {new Date(tide.time).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold">{tide.height.toFixed(1)}m</p>
+                                {tide.current && (
+                                  <p className="text-sm text-muted-foreground">
+                                    Current: {tide.current.speed.toFixed(1)} kts {degreesToCompass(tide.current.direction)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Tidal current warning */}
+                  {passage.tides.some(t => t.current && t.current.speed > 1.5) && (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-2">
+                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-amber-800 dark:text-amber-200">Strong Tidal Currents</p>
+                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                          Some locations have currents exceeding 1.5 knots. Plan your departure time to use favorable currents and avoid opposing strong flows.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Anchor className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No tidal data available</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Tide predictions will be fetched when the passage is planned
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
