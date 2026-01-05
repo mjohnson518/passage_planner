@@ -11,18 +11,44 @@ import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase-client'
 
+// Email validation helper
+function validateEmail(email: string): string | null {
+  if (!email || email.trim() === '') {
+    return 'Email is required'
+  }
+  // RFC 5322 simplified email regex
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email)) {
+    return 'Please enter a valid email address'
+  }
+  return null
+}
+
+// Password validation helper
+function validatePassword(password: string): string | null {
+  if (!password || password.trim() === '') {
+    return 'Password is required'
+  }
+  if (password.length < 6) {
+    return 'Password must be at least 6 characters'
+  }
+  return null
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
   const { signIn } = useAuth()
   const router = useRouter()
   const supabase = getSupabase()
   const supabaseConfigured = isSupabaseConfigured()
 
-  // Handle OAuth callback errors using window.location (avoids useSearchParams suspense issue)
+  // Handle OAuth callback errors and demo param using window.location
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
@@ -31,13 +57,40 @@ export default function LoginPage() {
         setError(decodeURIComponent(callbackError))
         toast.error('Authentication failed', { description: callbackError })
       }
+
+      // Auto-trigger demo mode if ?demo=true is in URL
+      const demoParam = params.get('demo')
+      if (demoParam === 'true') {
+        localStorage.setItem('helmwise_demo_mode', 'true')
+        toast.success('Demo mode activated', { description: 'Exploring Helmwise as a demo user' })
+        router.push('/dashboard')
+      }
     }
-  }, [])
+  }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+
+    // Clear previous errors
     setError(null)
+    setEmailError(null)
+    setPasswordError(null)
+
+    // Validate inputs
+    const emailValidation = validateEmail(email)
+    const passwordValidation = validatePassword(password)
+
+    if (emailValidation) {
+      setEmailError(emailValidation)
+      return
+    }
+
+    if (passwordValidation) {
+      setPasswordError(passwordValidation)
+      return
+    }
+
+    setLoading(true)
 
     try {
       await signIn(email, password)
@@ -225,11 +278,21 @@ export default function LoginPage() {
                     type="email"
                     placeholder="captain@example.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-12"
-                    required
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      if (emailError) setEmailError(null)
+                    }}
+                    className={`pl-10 h-12 ${emailError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                    aria-invalid={!!emailError}
+                    aria-describedby={emailError ? 'email-error' : undefined}
                   />
                 </div>
+                {emailError && (
+                  <p id="email-error" className="text-sm text-destructive flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    {emailError}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -246,9 +309,13 @@ export default function LoginPage() {
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Enter your password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 h-12"
-                    required
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      if (passwordError) setPasswordError(null)
+                    }}
+                    className={`pl-10 pr-10 h-12 ${passwordError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                    aria-invalid={!!passwordError}
+                    aria-describedby={passwordError ? 'password-error' : undefined}
                   />
                   <button
                     type="button"
@@ -262,6 +329,12 @@ export default function LoginPage() {
                     )}
                   </button>
                 </div>
+                {passwordError && (
+                  <p id="password-error" className="text-sm text-destructive flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    {passwordError}
+                  </p>
+                )}
               </div>
 
               <Button
