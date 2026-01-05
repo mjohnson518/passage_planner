@@ -4,8 +4,11 @@ module.exports = {
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.ts', '**/*.test.ts'],
   transformIgnorePatterns: [
-    'node_modules/(?!(@modelcontextprotocol|@turf|concaveman|rbush)/)',
+    '/node_modules/(?!(@modelcontextprotocol|@turf|concaveman|rbush|uuid)/)',
   ],
+  moduleNameMapper: {
+    '^uuid$': require.resolve('uuid'),
+  },
   moduleFileExtensions: ['ts', 'js', 'json'],
   collectCoverageFrom: [
     'src/**/*.ts',

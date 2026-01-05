@@ -73,3 +73,35 @@ package-lock 4.json
 # Cursor internal files
 .cursor/plans/
 .cursor/rules/
+
+# ==================================================
+# Ralph Loop / Audit Artifacts (DO NOT COMMIT)
+# ==================================================
+# Add these lines to your existing .gitignore
+
+# Deliverable files (local working files only)
+AUDIT_REPORT*.md
+PROGRESS*.md
+GIT_COMMANDS*.md
+BLOCKERS.md
+USER_FLOW_TESTS.md
+
+# Claude Code configuration (local only)
+.claude/
+
+# Ralph Loop script (development tooling)
+ralph-loop.sh
+
+# Playwright test artifacts
+playwright-report/
+test-results/
+.playwright/
+
+# Temporary files
+*.bak
+*.tmp
+*.log
+
+# ==================================================
+# End Ralph Loop additions
+# ==================================================

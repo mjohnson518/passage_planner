@@ -13,7 +13,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "email:dev": "email dev --dir emails --port 3001"
+    "email:dev": "email dev --dir emails --port 3001",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.0.2",

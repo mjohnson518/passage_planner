@@ -18,6 +18,7 @@
     "build:all": "npm --workspaces run build",
     "test": "npm --workspaces run test",
     "lint": "npm --workspaces run lint",
+    "type-check": "npm --workspace=shared run type-check && npm --workspace=orchestrator run type-check && npm --workspace=frontend run type-check",
     "docker:up": "docker-compose -f tests/integration/docker-compose.yml up -d",
     "docker:down": "docker-compose -f tests/integration/docker-compose.yml down",
     "setup": "npm install && npm run setup:env && npm run docker:up",
