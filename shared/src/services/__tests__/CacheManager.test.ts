@@ -269,8 +269,10 @@ describe('CacheManager', () => {
 
   describe('Safety-Critical: Cache for Circuit Breaker Fallback', () => {
     it('should provide fallback data when primary cache expires but fallback exists', async () => {
-      const primaryKey = 'tidal:predictions:8443970';
-      const fallbackKey = 'tidal:predictions:fallback:8443970';
+      // Use unique keys to avoid collision with other tests
+      const uniqueId = `test-${Date.now()}`;
+      const primaryKey = `tidal:predictions:${uniqueId}`;
+      const fallbackKey = `tidal:predictions:fallback:${uniqueId}`;
       
       const tidalData = {
         station: { id: '8443970', name: 'Boston' },
