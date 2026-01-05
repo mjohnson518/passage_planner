@@ -38,12 +38,17 @@ export class RoutingEngine {
   /**
    * Calculate Great Circle Route (shortest distance)
    * This is the optimal route for ocean passages
+   *
+   * SAFETY CRITICAL: Validates all inputs to prevent navigation errors
    */
   calculateGreatCircle(
-    start: LatLon, 
+    start: LatLon,
     end: LatLon,
     speed: number = 5 // knots
   ): Route {
+    // SAFETY: Validate inputs before calculating route
+    this.validateInputs(start, end, speed);
+
     this.logger.info({ start, end }, 'Calculating great circle route');
     
     // Calculate total distance using geolib (returns meters)
@@ -149,12 +154,17 @@ export class RoutingEngine {
   /**
    * Calculate Rhumb Line Route (constant bearing)
    * Easier to follow but longer distance
+   *
+   * SAFETY CRITICAL: Validates all inputs to prevent navigation errors
    */
   calculateRhumbLine(
-    start: LatLon, 
+    start: LatLon,
     end: LatLon,
     speed: number = 5 // knots
   ): Route {
+    // SAFETY: Validate inputs before calculating route
+    this.validateInputs(start, end, speed);
+
     this.logger.info({ start, end }, 'Calculating rhumb line route');
     
     // Calculate rhumb line distance and bearing
@@ -294,13 +304,50 @@ export class RoutingEngine {
 
   /**
    * Calculate distance between two points in nautical miles
+   *
+   * SAFETY CRITICAL: Validates coordinates to prevent navigation errors
    */
   calculateDistance(point1: LatLon, point2: LatLon): number {
+    // SAFETY: Validate coordinates
+    this.validateCoordinate(point1, 'point1');
+    this.validateCoordinate(point2, 'point2');
+
     const meters = geolib.getDistance(
       { latitude: point1.lat, longitude: point1.lon },
       { latitude: point2.lat, longitude: point2.lon }
     );
     return meters / 1852;
+  }
+
+  /**
+   * SAFETY CRITICAL: Validate all route calculation inputs
+   * Fails fast on invalid data to prevent navigation errors
+   */
+  private validateInputs(start: LatLon, end: LatLon, speed: number): void {
+    this.validateCoordinate(start, 'start');
+    this.validateCoordinate(end, 'end');
+
+    if (speed <= 0 || !Number.isFinite(speed)) {
+      throw new Error(`Invalid speed: ${speed}. Speed must be a positive number`);
+    }
+  }
+
+  /**
+   * SAFETY CRITICAL: Validate a single coordinate point
+   */
+  private validateCoordinate(point: LatLon, name: string): void {
+    if (!point) {
+      throw new Error(`${name} coordinate is required`);
+    }
+    if (!Number.isFinite(point.lat) || !Number.isFinite(point.lon)) {
+      throw new Error(`Invalid ${name} coordinates: lat=${point.lat}, lon=${point.lon}. Coordinates must be finite numbers`);
+    }
+    if (point.lat < -90 || point.lat > 90) {
+      throw new Error(`Invalid ${name} latitude: ${point.lat}. Must be between -90 and 90`);
+    }
+    if (point.lon < -180 || point.lon > 180) {
+      throw new Error(`Invalid ${name} longitude: ${point.lon}. Must be between -180 and 180`);
+    }
   }
 
   /**
