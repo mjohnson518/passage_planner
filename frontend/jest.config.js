@@ -22,7 +22,11 @@ const customJestConfig = {
   transformIgnorePatterns: [
     'node_modules/(?!(isows|@supabase|@modelcontextprotocol)/)',
   ],
-  testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/'],
+  testPathIgnorePatterns: [
+    '<rootDir>/.next/',
+    '<rootDir>/node_modules/',
+    '<rootDir>/app/__tests__/utils/testing-helpers.tsx',
+  ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
   collectCoverageFrom: [
     'app/**/*.{js,jsx,ts,tsx}',
