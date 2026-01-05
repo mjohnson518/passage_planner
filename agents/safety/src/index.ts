@@ -906,7 +906,7 @@ export class SafetyAgent {
           'Navigation lights tested',
           'VHF radio tested on Channel 16',
           'Engine and systems checked',
-          'Fuel and water supplies adequate (+20% reserve)',
+          'Fuel and water supplies adequate (+30% reserve)',
           'Provisions for duration plus 48 hours',
           'Charts and navigation equipment ready',
           'Anchor and ground tackle inspected'
@@ -1277,6 +1277,14 @@ export class SafetyAgent {
     }, '⚠️ SAFETY OVERRIDE APPLIED');
 
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+
+  /**
+   * Public method to call tools directly (for orchestrator integration)
+   * Wraps handleToolCall for compatibility with other agents
+   */
+  public async callTool(toolName: string, args: any): Promise<any> {
+    return this.handleToolCall(toolName, args);
   }
 }
 

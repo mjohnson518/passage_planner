@@ -3,6 +3,7 @@ import Redis from 'ioredis';
 import { WeatherAgent } from '../../agents/weather/src/index';
 import { TidalAgent } from '../../agents/tidal/src/index';
 import { RouteAgent } from '../../agents/route/src';
+import { SafetyAgent } from '../../agents/safety/src/index';
 import { BaseAgent } from '@passage-planner/shared';
 import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,7 +14,7 @@ import pino from 'pino';
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 interface AgentRegistry {
-  [key: string]: BaseAgent;
+  [key: string]: BaseAgent | SafetyAgent;
 }
 
 export class SimpleOrchestrator {
@@ -49,7 +50,7 @@ export class SimpleOrchestrator {
   private async initializeAgents() {
     logger.info('Initializing agents...');
 
-    // Initialize all three agents - RouteAgent now works with geolib!
+    // Initialize all four agents - including CRITICAL SafetyAgent
     this.agents['weather'] = new WeatherAgent();
     logger.info('Weather agent initialized');
 
@@ -59,6 +60,12 @@ export class SimpleOrchestrator {
     // RouteAgent now working with geolib (no more Turf.js ESM issues)
     this.agents['route'] = new RouteAgent();
     logger.info('Route agent initialized');
+
+    // CRITICAL: SafetyAgent for hazard detection, depth checks, and safety warnings
+    // This is life-safety infrastructure - never skip safety checks
+    this.agents['safety'] = new SafetyAgent();
+    await (this.agents['safety'] as SafetyAgent).initialize();
+    logger.info('Safety agent initialized - CRITICAL for mariner safety');
 
     logger.info('All agents initialized');
   }
@@ -160,27 +167,72 @@ export class SimpleOrchestrator {
           startDate: request.departure.time || new Date().toISOString(),
           endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         }),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Tidal fetch timeout')), agentTimeout)
         )
       ]).catch(error => {
         logger.error({ error }, 'Tidal arrival error');
         return null;
       });
-      
+
+      // CRITICAL: Safety Agent checks - LIFE SAFETY INFRASTRUCTURE
+      // These checks detect hazards, verify depths, and provide safety warnings
+      const routeWaypoints = [
+        { latitude: request.departure.latitude, longitude: request.departure.longitude },
+        { latitude: request.destination.latitude, longitude: request.destination.longitude }
+      ];
+
+      const safetyRoutePromise = Promise.race([
+        this.agents['safety'].callTool('check_route_safety', {
+          route: routeWaypoints,
+          departure_time: request.departure.time || new Date().toISOString(),
+          vessel_draft: request.vessel?.draft || 6
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Safety check timeout')), agentTimeout)
+        )
+      ]).catch(error => {
+        logger.error({ error }, 'Safety route check error - CRITICAL');
+        // Return empty safety result but log as critical error
+        return { warnings: [], hazards: [], recommendations: ['Safety check failed - exercise extreme caution'] };
+      });
+
+      const safetyBriefPromise = Promise.race([
+        this.agents['safety'].callTool('generate_safety_brief', {
+          departure_port: request.departure.name || 'Unknown',
+          destination_port: request.destination.name || 'Unknown',
+          route_distance: 0, // Will be updated after route calculation
+          estimated_duration: '0h',
+          crew_size: request.crew?.size || 2,
+          vessel_type: request.vessel?.type || 'sailboat'
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Safety brief timeout')), agentTimeout)
+        )
+      ]).catch(error => {
+        logger.error({ error }, 'Safety brief generation error');
+        return null;
+      });
+
       // EXECUTE ALL IN PARALLEL - THIS IS THE KEY!
+      // Including CRITICAL safety checks in parallel execution
       const parallelStart = Date.now();
-      const [route, weatherDeparture, weatherArrival, tidalDeparture, tidalArrival] = await Promise.all([
+      const [route, weatherDeparture, weatherArrival, tidalDeparture, tidalArrival, safetyRoute, safetyBrief] = await Promise.all([
         routePromise,
         weatherDeparturePromise,
         weatherArrivalPromise,
         tidalDeparturePromise,
-        tidalArrivalPromise
+        tidalArrivalPromise,
+        safetyRoutePromise,
+        safetyBriefPromise
       ]);
-      
+
       const parallelTime = Date.now() - parallelStart;
-      logger.info({ parallelTime, planningId }, 'All agents completed in parallel execution');
+      logger.info({ parallelTime, planningId }, 'All agents completed in parallel execution (including safety)');
       
+      // Extract safety warnings from safety route check
+      const safetyWarnings = this.extractSafetyWarnings(safetyRoute);
+
       // Compile comprehensive passage plan
       const passagePlan = {
         id: planningId,
@@ -194,21 +246,32 @@ export class SimpleOrchestrator {
           departure: tidalDeparture,
           arrival: tidalArrival
         },
+        // CRITICAL: Safety data for mariner awareness
+        safety: {
+          routeAnalysis: safetyRoute,
+          brief: safetyBrief,
+          warnings: safetyWarnings,
+          disclaimer: 'This safety analysis is advisory only. Skipper retains ultimate responsibility for vessel safety.'
+        },
         summary: {
           totalDistance: route.totalDistance,
           estimatedDuration: route.estimatedDuration,
           departureTime: request.departure.time,
           estimatedArrival: new Date(
-            new Date(request.departure.time || Date.now()).getTime() + 
+            new Date(request.departure.time || Date.now()).getTime() +
             route.estimatedDuration * 60 * 60 * 1000
           ),
-          warnings: this.generateWarnings([weatherDeparture, weatherArrival]),
+          // Combine weather AND safety warnings
+          warnings: [
+            ...this.generateWarnings([weatherDeparture, weatherArrival]),
+            ...safetyWarnings
+          ],
           recommendations: this.generateRecommendations([weatherDeparture, weatherArrival], route)
         },
         performance: {
           totalTime: Date.now() - startTime,
           parallelTime,
-          agentsUsed: ['weather', 'tidal', 'route']
+          agentsUsed: ['weather', 'tidal', 'route', 'safety']
         }
       };
       
@@ -271,19 +334,76 @@ export class SimpleOrchestrator {
 
   private generateRecommendations(weather: any[], route: any): string[] {
     const recommendations: string[] = [];
-    
+
     if (route.totalDistance > 200) {
       recommendations.push('Long passage - ensure adequate provisions and fuel');
     }
-    
+
     if (route.estimatedDuration > 24) {
       recommendations.push('Multi-day passage - plan watch schedule and rest periods');
     }
-    
+
     recommendations.push('File a float plan with a trusted contact before departure');
     recommendations.push('Check all safety equipment is accessible and functional');
-    
+
     return recommendations;
+  }
+
+  /**
+   * Extract safety warnings from SafetyAgent route analysis
+   * Formats warnings for display to the user
+   */
+  private extractSafetyWarnings(safetyRoute: any): string[] {
+    const warnings: string[] = [];
+
+    if (!safetyRoute) {
+      warnings.push('⚠️ SAFETY CHECK UNAVAILABLE - Exercise extreme caution');
+      return warnings;
+    }
+
+    // Extract warnings from content array if present (MCP format)
+    let safetyData = safetyRoute;
+    if (safetyRoute.content && Array.isArray(safetyRoute.content)) {
+      try {
+        const textContent = safetyRoute.content.find((c: any) => c.type === 'text');
+        if (textContent?.text) {
+          safetyData = JSON.parse(textContent.text);
+        }
+      } catch (e) {
+        // Use safetyRoute as-is
+      }
+    }
+
+    // Extract warnings array
+    if (safetyData.warnings && Array.isArray(safetyData.warnings)) {
+      for (const warning of safetyData.warnings) {
+        if (typeof warning === 'string') {
+          warnings.push(warning);
+        } else if (warning.description) {
+          const severity = warning.severity === 'urgent' ? '🔴' : '⚠️';
+          warnings.push(`${severity} ${warning.description}`);
+        }
+      }
+    }
+
+    // Extract hazards
+    if (safetyData.hazards && Array.isArray(safetyData.hazards)) {
+      for (const hazard of safetyData.hazards) {
+        const severity = hazard.severity === 'high' ? '🔴' : '⚠️';
+        warnings.push(`${severity} HAZARD: ${hazard.description || hazard.type}`);
+      }
+    }
+
+    // Extract recommendations
+    if (safetyData.recommendations && Array.isArray(safetyData.recommendations)) {
+      for (const rec of safetyData.recommendations) {
+        if (typeof rec === 'string' && !warnings.includes(rec)) {
+          warnings.push(`📋 ${rec}`);
+        }
+      }
+    }
+
+    return warnings;
   }
 
   private setupWebSocket() {
