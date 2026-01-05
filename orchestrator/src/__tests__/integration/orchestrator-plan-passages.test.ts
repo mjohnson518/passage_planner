@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { SimpleOrchestrator } from '../../SimpleOrchestrator'
 
 // Mock Redis

@@ -83,8 +83,13 @@ package-lock 4.json
 AUDIT_REPORT*.md
 PROGRESS*.md
 GIT_COMMANDS*.md
-BLOCKERS.md
-USER_FLOW_TESTS.md
+BLOCKERS*.md
+USER_FLOW_TESTS*.md
+CLAUDE*.md
+DATA_SOURCES_AUDIT*.md
+DEPLOYMENT_STATUS*.md
+TEST_COVERAGE_ANALYSIS*.md
+docs/PRODUCTION_DEPLOYMENT*.md
 
 # Claude Code configuration (local only)
 .claude/

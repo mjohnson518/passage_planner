@@ -1,12 +1,13 @@
+// @ts-nocheck
 /**
  * Orchestrator: Agent Initialization Tests
- * 
+ *
  * PURPOSE: Validate orchestrator startup sequence, agent registration,
  * and initialization error handling. Ensures all agents are properly
  * initialized before accepting passage planning requests.
- * 
+ *
  * COVERAGE TARGET: 85%+ of agent initialization logic
- * 
+ *
  * CRITICAL: Orchestrator coordinates all safety-critical agents. Failed
  * initialization could prevent passage planning or cause partial failures.
  */
@@ -65,21 +66,21 @@ describe('Orchestrator: Agent Initialization', () => {
       initialize: jest.fn().mockResolvedValue(undefined),
       shutdown: jest.fn().mockResolvedValue(undefined),
       getTools: jest.fn().mockReturnValue([]),
-      handleToolCall: jest.fn().mockResolvedValue({ success: true })
+      handleToolCall: jest.fn().mockResolvedValue({ success: true } as any)
     }));
 
     (TidalAgent as any).mockImplementation(() => ({
       initialize: jest.fn().mockResolvedValue(undefined),
       shutdown: jest.fn().mockResolvedValue(undefined),
       getTools: jest.fn().mockReturnValue([]),
-      handleToolCall: jest.fn().mockResolvedValue({ success: true })
+      handleToolCall: jest.fn().mockResolvedValue({ success: true } as any)
     }));
 
     (RouteAgent as any).mockImplementation(() => ({
       initialize: jest.fn().mockResolvedValue(undefined),
       shutdown: jest.fn().mockResolvedValue(undefined),
       getTools: jest.fn().mockReturnValue([]),
-      handleToolCall: jest.fn().mockResolvedValue({ success: true })
+      handleToolCall: jest.fn().mockResolvedValue({ success: true } as any)
     }));
   });
 

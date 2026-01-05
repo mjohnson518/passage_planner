@@ -1,11 +1,12 @@
+// @ts-nocheck
 /**
  * Orchestrator: Parallel Execution Tests
- * 
+ *
  * PURPOSE: Validate concurrent agent execution patterns, performance targets,
  * and request handling under load. Tests the core passage planning workflow.
- * 
+ *
  * COVERAGE TARGET: 85%+ of passage planning flow
- * 
+ *
  * PERFORMANCE TARGETS:
  * - Simple passage plan: <3 seconds
  * - Concurrent requests: Handle 10+ simultaneously
@@ -90,7 +91,7 @@ describe('Orchestrator: Parallel Execution & Performance', () => {
         ],
         totalDistance: 85.7,
         estimatedDuration: 17.14 // hours at 5kt
-      })
+      } as any)
     };
 
     // Mock weather agent with realistic response
@@ -101,7 +102,7 @@ describe('Orchestrator: Parallel Execution & Performance', () => {
       handleToolCall: jest.fn().mockResolvedValue([
         { time: '2024-01-20T12:00:00Z', windSpeed: 15, waveHeight: 2 },
         { time: '2024-01-20T18:00:00Z', windSpeed: 18, waveHeight: 3 }
-      ])
+      ] as any)
     };
 
     // Mock tidal agent with realistic response
@@ -115,7 +116,7 @@ describe('Orchestrator: Parallel Execution & Performance', () => {
           { time: '2024-01-20T06:00:00Z', height: 9.5, type: 'H' },
           { time: '2024-01-20T12:00:00Z', height: 1.2, type: 'L' }
         ]
-      })
+      } as any)
     };
 
     (WeatherAgent as any).mockImplementation(() => mockWeatherAgent);

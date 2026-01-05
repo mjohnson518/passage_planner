@@ -1,11 +1,12 @@
+// @ts-nocheck
 /**
  * Orchestrator: Health Check Tests
- * 
+ *
  * PURPOSE: Validate system health monitoring that provides visibility into
  * orchestrator and agent operational status for production monitoring.
- * 
+ *
  * COVERAGE TARGET: 85%+ of health check logic
- * 
+ *
  * PRODUCTION MONITORING: Health checks enable:
  * 1. Readiness probes for Kubernetes deployment
  * 2. Agent status monitoring

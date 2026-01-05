@@ -1,11 +1,12 @@
+// @ts-nocheck
 /**
  * Orchestrator: Agent Coordination Tests
- * 
+ *
  * PURPOSE: Validate end-to-end passage planning workflow including data flow
  * between agents, result aggregation, and complete integration scenarios.
- * 
+ *
  * COVERAGE TARGET: 80%+ of coordination and integration logic
- * 
+ *
  * INTEGRATION TEST: Tests complete Boston → Portland passage planning workflow
  * with all agents coordinating to produce comprehensive passage plan.
  */
@@ -66,63 +67,72 @@ describe('Orchestrator: Agent Coordination & Integration', () => {
     require('@modelcontextprotocol/sdk/server/index.js').Server = jest.fn(() => mockMcpServer);
 
     // Realistic agent responses for integration testing
-    (RouteAgent as any).mockImplementation(() => ({
-      initialize: jest.fn().mockResolvedValue(undefined),
-      shutdown: jest.fn().mockResolvedValue(undefined),
-      getTools: jest.fn().mockReturnValue([]),
-      handleToolCall: jest.fn().mockResolvedValue({
-        waypoints: [
-          { latitude: 42.3601, longitude: -71.0589, name: 'Boston, MA' },
-          { latitude: 42.7, longitude: -70.8 },
-          { latitude: 43.0, longitude: -70.5 },
-          { latitude: 43.6591, longitude: -70.2568, name: 'Portland, ME' }
-        ],
-        totalDistance: 85.7,
-        estimatedDuration: 17.14,
-        route_type: 'great_circle'
-      })
-    }));
+    (RouteAgent as any).mockImplementation(() => {
+      const mock: any = {
+        initialize: jest.fn().mockResolvedValue(undefined),
+        shutdown: jest.fn().mockResolvedValue(undefined),
+        getTools: jest.fn().mockReturnValue([]),
+        handleToolCall: jest.fn().mockResolvedValue({
+          waypoints: [
+            { latitude: 42.3601, longitude: -71.0589, name: 'Boston, MA' },
+            { latitude: 42.7, longitude: -70.8 },
+            { latitude: 43.0, longitude: -70.5 },
+            { latitude: 43.6591, longitude: -70.2568, name: 'Portland, ME' }
+          ],
+          totalDistance: 85.7,
+          estimatedDuration: 17.14,
+          route_type: 'great_circle'
+        })
+      };
+      return mock;
+    });
 
-    (WeatherAgent as any).mockImplementation(() => ({
-      initialize: jest.fn().mockResolvedValue(undefined),
-      shutdown: jest.fn().mockResolvedValue(undefined),
-      getTools: jest.fn().mockReturnValue([]),
-      handleToolCall: jest.fn().mockResolvedValue([
-        {
-          time: '2024-01-20T12:00:00Z',
-          windSpeed: 15,
-          windDirection: 'NE',
-          waveHeight: 2,
-          temperature: 45,
-          conditions: 'Partly Cloudy'
-        },
-        {
-          time: '2024-01-20T18:00:00Z',
-          windSpeed: 18,
-          windDirection: 'E',
-          waveHeight: 3,
-          temperature: 42,
-          conditions: 'Cloudy'
-        }
-      ])
-    }));
+    (WeatherAgent as any).mockImplementation(() => {
+      const mock: any = {
+        initialize: jest.fn().mockResolvedValue(undefined),
+        shutdown: jest.fn().mockResolvedValue(undefined),
+        getTools: jest.fn().mockReturnValue([]),
+        handleToolCall: jest.fn().mockResolvedValue([
+          {
+            time: '2024-01-20T12:00:00Z',
+            windSpeed: 15,
+            windDirection: 'NE',
+            waveHeight: 2,
+            temperature: 45,
+            conditions: 'Partly Cloudy'
+          },
+          {
+            time: '2024-01-20T18:00:00Z',
+            windSpeed: 18,
+            windDirection: 'E',
+            waveHeight: 3,
+            temperature: 42,
+            conditions: 'Cloudy'
+          }
+        ])
+      };
+      return mock;
+    });
 
-    (TidalAgent as any).mockImplementation(() => ({
-      initialize: jest.fn().mockResolvedValue(undefined),
-      shutdown: jest.fn().mockResolvedValue(undefined),
-      getTools: jest.fn().mockReturnValue([]),
-      handleToolCall: jest.fn().mockResolvedValue({
-        station: '8443970',
-        station_name: 'Boston Harbor',
-        predictions: [
-          { time: '2024-01-20T06:15:00Z', height: 9.5, type: 'H' },
-          { time: '2024-01-20T12:30:00Z', height: 1.2, type: 'L' },
-          { time: '2024-01-20T18:45:00Z', height: 9.8, type: 'H' }
-        ],
-        datum: 'MLLW',
-        units: 'english'
-      })
-    }));
+    (TidalAgent as any).mockImplementation(() => {
+      const mock: any = {
+        initialize: jest.fn().mockResolvedValue(undefined),
+        shutdown: jest.fn().mockResolvedValue(undefined),
+        getTools: jest.fn().mockReturnValue([]),
+        handleToolCall: jest.fn().mockResolvedValue({
+          station: '8443970',
+          station_name: 'Boston Harbor',
+          predictions: [
+            { time: '2024-01-20T06:15:00Z', height: 9.5, type: 'H' },
+            { time: '2024-01-20T12:30:00Z', height: 1.2, type: 'L' },
+            { time: '2024-01-20T18:45:00Z', height: 9.8, type: 'H' }
+          ],
+          datum: 'MLLW',
+          units: 'english'
+        })
+      };
+      return mock;
+    });
 
     orchestrator = new Orchestrator();
     await new Promise(resolve => setTimeout(resolve, 100));
