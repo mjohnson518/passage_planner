@@ -45,9 +45,9 @@ describe('WeatherAgent', () => {
       const lat = 42.3601;
       const lon = -71.0589;
       
-      // Generate cache key same way the agent does
+      // Generate cache key same way the agent does (using SHA-256)
       const cacheKey = `weather-agent:${require('crypto')
-        .createHash('md5')
+        .createHash('sha256')
         .update(`forecast:${lat}:${lon}:72`)
         .digest('hex')}`;
       

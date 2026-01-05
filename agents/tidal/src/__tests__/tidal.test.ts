@@ -130,9 +130,9 @@ describe('TidalAgent', () => {
       const lon = -71.0589;
       const type = 'tide';
       
-      // Generate cache key same way the agent does
+      // Generate cache key same way the agent does (using SHA-256)
       const cacheKey = `tidal-agent:${require('crypto')
-        .createHash('md5')
+        .createHash('sha256')
         .update(`station:${lat}:${lon}:${type}`)
         .digest('hex')}`;
       
@@ -311,9 +311,9 @@ describe('TidalAgent', () => {
       const startDate = '2024-01-01T00:00:00Z';
       const endDate = '2024-01-02T00:00:00Z';
       
-      // Generate cache key
+      // Generate cache key (using SHA-256)
       const cacheKey = `tidal-agent:${require('crypto')
-        .createHash('md5')
+        .createHash('sha256')
         .update(`tides:${lat}:${lon}:${startDate}:${endDate}`)
         .digest('hex')}`;
       
