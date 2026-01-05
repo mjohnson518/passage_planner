@@ -47,7 +47,8 @@ export abstract class BaseAgent {
 
   protected generateCacheKey(...parts: string[]): string {
     const combined = parts.join(':');
-    const hash = createHash('md5').update(combined).digest('hex');
+    // SECURITY: Use SHA-256 instead of MD5 to prevent cache poisoning via collisions
+    const hash = createHash('sha256').update(combined).digest('hex');
     return `${this.config.name}:${hash}`;
   }
 
