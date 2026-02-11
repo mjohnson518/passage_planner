@@ -2,11 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs'
-import { ExportDialog } from '../../components/export/ExportDialog'
+
+const ExportDialog = dynamic(
+  () => import('../../components/export/ExportDialog').then(m => ({ default: m.ExportDialog })),
+  { ssr: false }
+)
 import { 
   MapPin, 
   Navigation, 

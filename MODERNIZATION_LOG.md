@@ -509,6 +509,66 @@ Breakdown:
 
 ---
 
+## Phase 3: Dynamic Imports & Dependency Cleanup
+
+> **Completed:** 2026-02-11
+> **Status:** Complete
+
+### Changes Summary
+
+| Step | Change | Files |
+|------|--------|-------|
+| 1 | Dynamic import `passageToGPX` and `generatePassagePDF` at call site in planner | planner/page.tsx |
+| 2 | Lazy-load `ExportDialog` via `next/dynamic` with `ssr: false` | passages/[id]/PassageDetailClient.tsx |
+| 3 | Dynamic import all 4 export libs (gpx, kml, csv, pdf) inside `handleExport` switch | components/export/ExportDialog.tsx |
+| 4 | Added `optimizePackageImports` for lucide-react, date-fns, recharts, 13 @radix-ui packages | next.config.js |
+| 5 | Removed 3 unused dependencies | package.json |
+
+### Bundle Size: Before → After
+
+| Route | Before (Phase 2) | After (Phase 3) | Change |
+|-------|-------------------|------------------|--------|
+| `/planner` | 407 KB | **230 KB** | **-43%** |
+| `/passages/[id]` | 328 KB | **126 KB** | **-62%** |
+| `/admin/analytics` | 322 KB | 322 KB | — |
+| `/fleet` | 219 KB | 219 KB | — |
+| `/weather` | 206 KB | 206 KB | — |
+| `/passages` | 202 KB | 203 KB | — |
+| `/admin` | 178 KB | 178 KB | — |
+| `/api-docs` | 181 KB | 181 KB | — |
+| `/dashboard` | 177 KB | 177 KB | — |
+| Shared JS | 104 KB | 104 KB | — |
+
+### Dependencies Removed
+
+- `@googlemaps/js-api-loader` ^2.0.2 — maps use Leaflet, zero imports
+- `next-auth` ^4.24.12 — auth uses Supabase exclusively, zero imports
+- `detect-node-es` ^1.1.0 — zero imports
+
+### Key Optimizations
+
+**Dynamic imports (Steps 1-3):** jspdf (~60KB) + html2canvas (~120KB) + export libs now load on-demand only when user clicks export buttons. Previously loaded statically on every page visit.
+
+**optimizePackageImports (Step 4):** Next.js transforms barrel imports from lucide-react (292 icons), date-fns, recharts, and @radix-ui into direct file imports at build time, eliminating unused exports.
+
+### Known Issues Resolved
+
+- **#7** (partial) No code splitting for html2canvas, jspdf → now dynamically imported at call sites
+- Unused dependencies (@googlemaps/js-api-loader, next-auth, detect-node-es) removed
+
+### Cumulative Progress (Phase 1 → Phase 3)
+
+| Route | Phase 1 Baseline | Phase 3 Result | Total Reduction |
+|-------|------------------|----------------|-----------------|
+| `/planner` | 406 KB | **230 KB** | **-43%** |
+| `/passages/[id]` | 327 KB | **126 KB** | **-61%** |
+| `/admin` | 364 KB | **178 KB** | **-51%** |
+| `/api-docs` | 405 KB | **181 KB** | **-55%** |
+| `/fleet` | 325 KB | **219 KB** | **-33%** |
+| `/admin/analytics` | 320 KB | 322 KB | — |
+
+---
+
 ## Appendix: File Inventory
 
 ### Configuration Files

@@ -28,8 +28,6 @@ import { planPassage, PassagePlanningRequest, PassagePlanningResponse } from '..
 import { analytics } from '@/lib/analytics'
 import LocationAutocomplete from '../components/location/LocationAutocomplete'
 import PortSelector from '../components/location/PortSelector'
-import { passageToGPX } from '../lib/export/gpx'
-import { generatePassagePDF } from '../lib/export/pdf'
 
 // Dynamic import for map component to avoid SSR issues
 const RouteMap = dynamic(
@@ -533,8 +531,9 @@ export default function PlannerPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
+                    onClick={async () => {
                       if (passagePlan) {
+                        const { passageToGPX } = await import('../lib/export/gpx')
                         const gpx = passageToGPX({
                           name: `${formData.departure} to ${formData.destination}`,
                           waypoints: passagePlan.route.waypoints,
@@ -556,8 +555,9 @@ export default function PlannerPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => {
+                    onClick={async () => {
                       if (passagePlan) {
+                        const { generatePassagePDF } = await import('../lib/export/pdf')
                         generatePassagePDF({
                           name: `${formData.departure} to ${formData.destination}`,
                           route: passagePlan.route,

@@ -37,10 +37,6 @@ interface ExportOptions {
   includeNotes?: boolean
   format?: ExportFormat
 }
-import { downloadGPX } from '../../lib/export/gpx'
-import { downloadKML } from '../../lib/export/kml'
-import { downloadCSV } from '../../lib/export/csv'
-import { downloadPassagePDF } from '../../lib/export/pdf'
 
 interface ExportDialogProps {
   open: boolean
@@ -91,26 +87,32 @@ export function ExportDialog({ open, onOpenChange, passage }: ExportDialogProps)
     
     try {
       switch (format) {
-        case 'gpx':
+        case 'gpx': {
+          const { downloadGPX } = await import('../../lib/export/gpx')
           downloadGPX(passage)
           toast.success('GPX file downloaded successfully')
           break
-          
-        case 'kml':
+        }
+
+        case 'kml': {
+          const { downloadKML } = await import('../../lib/export/kml')
           downloadKML(passage)
           toast.success('KML file downloaded successfully')
           break
-          
-        case 'csv':
-          // Show submenu for CSV options
+        }
+
+        case 'csv': {
           const csvType = await showCSVOptions()
           if (csvType) {
+            const { downloadCSV } = await import('../../lib/export/csv')
             downloadCSV(passage, csvType)
             toast.success('CSV file downloaded successfully')
           }
           break
-          
-        case 'pdf':
+        }
+
+        case 'pdf': {
+          const { downloadPassagePDF } = await import('../../lib/export/pdf')
           await downloadPassagePDF(passage, {
             includeCharts: options.includeWeather,
             includeWeather: options.includeWeather,
@@ -119,6 +121,7 @@ export function ExportDialog({ open, onOpenChange, passage }: ExportDialogProps)
           })
           toast.success('PDF passage plan generated successfully')
           break
+        }
       }
       
       onOpenChange(false)
