@@ -5,12 +5,14 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../contexts/AuthContext'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
-import { AdminOverview } from '../components/admin/AdminOverview'
-import { UserManagement } from '../components/admin/UserManagement'
-import { RevenueMetrics } from '../components/admin/RevenueMetrics'
-import { SystemHealth } from '../components/admin/SystemHealth'
-import { AgentMonitoring } from '../components/admin/AgentMonitoring'
-import { AnalyticsReports } from '../components/admin/AnalyticsReports'
+import {
+  LazyAdminOverview,
+  LazyUserManagement,
+  LazyRevenueMetrics,
+  LazySystemHealth,
+  LazyAgentMonitoring,
+  LazyAnalyticsReports
+} from '../components/LazyComponents'
 import { 
   BarChart3, 
   Users, 
@@ -115,27 +117,27 @@ export default function AdminDashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <AdminOverview />
+          <LazyAdminOverview />
         </TabsContent>
 
         <TabsContent value="revenue" className="space-y-6">
-          <RevenueMetrics />
+          <LazyRevenueMetrics />
         </TabsContent>
 
         <TabsContent value="users" className="space-y-6">
-          <UserManagement />
+          <LazyUserManagement />
         </TabsContent>
 
         <TabsContent value="system" className="space-y-6">
-          <SystemHealth />
+          <LazySystemHealth />
         </TabsContent>
 
         <TabsContent value="agents" className="space-y-6">
-          <AgentMonitoring />
+          <LazyAgentMonitoring />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">
-          <AnalyticsReports />
+          <LazyAnalyticsReports />
         </TabsContent>
       </Tabs>
     </div>

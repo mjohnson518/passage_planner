@@ -12,8 +12,16 @@ import { Badge } from '../components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert'
 import { Code, Copy, CheckCircle, AlertCircle, Key, Terminal, Book } from 'lucide-react'
 import { toast } from 'sonner'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import dynamic from 'next/dynamic'
+import type React from 'react'
+
+const SyntaxHighlighter = dynamic(
+  () => import('react-syntax-highlighter/dist/esm/prism').then(m => ({ default: m.Prism })),
+  {
+    ssr: false,
+    loading: () => <pre className="bg-zinc-900 rounded-lg p-4 text-sm text-zinc-300"><code>Loading...</code></pre>
+  }
+)
 
 interface APIEndpoint {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'
@@ -196,6 +204,11 @@ export default function APIDocsPage() {
   const [testEndpoint, setTestEndpoint] = useState<APIEndpoint | null>(null)
   const [testResult, setTestResult] = useState<any>(null)
   const [testing, setTesting] = useState(false)
+  const [codeStyle, setCodeStyle] = useState<Record<string, React.CSSProperties>>({})
+
+  useEffect(() => {
+    import('react-syntax-highlighter/dist/esm/styles/prism').then(m => setCodeStyle(m.vscDarkPlus))
+  }, [])
 
   useEffect(() => {
     if (!user) {
@@ -394,7 +407,7 @@ export default function APIDocsPage() {
           <div className="relative">
             <SyntaxHighlighter
               language="bash"
-              style={vscDarkPlus}
+              style={codeStyle}
               customStyle={{ borderRadius: '0.5rem' }}
             >
               {`curl -X GET "${process.env.NEXT_PUBLIC_API_URL}/api/passages" \\
@@ -517,7 +530,7 @@ export default function APIDocsPage() {
                               <p className="text-sm text-muted-foreground mb-1">Request:</p>
                               <SyntaxHighlighter
                                 language="json"
-                                style={vscDarkPlus}
+                                style={codeStyle}
                                 customStyle={{ fontSize: '0.875rem' }}
                               >
                                 {endpoint.example.request}
@@ -540,7 +553,7 @@ export default function APIDocsPage() {
                             <p className="text-sm text-muted-foreground mb-1">Response:</p>
                             <SyntaxHighlighter
                               language="json"
-                              style={vscDarkPlus}
+                              style={codeStyle}
                               customStyle={{ fontSize: '0.875rem' }}
                             >
                               {endpoint.example.response}
@@ -582,7 +595,7 @@ export default function APIDocsPage() {
                 <h4 className="font-medium mb-2">Request</h4>
                 <SyntaxHighlighter
                   language="bash"
-                  style={vscDarkPlus}
+                  style={codeStyle}
                 >
                   {`curl -X ${testEndpoint.method} "${process.env.NEXT_PUBLIC_API_URL}${testEndpoint.path}" \\
   -H "Authorization: Bearer ${apiKey || 'YOUR_API_KEY'}" \\
@@ -602,7 +615,7 @@ export default function APIDocsPage() {
                     </div>
                     <SyntaxHighlighter
                       language="json"
-                      style={vscDarkPlus}
+                      style={codeStyle}
                     >
                       {JSON.stringify(testResult.data, null, 2)}
                     </SyntaxHighlighter>

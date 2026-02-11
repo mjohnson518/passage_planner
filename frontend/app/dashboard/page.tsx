@@ -6,7 +6,13 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
-import { DemoPassage } from '../components/demo/DemoPassage'
+import dynamic from 'next/dynamic'
+import { Skeleton } from '../components/ui/skeleton'
+
+const DemoPassage = dynamic(
+  () => import('../components/demo/DemoPassage').then(m => ({ default: m.DemoPassage })),
+  { loading: () => <Skeleton className="h-[300px] w-full" /> }
+)
 import {
   Plus,
   History,

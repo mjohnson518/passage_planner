@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '../ui/button'
 import { Progress } from '../ui/progress'
 import { WelcomeStep } from './steps/WelcomeStep'
@@ -170,17 +169,12 @@ export function OnboardingFlow() {
         </div>
 
         {/* Step content */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentStep}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            {steps[currentStep]}
-          </motion.div>
-        </AnimatePresence>
+        <div
+          key={currentStep}
+          className="animate-slide-in-right"
+        >
+          {steps[currentStep]}
+        </div>
       </div>
     </div>
   )

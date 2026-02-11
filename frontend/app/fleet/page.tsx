@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { CreateFleetDialog } from '../components/fleet/CreateFleetDialog'
 import { FleetVesselCard } from '../components/fleet/FleetVesselCard'
 import { CrewList } from '../components/fleet/CrewList'
-import FleetAnalyticsDashboard from '../components/fleet/FleetAnalyticsDashboard'
+import { LazyFleetAnalytics } from '../components/LazyComponents'
 import { InviteCrewDialog } from '../components/fleet/InviteCrewDialog'
 import { AddVesselDialog } from '../components/fleet/AddVesselDialog'
 import { SharePassageDialog } from '../components/fleet/SharePassageDialog'
@@ -371,7 +371,7 @@ export default function FleetPage() {
         </TabsContent>
 
         <TabsContent value="analytics" className="mt-6">
-          <FleetAnalyticsDashboard
+          <LazyFleetAnalytics
             fleetId={fleet.id}
             vessels={vessels}
             members={members}

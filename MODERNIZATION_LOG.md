@@ -116,8 +116,7 @@ webpack: fs/net/tls set to false (Node polyfill suppression)
 | Display (headings) | Libre Baskerville, Georgia, serif | 400, 700, 400i |
 | Body | Source Sans 3, system-ui, sans-serif | 300, 400, 500, 600, 700 |
 
-**Font loading:** Google Fonts `@import url()` in `globals.css` line 1 — **NOT using `next/font`**.
-This is a render-blocking CSS import that delays First Contentful Paint.
+**Font loading:** ~~Google Fonts `@import url()` in `globals.css`~~ → Migrated to `next/font/google` in Phase 2 (self-hosted, non-blocking, CSS variables `--font-heading` / `--font-body`).
 
 **Heading scale:**
 - h1: `text-4xl md:text-5xl lg:text-6xl`
@@ -457,6 +456,56 @@ Breakdown:
 8. **Missing Playwright infrastructure** — global-setup/teardown don't exist
 9. **Bundle analyzer not wired** — installed but not configured
 10. **Duplicate dependencies** — `tailwind-merge` in both root and frontend
+
+---
+
+## Phase 2: Performance Optimization
+
+> **Completed:** 2026-02-11
+> **Status:** Complete
+
+### Changes Summary
+
+| Step | Change | Files |
+|------|--------|-------|
+| 1 | Migrated font loading from `@import url()` to `next/font/google` | layout.tsx, globals.css, tailwind.config.ts |
+| 2 | Added `loading.tsx` skeleton screens to 5 heavy routes | planner, admin, fleet, dashboard, api-docs |
+| 3 | Code-split 6 admin tab components via `next/dynamic` | LazyComponents.tsx, admin/page.tsx |
+| 4 | Lazy-loaded FleetAnalytics (already had wrapper) | fleet/page.tsx |
+| 5 | Dynamic import for react-syntax-highlighter + vscDarkPlus theme | api-docs/page.tsx |
+| 6 | Replaced framer-motion with CSS `animate-slide-in-right` | OnboardingFlow.tsx, package.json |
+| 7 | Removed unused socket.io-client dependency | package.json |
+| 8 | Lazy-loaded DemoPassage on dashboard | dashboard/page.tsx |
+
+### Bundle Size: Before → After
+
+| Route | Before | After | Change |
+|-------|--------|-------|--------|
+| `/admin` | 364 KB | **178 KB** | -51% |
+| `/api-docs` | 405 KB | **181 KB** | -55% |
+| `/fleet` | 325 KB | **219 KB** | -33% |
+| `/passages/[id]` | 327 KB | **328 KB** | — |
+| `/dashboard` | 185 KB | **177 KB** | -4% |
+| `/onboarding` | 188 KB | **188 KB** | — |
+| `/planner` | 406 KB | **407 KB** | — (map already dynamic) |
+| Shared JS | 103 KB | **104 KB** | +1 KB |
+
+### Dependencies Removed
+
+- `framer-motion` ^12.23.6 (~25KB gzipped) — replaced with Tailwind CSS animation
+- `socket.io-client` ^4.8.1 (~45KB gzipped) — unused, WebSocket is native
+
+### Known Issues Resolved
+
+- **#3** Google Fonts `@import` → migrated to `next/font/google` (self-hosted, non-blocking)
+- **#7** No code splitting → admin, fleet analytics, api-docs syntax highlighter, demo passage all lazy-loaded
+- **#6** framer-motion → removed entirely, CSS replacement
+
+### Font Loading (Step 1 Detail)
+
+**Before:** Render-blocking `@import url()` in globals.css → browser fetches external CSS → discovers font URLs → downloads fonts → renders text. Primary cause of 19.4s LCP.
+
+**After:** `next/font/google` in layout.tsx self-hosts fonts at build time, applies `font-display: swap`, sets CSS variables `--font-heading` and `--font-body`. Zero external font requests at runtime.
 
 ---
 

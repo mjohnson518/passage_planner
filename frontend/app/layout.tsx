@@ -1,10 +1,26 @@
 import type { Metadata, Viewport } from 'next'
+import { Libre_Baskerville, Source_Sans_3 } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { Providers } from './providers'
 import { MobileNav } from './components/navigation/MobileNav'
 import { FeedbackWidget } from './components/FeedbackWidget'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import './globals.css'
+
+const libreBaskerville = Libre_Baskerville({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  style: ['normal', 'italic'],
+  variable: '--font-heading',
+  display: 'swap',
+})
+
+const sourceSans = Source_Sans_3({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-body',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'),
@@ -54,11 +70,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className="scroll-smooth">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      </head>
+    <html lang="en" suppressHydrationWarning className={`${libreBaskerville.variable} ${sourceSans.variable} scroll-smooth`}>
       <body className="font-body antialiased">
         <Providers>
           <ErrorBoundary>

@@ -18,8 +18,9 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        display: ['Libre Baskerville', 'Georgia', 'serif'],
-        body: ['Source Sans 3', 'system-ui', 'sans-serif'],
+        display: ['var(--font-heading)', 'Libre Baskerville', 'Georgia', 'serif'],
+        body: ['var(--font-body)', 'Source Sans 3', 'system-ui', 'sans-serif'],
+        heading: ['var(--font-heading)', 'Libre Baskerville', 'Georgia', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))",
