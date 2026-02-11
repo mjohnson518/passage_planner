@@ -1,3 +1,7 @@
+const withBundleAnalyzer = process.env.ANALYZE === 'true'
+  ? require('webpack-bundle-analyzer').BundleAnalyzerPlugin
+  : null
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -21,13 +25,25 @@ const nextConfig = {
     unoptimized: true,
   },
 
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
       net: false,
       tls: false,
     };
+
+    // Bundle analyzer — run with ANALYZE=true npm run build
+    if (withBundleAnalyzer && !isServer) {
+      config.plugins.push(
+        new withBundleAnalyzer({
+          analyzerMode: 'static',
+          reportFilename: '../analyze/client.html',
+          openAnalyzer: false,
+        })
+      )
+    }
+
     return config;
   },
 }

@@ -10,7 +10,7 @@ import { defineConfig, devices } from '@playwright/test'
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './e2e',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -49,7 +49,16 @@ export default defineConfig({
   /* Configure projects for major browsers */
   projects: [
     {
+      name: 'baseline-screenshots',
+      testMatch: 'baseline.spec.ts',
+      use: {
+        ...devices['Desktop Chrome'],
+        screenshot: 'off', // We capture manually via captureScreenshot()
+      },
+    },
+    {
       name: 'chromium',
+      testIgnore: 'baseline.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
 
@@ -93,8 +102,8 @@ export default defineConfig({
   },
 
   /* Global setup */
-  globalSetup: './tests/e2e/global-setup.ts',
-  
+  globalSetup: './e2e/global-setup.ts',
+
   /* Global teardown */
-  globalTeardown: './tests/e2e/global-teardown.ts',
+  globalTeardown: './e2e/global-teardown.ts',
 }) 
