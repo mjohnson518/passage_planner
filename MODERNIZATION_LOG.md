@@ -569,6 +569,54 @@ Breakdown:
 
 ---
 
+## Phase 4: Lazy Analytics, DevTools Cleanup & Server Components
+
+> **Completed:** 2026-02-11
+> **Status:** Complete
+
+### Changes Summary
+
+| Step | Change | Files |
+|------|--------|-------|
+| 1 | Dynamic import `AnalyticsDashboard` (recharts: 6 chart types) with skeleton fallback | admin/analytics/page.tsx |
+| 2 | Lazy-load `ReactQueryDevtools` via `next/dynamic`, conditionally render in dev only | providers.tsx |
+| 3 | Converted landing page to Server Component (removed `'use client'`) | page.tsx |
+
+### Bundle Size: Before → After
+
+| Route | Before (Phase 3) | After (Phase 4) | Change |
+|-------|-------------------|------------------|--------|
+| `/admin/analytics` | 322 KB | **179 KB** | **-44%** |
+| `/` (landing) | 185 KB | **177 KB** | **-4%** |
+| `/admin` | 178 KB | 178 KB | — |
+| `/planner` | 230 KB | 230 KB | — |
+| `/passages/[id]` | 126 KB | 126 KB | — |
+| Shared JS | 104 KB | 104 KB | — |
+
+### Key Optimizations
+
+**AnalyticsDashboard lazy-load (Step 1):** The analytics page statically imported `AnalyticsDashboard` which pulls in 6 recharts chart types (AreaChart, BarChart, LineChart, PieChart + axes/tooltips). Now loads on-demand with skeleton placeholder. Only admin users ever visit this page.
+
+**ReactQueryDevtools (Step 2):** Previously imported unconditionally in the shared provider bundle. Now dynamically imported and only rendered in development (`process.env.NODE_ENV === 'development'`). Tree-shaken from production builds.
+
+**Landing page Server Component (Step 3):** Removed unnecessary `'use client'` directive from the landing page. The page has zero hooks or event handlers — all interactive children (`Header`, `Button`) already have their own client boundaries. This allows Next.js to server-render the page and send less JavaScript.
+
+### Cumulative Progress (Phase 1 → Phase 4)
+
+| Route | Phase 1 Baseline | Phase 4 Result | Total Reduction |
+|-------|------------------|----------------|-----------------|
+| `/admin/analytics` | 320 KB | **179 KB** | **-44%** |
+| `/admin` | 364 KB | **178 KB** | **-51%** |
+| `/api-docs` | 405 KB | **181 KB** | **-55%** |
+| `/planner` | 406 KB | **230 KB** | **-43%** |
+| `/passages/[id]` | 327 KB | **126 KB** | **-62%** |
+| `/fleet` | 325 KB | **219 KB** | **-33%** |
+| `/` (landing) | 184 KB | **177 KB** | **-4%** |
+
+**All routes now under 250 KB first-load JS.** No route exceeds 230 KB.
+
+---
+
 ## Appendix: File Inventory
 
 ### Configuration Files

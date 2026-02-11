@@ -2,11 +2,28 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
-import { AnalyticsDashboard } from '../../components/analytics/AnalyticsDashboard'
 import { Header } from '../../components/layout/Header'
 import { BarChart3 } from 'lucide-react'
+
+const AnalyticsDashboard = dynamic(
+  () => import('../../components/analytics/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="h-32 rounded-lg bg-muted animate-pulse" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[1,2].map(i => <div key={i} className="h-64 rounded-lg bg-muted animate-pulse" />)}
+        </div>
+      </div>
+    ),
+  }
+)
 
 export default function AnalyticsPage() {
   const { user } = useAuth()

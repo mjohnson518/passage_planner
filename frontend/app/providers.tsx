@@ -1,8 +1,13 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import dynamic from 'next/dynamic'
 import { ThemeProvider } from 'next-themes'
+
+const ReactQueryDevtools = dynamic(
+  () => import('@tanstack/react-query-devtools').then(m => ({ default: m.ReactQueryDevtools })),
+  { ssr: false }
+)
 import { useState, useEffect } from 'react'
 import { Toaster } from 'sonner'
 import { AuthProvider } from './contexts/AuthContext'
@@ -53,7 +58,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           </SocketProvider>
         </AuthProvider>
         <Toaster richColors closeButton />
-        <ReactQueryDevtools initialIsOpen={false} />
+        {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
       </QueryClientProvider>
     </ThemeProvider>
   )
