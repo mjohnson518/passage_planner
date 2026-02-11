@@ -89,18 +89,18 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
   if (!analytics) return null
 
   // Prepare chart data
-  const utilizationData = analytics.vesselUtilization.map(v => ({
+  const utilizationData = analytics.vesselUtilization.map((v: any) => ({
     name: v.name,
     passages: v.passagesCount,
     distance: v.totalDistance
   }))
 
-  const routeData = analytics.popularRoutes.map(r => ({
+  const routeData = analytics.popularRoutes.map((r: any) => ({
     route: `${r.departure} → ${r.destination}`,
     count: r.count
   }))
 
-  const pieData = analytics.vesselUtilization.map(v => ({
+  const pieData = analytics.vesselUtilization.map((v: any) => ({
     name: v.name,
     value: v.passagesCount
   }))
@@ -174,7 +174,7 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
                 fill="#8884d8"
                 dataKey="value"
               >
-                {pieData.map((entry, index) => (
+                {pieData.map((entry: any, index: number) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>

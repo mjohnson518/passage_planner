@@ -32,7 +32,7 @@ export function passageToCSV(passage: any): string {
   
   // Add waypoints with route info
   let cumulativeDistance = 0
-  passage.route.forEach((segment, index) => {
+  passage.route.forEach((segment: any, index: number) => {
     cumulativeDistance += segment.distance
     
     const waypoint = index < passage.waypoints.length ? passage.waypoints[index] : null
@@ -98,7 +98,7 @@ export function weatherToCSV(passage: any): string {
     'Temperature (°C)'
   ]
   
-  const rows = passage.weather.map(segment => [
+  const rows = passage.weather.map((segment: any) => [
     new Date(segment.startTime).toISOString(),
     segment.location.lat.toFixed(6),
     segment.location.lng.toFixed(6),
@@ -113,9 +113,9 @@ export function weatherToCSV(passage: any): string {
   
   const csvRows = [
     headers.join(','),
-    ...rows.map(row => row.map(cell => escapeCSV(cell)).join(','))
+    ...rows.map((row: any) => row.map((cell: any) => escapeCSV(cell)).join(','))
   ]
-  
+
   return csvRows.join('\n')
 }
 
@@ -136,7 +136,7 @@ export function tidesToCSV(passage: any): string {
     'Current Direction (°)'
   ]
   
-  const rows = passage.tides.map(tide => [
+  const rows = passage.tides.map((tide: any) => [
     tide.location,
     tide.type.toUpperCase(),
     new Date(tide.time).toISOString(),
@@ -147,9 +147,9 @@ export function tidesToCSV(passage: any): string {
   
   const csvRows = [
     headers.join(','),
-    ...rows.map(row => row.map(cell => escapeCSV(cell)).join(','))
+    ...rows.map((row: any) => row.map((cell: any) => escapeCSV(cell)).join(','))
   ]
-  
+
   return csvRows.join('\n')
 }
 

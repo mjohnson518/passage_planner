@@ -22,7 +22,7 @@
 
 | Setting | Frontend | Root |
 |---------|----------|------|
-| `strict` | **true** (noImplicitAny: false) | true |
+| `strict` | **true** | true |
 | `target` | es5 | ES2022 |
 | `module` | esnext | commonjs |
 | `jsx` | preserve | — |
@@ -708,10 +708,49 @@ Fixed all ~40 remaining TypeScript strict mode errors (`strictNullChecks`, `stri
 - **Bundle sizes:** Unchanged (no runtime impact)
 - **`tsc --noEmit`:** Zero errors
 
-### Next Steps
+---
 
-- Enable `noImplicitAny: true` and fix remaining ~50 implicit `any` annotations
-- Remove `ignoreBuildErrors: true` from `next.config.js` once all errors resolved
+## Phase 7: noImplicitAny & Build-Time Type Checking
+
+**Date:** 2026-02-11
+**Status:** Complete
+
+### Summary
+
+Enabled `noImplicitAny: true` and fixed 39 remaining implicit `any` errors across 6 files. Then removed `ignoreBuildErrors: true` from `next.config.js` — the build now enforces TypeScript type checking, catching regressions in CI.
+
+### Changes
+
+**`tsconfig.json`:** `noImplicitAny: false` → `noImplicitAny: true`
+
+**`next.config.js`:** `ignoreBuildErrors: true` → `ignoreBuildErrors: false`
+
+| File | Errors Fixed | Fix Pattern |
+|------|-------------|-------------|
+| `app/passages/[id]/PassageDetailClient.tsx` | 15 | Explicit `any`/`number` on `.map()/.filter()/.sort()/.some()` callbacks |
+| `app/lib/export/csv.ts` | 7 | Explicit `any`/`number` on `.forEach()/.map()` callbacks |
+| `app/lib/export/gpx.ts` | 5 | Explicit `any`/`number` on `.forEach()/.map()` callbacks |
+| `app/lib/export/kml.ts` | 5 | Explicit `any`/`number` on `.forEach()` callbacks |
+| `app/components/fleet/FleetAnalyticsDashboard.tsx` | 5 | Explicit `any`/`number` on `.map()` callbacks |
+| `app/components/onboarding/steps/CompletionStep.tsx` | 2 | `keyof typeof` cast for object key indexing |
+
+**Root cause:** All shared types (`Passage`, `FleetAnalytics`, etc.) are aliased to `any` in `app/types/shared.ts`. When `noImplicitAny` is enabled, callback parameters on `any[]` arrays require explicit type annotations.
+
+### Results
+
+- **TypeScript errors:** 39 → **0**
+- **`tsc --noEmit`:** Zero errors with full `strict: true`
+- **`npm run build`:** Passes with type checking enforced (no `ignoreBuildErrors`)
+- **Bundle sizes:** Unchanged
+
+### TypeScript Strict Mode: Complete
+
+The frontend now runs with full TypeScript strict mode:
+- `strict: true` (includes `strictNullChecks`, `strictFunctionTypes`, `strictBindCallApply`, `strictPropertyInitialization`, `noImplicitThis`, `alwaysStrict`)
+- `noImplicitAny: true`
+- `ignoreBuildErrors: false` — CI will catch type regressions
+
+**Future improvement:** Replace `any` type aliases in `app/types/shared.ts` with proper types from the shared package to get real type safety for `Passage`, `FleetAnalytics`, etc.
 
 ---
 

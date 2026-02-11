@@ -371,7 +371,7 @@ export default function PassageDetailPage() {
                 </div>
 
                 {/* Waypoints */}
-                {passage.waypoints.map((waypoint, index) => (
+                {passage.waypoints.map((waypoint: any, index: number) => (
                   <div key={waypoint.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-sm">
                       {index + 1}
@@ -434,7 +434,7 @@ export default function PassageDetailPage() {
             <CardContent>
               {passage.weather && passage.weather.length > 0 ? (
                 <div className="space-y-4">
-                  {passage.weather.map((segment, index) => (
+                  {passage.weather.map((segment: any, index: number) => (
                     <div key={index} className="p-4 rounded-lg border bg-card">
                       <div className="flex justify-between items-start mb-3">
                         <div>
@@ -535,7 +535,7 @@ export default function PassageDetailPage() {
               {passage.tides && passage.tides.length > 0 ? (
                 <div className="space-y-6">
                   {/* Group tides by location */}
-                  {(Array.from(new Set(passage.tides.map(t => t.location))) as string[]).map((location) => (
+                  {(Array.from(new Set(passage.tides.map((t: any) => t.location))) as string[]).map((location) => (
                     <div key={location} className="space-y-3">
                       <h4 className="font-semibold flex items-center gap-2">
                         <MapPin className="h-4 w-4" />
@@ -543,9 +543,9 @@ export default function PassageDetailPage() {
                       </h4>
                       <div className="grid gap-3">
                         {passage.tides
-                          .filter(t => t.location === location)
-                          .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
-                          .map((tide, index) => (
+                          .filter((t: any) => t.location === location)
+                          .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime())
+                          .map((tide: any, index: number) => (
                             <div
                               key={index}
                               className={`p-3 rounded-lg border flex items-center justify-between ${
@@ -586,7 +586,7 @@ export default function PassageDetailPage() {
                   ))}
 
                   {/* Tidal current warning */}
-                  {passage.tides.some(t => t.current && t.current.speed > 1.5) && (
+                  {passage.tides.some((t: any) => t.current && t.current.speed > 1.5) && (
                     <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-2">
                       <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
                       <div>
@@ -624,7 +624,7 @@ export default function PassageDetailPage() {
                 <div>
                   <h4 className="font-medium mb-2">VHF Channels</h4>
                   <div className="flex gap-2">
-                    {passage.safety.vhfChannels.map(channel => (
+                    {passage.safety.vhfChannels.map((channel: any) => (
                       <Badge key={channel} variant="outline">
                         CH {channel}
                       </Badge>
@@ -636,7 +636,7 @@ export default function PassageDetailPage() {
                   <div>
                     <h4 className="font-medium mb-2">Navigation Warnings</h4>
                     <div className="space-y-2">
-                      {passage.safety.navigationWarnings.map((warning, index) => (
+                      {passage.safety.navigationWarnings.map((warning: any, index: number) => (
                         <div key={index} className="flex items-start gap-2">
                           <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />
                           <p className="text-sm">{warning}</p>

@@ -6,11 +6,8 @@ const withBundleAnalyzer = process.env.ANALYZE === 'true'
 const nextConfig = {
   reactStrictMode: true,
   
-  // Type checking enabled - remaining errors are minor prop mismatches
-  // All critical errors (SSR, imports, null checks) are fixed
-  // Remaining: component prop interfaces (non-blocking, will fix iteratively)
   typescript: {
-    ignoreBuildErrors: true, // Temporary for deployment
+    ignoreBuildErrors: false,
   },
   eslint: {
     ignoreDuringBuilds: false,

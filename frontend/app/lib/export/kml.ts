@@ -108,7 +108,7 @@ function buildPlacemarks(passage: any): string {
   ))
   
   // Waypoints
-  passage.waypoints.forEach((wp, index) => {
+  passage.waypoints.forEach((wp: any, index: number) => {
     const eta = wp.arrivalTime ? `\nETA: ${new Date(wp.arrivalTime).toLocaleString()}` : ''
     placemarks.push(createPlacemark(
       wp.coordinates,
@@ -134,7 +134,7 @@ function buildLineString(passage: any): string {
   
   // Add all coordinates in order
   coordinates.push(formatCoordinate(passage.departure.coordinates))
-  passage.waypoints.forEach(wp => {
+  passage.waypoints.forEach((wp: any) => {
     coordinates.push(formatCoordinate(wp.coordinates))
   })
   coordinates.push(formatCoordinate(passage.destination.coordinates))
@@ -162,7 +162,7 @@ function buildWeatherOverlay(passage: any): string {
   
   const weatherPlacemarks: string[] = []
   
-  passage.weather.forEach((segment, index) => {
+  passage.weather.forEach((segment: any, index: number) => {
     const windArrow = createWindArrow(
       segment.location,
       segment.wind.direction,

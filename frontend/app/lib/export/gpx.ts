@@ -52,7 +52,7 @@ function buildWaypoints(passage: any): string {
   ))
   
   // Add intermediate waypoints
-  passage.waypoints.forEach((wp, index) => {
+  passage.waypoints.forEach((wp: any, index: number) => {
     waypoints.push(createWaypointXML(
       wp.coordinates,
       wp.name,
@@ -78,7 +78,7 @@ function buildRoute(passage: any): string {
   // Add all points in order
   const allPoints = [
     { name: passage.departure.name, coords: passage.departure.coordinates },
-    ...passage.waypoints.map(wp => ({ name: wp.name, coords: wp.coordinates })),
+    ...passage.waypoints.map((wp: any) => ({ name: wp.name, coords: wp.coordinates })),
     { name: passage.destination.name, coords: passage.destination.coordinates }
   ]
   
@@ -103,7 +103,7 @@ function buildTrack(passage: any): string {
   const trackPoints: string[] = []
   let currentTime = new Date(passage.departureTime)
   
-  passage.route.forEach((segment, index) => {
+  passage.route.forEach((segment: any, index: number) => {
     // Add start point of segment
     trackPoints.push(`      <trkpt lat="${segment.from.lat}" lon="${segment.from.lng}">
         <time>${currentTime.toISOString()}</time>

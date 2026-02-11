@@ -49,7 +49,7 @@ export function CompletionStep({ data, onComplete, onPrevious }: CompletionStepP
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Name</span>
               <span className="font-medium">
-                {boatTypeIcons[data.boatType]} {data.boatName}
+                {boatTypeIcons[data.boatType as keyof typeof boatTypeIcons]} {data.boatName}
               </span>
             </div>
           )}
@@ -88,7 +88,7 @@ export function CompletionStep({ data, onComplete, onPrevious }: CompletionStepP
           {data.sailingExperience && (
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Experience Level</span>
-              <Badge>{experienceLabels[data.sailingExperience]}</Badge>
+              <Badge>{experienceLabels[data.sailingExperience as keyof typeof experienceLabels]}</Badge>
             </div>
           )}
           <div className="flex items-center justify-between">
