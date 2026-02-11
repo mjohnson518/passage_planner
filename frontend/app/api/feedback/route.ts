@@ -34,12 +34,12 @@ export async function POST(request: NextRequest) {
 
     // Get user ID from auth header if available
     const authHeader = request.headers.get('authorization');
-    let userId = null;
+    let userId: string | null = null;
 
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '');
       const { data: { user } } = await supabase.auth.getUser(token);
-      userId = user?.id;
+      userId = user?.id ?? null;
     }
 
     // Insert feedback

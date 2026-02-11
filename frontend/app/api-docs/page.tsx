@@ -15,8 +15,8 @@ import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 import type React from 'react'
 
-const SyntaxHighlighter = dynamic(
-  () => import('react-syntax-highlighter/dist/esm/prism').then(m => ({ default: m.Prism })),
+const SyntaxHighlighter: any = dynamic(
+  () => import('react-syntax-highlighter/dist/esm/prism').then((m: any) => ({ default: m.Prism })),
   {
     ssr: false,
     loading: () => <pre className="bg-zinc-900 rounded-lg p-4 text-sm text-zinc-300"><code>Loading...</code></pre>

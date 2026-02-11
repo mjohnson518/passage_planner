@@ -9,7 +9,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card'
-import { useToast } from '../hooks/use-toast'
+import { toast } from 'sonner'
 import { ArrowLeft, Mail } from 'lucide-react'
 
 export default function ResetPasswordPage() {
@@ -18,16 +18,13 @@ export default function ResetPasswordPage() {
   const [isSuccess, setIsSuccess] = useState(false)
   const { resetPassword } = useAuth()
   const router = useRouter()
-  const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!email || !email.includes('@')) {
-      toast({
-        title: 'Invalid email',
+      toast.error('Invalid email', {
         description: 'Please enter a valid email address',
-        variant: 'destructive',
       })
       return
     }
@@ -37,15 +34,12 @@ export default function ResetPasswordPage() {
     try {
       await resetPassword(email)
       setIsSuccess(true)
-      toast({
-        title: 'Check your email',
+      toast.success('Check your email', {
         description: 'We sent you a password reset link',
       })
     } catch (error: any) {
-      toast({
-        title: 'Error',
+      toast.error('Error', {
         description: error.message || 'Failed to send reset email',
-        variant: 'destructive',
       })
     } finally {
       setIsLoading(false)
@@ -56,15 +50,12 @@ export default function ResetPasswordPage() {
     setIsLoading(true)
     try {
       await resetPassword(email)
-      toast({
-        title: 'Email resent',
+      toast.success('Email resent', {
         description: 'Check your inbox for the reset link',
       })
     } catch (error: any) {
-      toast({
-        title: 'Error',
+      toast.error('Error', {
         description: error.message || 'Failed to resend email',
-        variant: 'destructive',
       })
     } finally {
       setIsLoading(false)

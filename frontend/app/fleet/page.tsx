@@ -1,18 +1,32 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
-import { CreateFleetDialog } from '../components/fleet/CreateFleetDialog'
 import { FleetVesselCard } from '../components/fleet/FleetVesselCard'
 import { CrewList } from '../components/fleet/CrewList'
 import { LazyFleetAnalytics } from '../components/LazyComponents'
-import { InviteCrewDialog } from '../components/fleet/InviteCrewDialog'
-import { AddVesselDialog } from '../components/fleet/AddVesselDialog'
-import { SharePassageDialog } from '../components/fleet/SharePassageDialog'
+
+const CreateFleetDialog = dynamic(
+  () => import('../components/fleet/CreateFleetDialog').then(m => ({ default: m.CreateFleetDialog })),
+  { ssr: false }
+)
+const AddVesselDialog = dynamic(
+  () => import('../components/fleet/AddVesselDialog').then(m => ({ default: m.AddVesselDialog })),
+  { ssr: false }
+)
+const InviteCrewDialog = dynamic(
+  () => import('../components/fleet/InviteCrewDialog').then(m => ({ default: m.InviteCrewDialog })),
+  { ssr: false }
+)
+const SharePassageDialog = dynamic(
+  () => import('../components/fleet/SharePassageDialog').then(m => ({ default: m.SharePassageDialog })),
+  { ssr: false }
+)
 import { 
   Anchor, 
   Ship, 

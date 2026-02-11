@@ -171,7 +171,7 @@ function formatDuration(hours: number): string {
   const remainingHours = Math.floor(hours % 24)
   const minutes = Math.floor((hours % 1) * 60)
   
-  const parts = []
+  const parts: string[] = []
   if (days > 0) parts.push(`${days}d`)
   if (remainingHours > 0) parts.push(`${remainingHours}h`)
   if (minutes > 0) parts.push(`${minutes}m`)

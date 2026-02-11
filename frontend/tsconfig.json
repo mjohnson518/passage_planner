@@ -8,7 +8,8 @@
     ],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": false,
+    "strict": true,
+    "noImplicitAny": false,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "esModuleInterop": true,
@@ -47,6 +48,7 @@
         "./app/contexts/*"
       ]
     },
+    "types": ["node", "react", "react-dom", "jest", "leaflet", "uuid", "html2canvas", "jspdf", "react-syntax-highlighter"],
     "plugins": [
       {
         "name": "next"

@@ -74,7 +74,7 @@ export function AnalyticsReports() {
   const fetchAnalyticsData = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/admin/analytics?from=${dateRange.from.toISOString()}&to=${dateRange.to.toISOString()}&type=${reportType}`)
+      const response = await fetch(`/api/admin/analytics?from=${dateRange?.from?.toISOString()}&to=${dateRange?.to?.toISOString()}&type=${reportType}`)
       if (!response.ok) throw new Error('Failed to fetch analytics data')
       const data = await response.json()
       setData(data)
@@ -88,14 +88,14 @@ export function AnalyticsReports() {
 
   const exportReport = async (exportFormat: 'csv' | 'pdf') => {
     try {
-      const response = await fetch(`/api/admin/analytics/export?format=${exportFormat}&from=${dateRange.from.toISOString()}&to=${dateRange.to.toISOString()}&type=${reportType}`)
+      const response = await fetch(`/api/admin/analytics/export?format=${exportFormat}&from=${dateRange?.from?.toISOString()}&to=${dateRange?.to?.toISOString()}&type=${reportType}`)
       if (!response.ok) throw new Error('Failed to export report')
       
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `analytics-report-${format(dateRange.from, 'yyyy-MM-dd')}-${format(dateRange.to, 'yyyy-MM-dd')}.${exportFormat}`
+      a.download = `analytics-report-${dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : 'start'}-${dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : 'end'}.${exportFormat}`
       a.click()
       
       toast.success(`Report exported as ${exportFormat.toUpperCase()}`)

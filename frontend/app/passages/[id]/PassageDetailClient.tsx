@@ -535,7 +535,7 @@ export default function PassageDetailPage() {
               {passage.tides && passage.tides.length > 0 ? (
                 <div className="space-y-6">
                   {/* Group tides by location */}
-                  {Array.from(new Set(passage.tides.map(t => t.location))).map(location => (
+                  {(Array.from(new Set(passage.tides.map(t => t.location))) as string[]).map((location) => (
                     <div key={location} className="space-y-3">
                       <h4 className="font-semibold flex items-center gap-2">
                         <MapPin className="h-4 w-4" />

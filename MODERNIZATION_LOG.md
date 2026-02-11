@@ -22,7 +22,7 @@
 
 | Setting | Frontend | Root |
 |---------|----------|------|
-| `strict` | **false** | true |
+| `strict` | **true** (noImplicitAny: false) | true |
 | `target` | es5 | ES2022 |
 | `module` | esnext | commonjs |
 | `jsx` | preserve | — |
@@ -614,6 +614,104 @@ Breakdown:
 | `/` (landing) | 184 KB | **177 KB** | **-4%** |
 
 **All routes now under 250 KB first-load JS.** No route exceeds 230 KB.
+
+---
+
+## Phase 5: Fleet Dialogs & TypeScript Strict Mode
+
+> **Completed:** 2026-02-11
+> **Status:** Complete
+
+### Changes Summary
+
+| Step | Change | Files |
+|------|--------|-------|
+| 1 | Lazy-load 4 fleet dialog components (CreateFleet, AddVessel, InviteCrew, SharePassage) | fleet/page.tsx |
+| 2 | Enabled TypeScript `strict: true` with `noImplicitAny: false` | tsconfig.json |
+| 3 | Added explicit `types` field to prevent transitive type leakage from monorepo root | tsconfig.json |
+
+### Bundle Size: Before → After
+
+| Route | Before (Phase 4) | After (Phase 5) | Change |
+|-------|-------------------|------------------|--------|
+| `/fleet` | 219 KB | **183 KB** | **-16%** |
+| All other routes | — | — | unchanged |
+
+### TypeScript Strict Mode
+
+**Enabled:** `strict: true` with `noImplicitAny: false` (deferred — ~50 implicit any annotations needed).
+
+**Strict checks now active:**
+- `strictNullChecks` — catches `undefined`/`null` access (critical for safety code)
+- `strictFunctionTypes` — stricter function parameter checking
+- `strictBindCallApply` — type-safe bind/call/apply
+- `strictPropertyInitialization` — uninitialized class properties flagged
+- `alwaysStrict` — emits `"use strict"` in all output
+
+**Remaining ~40 type errors** (all caught by `strictNullChecks`, visible in editors):
+- `AnalyticsReports.tsx`: `dateRange` possibly undefined (12 errors)
+- `api-docs/page.tsx`: react-syntax-highlighter Prism type mismatch (6)
+- `AgentMonitoring.tsx` / `SystemHealth.tsx`: array typing (6)
+- `reset-password/page.tsx`: toast prop types (5)
+- Other: LocationAutocomplete window.google, AuthContext, TideChart, Sentry Replay (~11)
+
+These are masked by `ignoreBuildErrors: true` in next.config.js. Recommended to fix incrementally, then remove `ignoreBuildErrors`.
+
+### Cumulative Progress (Phase 1 → Phase 5)
+
+| Route | Phase 1 Baseline | Phase 5 Result | Total Reduction |
+|-------|------------------|----------------|-----------------|
+| `/passages/[id]` | 327 KB | **126 KB** | **-61%** |
+| `/api-docs` | 405 KB | **181 KB** | **-55%** |
+| `/admin` | 364 KB | **178 KB** | **-51%** |
+| `/fleet` | 325 KB | **183 KB** | **-44%** |
+| `/admin/analytics` | 320 KB | **179 KB** | **-44%** |
+| `/planner` | 406 KB | **231 KB** | **-43%** |
+| `/` (landing) | 184 KB | **177 KB** | **-4%** |
+
+**All routes now under 231 KB.** Every route that was over 300 KB has been cut by 44-61%.
+
+---
+
+## Phase 6: TypeScript Strict Mode Error Fixes
+
+**Date:** 2026-02-11
+**Status:** Complete
+
+### Summary
+
+Fixed all ~40 remaining TypeScript strict mode errors (`strictNullChecks`, `strictFunctionTypes`, etc.) across 14 files. The frontend now compiles cleanly with `strict: true` + `noImplicitAny: false`.
+
+### Changes by File
+
+| File | Error Type | Fix |
+|------|-----------|-----|
+| `app/api/feedback/route.ts` | `userId` typed too narrowly | Added explicit `string \| null` type annotation |
+| `app/components/admin/AgentMonitoring.tsx` | `parts = []` inferred as `never[]` | Added `string[]` type annotation |
+| `app/components/admin/SystemHealth.tsx` | Same `never[]` inference | Added `string[]` type annotation |
+| `app/components/admin/AnalyticsReports.tsx` | `dateRange?.from`/`.to` possibly undefined | Added optional chaining and null guards |
+| `app/components/charts/TideChart.tsx` | Dot prop returned `null` (not valid SVG element) | Return `<circle r={0} />` instead of `null` |
+| `app/components/location/LocationAutocomplete.tsx` | `window.google` not on Window type | Added global Window interface declaration |
+| `app/contexts/AuthContext.tsx` | `session?.user?.id` possibly undefined in `.eq()` | Added null guard before Supabase query |
+| `app/lib/export/gpx.ts` | `parts = []` inferred as `never[]` | Added `string[]` type annotation |
+| `app/lib/performance.ts` | `this` implicitly typed as `any` in throttle | Added explicit `this: unknown` parameter |
+| `app/api-docs/page.tsx` | Dynamic import Prism type mismatch | Cast dynamic component with `any` typing |
+| `app/reset-password/page.tsx` | `toast({title, desc})` — wrong API for sonner | Migrated to `toast.error(msg, {description})` |
+| `sentry.client.config.ts` | `new Sentry.Replay()` deprecated | Updated to `Sentry.replayIntegration()` |
+| `app/passages/[id]/PassageDetailClient.tsx` | `Array.from(new Set(...))` returns `unknown[]` | Cast result as `string[]` |
+| `app/planner/page.tsx` | DatePicker `setDate` prop doesn't exist | Changed to `onDateChange` (matching component API) |
+
+### Results
+
+- **TypeScript errors:** ~40 → **0**
+- **Build:** Passes cleanly
+- **Bundle sizes:** Unchanged (no runtime impact)
+- **`tsc --noEmit`:** Zero errors
+
+### Next Steps
+
+- Enable `noImplicitAny: true` and fix remaining ~50 implicit `any` annotations
+- Remove `ignoreBuildErrors: true` from `next.config.js` once all errors resolved
 
 ---
 

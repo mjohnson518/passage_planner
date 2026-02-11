@@ -49,12 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null)
         setLoading(false)
 
-        if (event === 'SIGNED_IN') {
+        if (event === 'SIGNED_IN' && session?.user?.id) {
           // Check if user needs onboarding (e.g., no boat profiles)
           const { data: boats } = await supabase
             .from('boat_profiles')
             .select('id')
-            .eq('user_id', session?.user?.id)
+            .eq('user_id', session.user.id)
             .limit(1)
           
           if (!boats || boats.length === 0) {

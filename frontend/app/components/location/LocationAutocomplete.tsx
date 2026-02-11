@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Input } from '../ui/input'
 
+declare global {
+  interface Window {
+    google: any
+  }
+}
+
 interface LocationAutocompleteProps {
   value: string
   onChange: (value: string) => void

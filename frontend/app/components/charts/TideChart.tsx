@@ -112,8 +112,8 @@ export default function TideChart({
           fill="url(#tideGradient)"
           dot={(props: any) => {
             const { cx, cy, payload } = props
-            if (!payload.type) return null
-            
+            if (!payload.type) return <circle r={0} />
+
             return (
               <circle
                 cx={cx}

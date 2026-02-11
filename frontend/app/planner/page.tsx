@@ -745,7 +745,7 @@ export default function PlannerPage() {
                 <Label htmlFor="departure-date">Departure Date & Time *</Label>
                 <DatePicker 
                   date={formData.departureDate}
-                  setDate={(date) => setFormData(prev => ({ ...prev, departureDate: date || new Date() }))}
+                  onDateChange={(date) => setFormData(prev => ({ ...prev, departureDate: date || new Date() }))}
                 />
               </div>
 
