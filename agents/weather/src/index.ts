@@ -1,4 +1,4 @@
-import { BaseAgent, NOAAWeatherService, CacheManager, CircuitBreakerFactory } from '@passage-planner/shared';
+import { BaseAgent, NOAAWeatherService, CacheManager, CircuitBreakerFactory, NDBCBuoyService, GribService } from '@passage-planner/shared';
 import { ValidationError, NOAAAPIError, toMCPError } from '@passage-planner/shared/dist/errors/mcp-errors';
 import { Logger } from 'pino';
 import pino from 'pino';
@@ -9,8 +9,10 @@ import {
 
 export class WeatherAgent extends BaseAgent {
   private weatherService: NOAAWeatherService;
+  private buoyService: NDBCBuoyService;
+  private gribService: GribService;
   private cache: CacheManager;
-  
+
   constructor() {
     const logger = pino({
       level: process.env.LOG_LEVEL || 'info',
@@ -19,7 +21,7 @@ export class WeatherAgent extends BaseAgent {
         options: { colorize: true }
       }
     });
-    
+
     super(
       {
         name: 'Weather Analysis Agent',
@@ -29,9 +31,11 @@ export class WeatherAgent extends BaseAgent {
       },
       logger
     );
-    
+
     this.cache = new CacheManager(logger);
     this.weatherService = new NOAAWeatherService(this.cache, logger);
+    this.buoyService = new NDBCBuoyService(this.cache, logger);
+    this.gribService = new GribService(this.cache, logger);
     
     this.setupTools();
   }
@@ -96,6 +100,56 @@ export class WeatherAgent extends BaseAgent {
             }
           },
           {
+            name: 'get_buoy_wave_data',
+            description: 'Get real-time wave measurements from NDBC buoys along a route',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                waypoints: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      latitude: { type: 'number' },
+                      longitude: { type: 'number' }
+                    },
+                    required: ['latitude', 'longitude']
+                  },
+                  description: 'Route waypoints to search for nearby buoys'
+                },
+                radius_nm: { type: 'number', default: 50, description: 'Search radius in nautical miles' }
+              },
+              required: ['waypoints']
+            }
+          },
+          {
+            name: 'get_route_wind_field',
+            description: 'Get gridded wind and wave forecast data along a route for weather routing',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                waypoints: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      latitude: { type: 'number' },
+                      longitude: { type: 'number' }
+                    },
+                    required: ['latitude', 'longitude']
+                  },
+                  description: 'Route waypoints to get wind field for'
+                },
+                forecastHours: {
+                  type: 'array',
+                  items: { type: 'number' },
+                  description: 'Forecast hours to retrieve (default: [0, 6, 12, 18, 24, 48, 72])'
+                }
+              },
+              required: ['waypoints']
+            }
+          },
+          {
             name: 'health',
             description: 'Check the health status of the Weather Agent and its dependencies',
             inputSchema: {
@@ -122,9 +176,15 @@ export class WeatherAgent extends BaseAgent {
           case 'get_weather_windows':
             return await this.getWeatherWindows(args);
           
+          case 'get_buoy_wave_data':
+            return await this.getBuoyWaveData(args);
+
+          case 'get_route_wind_field':
+            return await this.getRouteWindField(args);
+
           case 'health':
             return await this.checkHealth();
-            
+
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -446,6 +506,95 @@ export class WeatherAgent extends BaseAgent {
   }
   
   /**
+   * Get real-time wave data from NDBC buoys along a route
+   * SAFETY CRITICAL: Provides actual observed wave heights vs forecast estimates
+   */
+  private async getBuoyWaveData(args: any): Promise<any> {
+    const { waypoints, radius_nm = 50 } = args;
+
+    try {
+      const routeWaveData = await this.buoyService.getWaveDataForRoute(
+        waypoints.map((w: any) => ({ lat: w.latitude, lon: w.longitude })),
+        radius_nm
+      );
+
+      const buoySummary = routeWaveData.buoys.length > 0
+        ? `Found ${routeWaveData.buoys.length} NDBC buoy(s) along route. ` +
+          `Worst conditions: ${routeWaveData.worstConditions?.significantWaveHeight?.toFixed(1) || 'N/A'}m wave height. ` +
+          `Overall hazard: ${routeWaveData.overallHazard}. Coverage: ${routeWaveData.coverage}.`
+        : 'No NDBC buoy data available along this route. Wave estimates are forecast-based only.';
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: buoySummary
+          },
+          {
+            type: 'data',
+            data: {
+              ...routeWaveData,
+              fetchedAt: new Date().toISOString(),
+              source: 'NDBC (National Data Buoy Center)'
+            }
+          }
+        ]
+      };
+    } catch (error) {
+      this.logger.warn({ error, waypoints }, 'Failed to fetch route buoy wave data');
+      return {
+        content: [{
+          type: 'text',
+          text: 'Unable to retrieve buoy wave data. Wave estimates are forecast-based only.'
+        }],
+        isError: false,
+        data: {
+          buoys: [],
+          worstConditions: null,
+          overallHazard: 'unknown',
+          coverage: 'none'
+        }
+      };
+    }
+  }
+
+  /**
+   * Get gridded wind/wave field along a route for weather routing
+   * Returns interpolated forecast data at each waypoint for multiple time steps
+   */
+  private async getRouteWindField(args: any): Promise<any> {
+    const { waypoints, forecastHours } = args;
+
+    try {
+      const windField = await this.gribService.getRouteWindField(
+        waypoints.map((w: any) => ({ latitude: w.latitude, longitude: w.longitude })),
+        forecastHours
+      );
+
+      const summary = windField.source !== 'unavailable'
+        ? `Wind field data for ${windField.waypoints.length} waypoints across ${windField.waypoints[0]?.forecasts?.length || 0} time steps. ` +
+          `Worst-case: ${windField.worstCase.maxWindSpeed.toFixed(1)}kt wind, ${windField.worstCase.maxWaveHeight.toFixed(1)}m waves, ${windField.worstCase.minPressure.toFixed(0)}hPa.`
+        : 'Gridded wind field data unavailable. Forecasts are based on API data only.';
+
+      return {
+        content: [
+          { type: 'text', text: summary },
+          { type: 'data', data: windField }
+        ]
+      };
+    } catch (error) {
+      this.logger.warn({ error, waypoints }, 'Failed to fetch route wind field');
+      return {
+        content: [{
+          type: 'text',
+          text: 'Unable to retrieve gridded wind field. Using API-based forecasts only.'
+        }],
+        isError: false
+      };
+    }
+  }
+
+  /**
    * Public method to call tools directly (for orchestrator)
    */
   public async callTool(toolName: string, args: any): Promise<any> {
@@ -457,6 +606,10 @@ export class WeatherAgent extends BaseAgent {
         return await this.checkWeatherSafety(args);
       case 'get_weather_windows':
         return await this.getWeatherWindows(args);
+      case 'get_buoy_wave_data':
+        return await this.getBuoyWaveData(args);
+      case 'get_route_wind_field':
+        return await this.getRouteWindField(args);
       case 'health':
         return await this.checkHealth();
       default:

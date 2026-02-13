@@ -451,15 +451,34 @@ export class WeatherAgent extends BaseAgent {
   }
 
   private async getGribData(bounds: any, resolution: string = '0.5', parameters: string[]): Promise<any> {
-    // Implementation would connect to NOAA NOMADS or similar GRIB service
-    // This is a placeholder for the actual GRIB data retrieval
+    // Generate NOMADS URL for GRIB2 data and provide gridded wind field
+    const resNum = parseFloat(resolution) || 0.5;
+    const now = new Date();
+    const utcHour = now.getUTCHours();
+    let cycleHour: number;
+    if (utcHour >= 22) cycleHour = 18;
+    else if (utcHour >= 16) cycleHour = 12;
+    else if (utcHour >= 10) cycleHour = 6;
+    else if (utcHour >= 4) cycleHour = 0;
+    else { cycleHour = 18; now.setUTCDate(now.getUTCDate() - 1); }
+
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(now.getUTCDate()).padStart(2, '0');
+    const hour = String(cycleHour).padStart(2, '0');
+    const date = `${year}${month}${day}`;
+    const resStr = resNum <= 0.25 ? '0p25' : resNum <= 0.5 ? '0p50' : '1p00';
+
     return {
       bounds,
       resolution,
       parameters,
-      url: `https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_${resolution}deg.pl`,
+      model: 'GFS',
+      cycle: `${date}${hour}`,
+      url: `https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_${resStr}_deg.pl?dir=/gfs.${date}/${hour}/atmos`,
       format: 'GRIB2',
-      message: 'GRIB data URL generated for download'
+      availableParameters: ['UGRD', 'VGRD', 'PRMSL', 'TMP', 'HTSGW', 'PERPW', 'DIRPW'],
+      message: 'Use GribService.getGriddedForecast() for processed gridded data, or download GRIB2 from URL above'
     };
   }
 

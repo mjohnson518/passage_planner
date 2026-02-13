@@ -25,6 +25,7 @@
     "../agents/tidal/src/**/*",
     "../agents/route/src/**/*",
     "../agents/safety/src/**/*",
+    "../agents/port/src/**/*",
     "../shared/src/**/*"
   ],
   "exclude": [

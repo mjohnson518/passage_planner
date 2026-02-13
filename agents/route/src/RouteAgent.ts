@@ -356,41 +356,89 @@ export class RouteAgent extends BaseAgent {
     return optimized;
   }
 
+  /**
+   * Calculate a detour around obstacles with verified clearance.
+   * SAFETY CRITICAL: Iteratively tries increasing offsets and verifies both new segments
+   * clear all avoid areas before returning. Tries both sides of the route.
+   */
   private async calculateDetour(from: any, to: any, avoidAreas: any[]): Promise<RouteSegment[]> {
-    // Simplified detour calculation - offset midpoint perpendicular to route
+    const bearing = this.calculateBearing(from.latitude, from.longitude, to.latitude, to.longitude);
     const midpoint = {
       latitude: (from.latitude + to.latitude) / 2,
       longitude: (from.longitude + to.longitude) / 2
     };
-    
-    // Offset midpoint perpendicular to route by 10nm
-    const bearing = this.calculateBearing(from.latitude, from.longitude, to.latitude, to.longitude);
-    const offsetBearing = (bearing + 90) % 360;
-    const offsetDistance = 10; // nautical miles
-    
-    const offsetPoint = this.calculateDestination(
-      midpoint.latitude,
-      midpoint.longitude,
-      offsetDistance,
-      offsetBearing
-    );
-    
-    return [
-      {
-        from,
-        to: offsetPoint,
-        distance: this.calculateDistance(from.latitude, from.longitude, offsetPoint.latitude, offsetPoint.longitude),
-        bearing: this.calculateBearing(from.latitude, from.longitude, offsetPoint.latitude, offsetPoint.longitude),
-        estimatedTime: 0
-      },
-      {
-        from: offsetPoint,
-        to,
-        distance: this.calculateDistance(offsetPoint.latitude, offsetPoint.longitude, to.latitude, to.longitude),
-        bearing: this.calculateBearing(offsetPoint.latitude, offsetPoint.longitude, to.latitude, to.longitude),
-        estimatedTime: 0
+
+    const offsetDistances = [10, 20, 30]; // nautical miles
+    // Try starboard side first (+90°), then port side (-90°)
+    const offsetBearings = [(bearing + 90) % 360, (bearing + 270) % 360];
+
+    for (const offsetBearing of offsetBearings) {
+      for (const offsetDistance of offsetDistances) {
+        const offsetPoint = this.calculateDestination(
+          midpoint.latitude,
+          midpoint.longitude,
+          offsetDistance,
+          offsetBearing
+        );
+
+        // Verify BOTH new segments clear all avoid areas
+        const seg1Line = turf.lineString([
+          [from.longitude, from.latitude],
+          [offsetPoint.longitude, offsetPoint.latitude]
+        ]);
+        const seg2Line = turf.lineString([
+          [offsetPoint.longitude, offsetPoint.latitude],
+          [to.longitude, to.latitude]
+        ]);
+
+        let clearanceVerified = true;
+        for (const area of avoidAreas) {
+          let areaGeometry;
+          if (area.type === 'circle') {
+            areaGeometry = turf.circle(area.coordinates, area.radius, { units: 'nauticalmiles' });
+          } else if (area.type === 'polygon') {
+            areaGeometry = turf.polygon([area.coordinates]);
+          } else {
+            continue;
+          }
+
+          if (
+            turf.booleanCrosses(seg1Line, areaGeometry) || turf.booleanWithin(seg1Line, areaGeometry) ||
+            turf.booleanCrosses(seg2Line, areaGeometry) || turf.booleanWithin(seg2Line, areaGeometry)
+          ) {
+            clearanceVerified = false;
+            break;
+          }
+        }
+
+        if (clearanceVerified) {
+          const dist1 = this.calculateDistance(from.latitude, from.longitude, offsetPoint.latitude, offsetPoint.longitude);
+          const dist2 = this.calculateDistance(offsetPoint.latitude, offsetPoint.longitude, to.latitude, to.longitude);
+          return [
+            {
+              from,
+              to: offsetPoint,
+              distance: dist1,
+              bearing: this.calculateBearing(from.latitude, from.longitude, offsetPoint.latitude, offsetPoint.longitude),
+              estimatedTime: 0
+            },
+            {
+              from: offsetPoint,
+              to,
+              distance: dist2,
+              bearing: this.calculateBearing(offsetPoint.latitude, offsetPoint.longitude, to.latitude, to.longitude),
+              estimatedTime: 0
+            }
+          ];
+        }
       }
-    ];
+    }
+
+    // No clear detour found - SAFETY: require manual route planning
+    throw new Error(
+      'Unable to calculate a verified clear detour around obstacles. ' +
+      'Manual route planning with official nautical charts is required for this segment.'
+    );
   }
 
   private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {

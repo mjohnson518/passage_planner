@@ -82,7 +82,7 @@ export function PricingSection() {
                 key={plan.name}
                 className={cn(
                   'relative card p-8 flex flex-col h-full transition-all duration-300',
-                  plan.popular && 'ring-2 ring-primary shadow-maritime-lg scale-[1.02]'
+                  plan.popular && 'ring-2 ring-primary shadow-maritime-lg scale-[1.02] mt-4'
                 )}
               >
                 {/* Popular badge */}
@@ -153,7 +153,7 @@ export function PricingSection() {
         {/* Additional info */}
         <div className="mt-16 text-center">
           <p className="text-sm text-muted-foreground">
-            All plans include SSL encryption, GDPR compliance, and 99.9% uptime SLA.
+            All plans include SSL encryption and GDPR compliance.
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
             Need a custom plan for your marina or sailing school?{' '}

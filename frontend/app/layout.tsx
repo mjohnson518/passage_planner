@@ -4,6 +4,7 @@ import { Toaster } from 'sonner'
 import { Providers } from './providers'
 import { MobileNav } from './components/navigation/MobileNav'
 import { FeedbackWidget } from './components/FeedbackWidget'
+import { InstallPrompt } from './components/pwa/InstallPrompt'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import './globals.css'
 
@@ -90,6 +91,7 @@ export default function RootLayout({
             }}
           />
           <FeedbackWidget />
+          <InstallPrompt />
         </Providers>
       </body>
     </html>

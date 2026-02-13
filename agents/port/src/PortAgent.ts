@@ -365,7 +365,9 @@ export class PortAgent {
       id: port.id,
       name: port.name,
       type: port.type,
-      location: `${port.location.city}, ${port.location.state}`,
+      location: port.location.country === 'USA'
+        ? `${port.location.city}, ${port.location.state}`
+        : `${port.location.city}, ${port.location.country}`,
       distance: port.distance ? `${port.distance} nm` : undefined,
       vhf: port.contact.vhf,
       facilities: {
@@ -520,6 +522,241 @@ export class PortAgent {
           'Keep yellow quarantine flag ready',
           'Spearfishing prohibited',
           'Marine park fees apply in some areas'
+        ]
+      },
+      'UK': {
+        country: 'United Kingdom',
+        requirements: {
+          entry: [
+            'Non-UK vessels must report to Border Force on arrival',
+            'Complete C1331 form (Report of Arrival) for non-EU vessels',
+            'Fly Q flag until cleared',
+            'Report to nearest customs-approved marina or harbour'
+          ],
+          fees: 'Light dues apply to vessels over 20m',
+          documentation: ['Passports for all crew', 'Vessel registration certificate', 'Insurance documentation', 'Part I or SSR registration for UK vessels']
+        },
+        contacts: {
+          borderForce: '+44 300 123 7000',
+          hmrc: 'National Yachtline +44 300 123 2012'
+        },
+        notes: [
+          'Post-Brexit: EU vessels must clear customs',
+          'VAT status of vessel may be checked',
+          'Red Ensign to be flown by UK-registered vessels',
+          'Harbour dues vary significantly between ports'
+        ]
+      },
+      'FRANCE': {
+        country: 'France',
+        requirements: {
+          entry: [
+            'EU/Schengen area — free movement for EU nationals',
+            'Non-EU vessels must clear customs at first port of entry',
+            'Fly Q flag until cleared (non-EU vessels)',
+            'Droit de Pavillon (flag fee) applies to some vessels'
+          ],
+          fees: 'Tourist tax (taxe de séjour) varies by commune',
+          documentation: ['Passports/ID cards for all crew', 'Vessel registration', 'Insurance certificate (mandatory)', 'Radio license (VHF)']
+        },
+        contacts: {
+          customs: 'Douanes: +33 0 800 944 040',
+          affairesMaritime: 'Local Affaires Maritimes office'
+        },
+        notes: [
+          'Schengen 90/180 day rule for non-EU nationals',
+          'French courtesy flag required',
+          'RIPAM (French navigation rules) apply in territorial waters',
+          'Marina reservations strongly recommended Jul-Aug'
+        ]
+      },
+      'SPAIN': {
+        country: 'Spain',
+        requirements: {
+          entry: [
+            'EU/Schengen area — free movement for EU nationals',
+            'Non-EU vessels clear at designated ports of entry',
+            'Matriculation tax (DIEM) may apply to non-EU flagged vessels staying >6 months',
+            'Fly Q flag until cleared (non-EU vessels)'
+          ],
+          fees: 'Navigation tax, light dues, port fees vary by region',
+          documentation: ['Passports/ID cards', 'Vessel registration', 'Insurance certificate', 'Title competency (PER/PNB for Spanish waters)']
+        },
+        contacts: {
+          customs: 'Guardia Civil del Mar',
+          salvamento: 'Salvamento Marítimo: 900 202 202'
+        },
+        notes: [
+          'Balearics require cruising tax for vessels >8m',
+          'Anchoring restrictions in Posidonia seagrass areas',
+          'Spanish courtesy flag required',
+          'Fishing license required for recreational fishing'
+        ]
+      },
+      'PORTUGAL': {
+        country: 'Portugal',
+        requirements: {
+          entry: [
+            'EU/Schengen area — free movement for EU nationals',
+            'Non-EU vessels clear customs at first port',
+            'SEF (immigration) check for non-EU crew',
+            'Vessel must be registered with port captain (Capitania)'
+          ],
+          fees: 'Port fees and light dues apply',
+          documentation: ['Passports/ID cards', 'Vessel registration', 'Insurance certificate', 'Radio license']
+        },
+        contacts: {
+          capitania: 'Local Capitania do Porto',
+          mrcc: 'MRCC Lisboa: +351 214 401 919'
+        },
+        notes: [
+          'Excellent cruising ground with well-maintained marinas',
+          'Atlantic swell can affect bar crossings — check conditions',
+          'Portuguese courtesy flag required',
+          'Azores and Madeira have separate port authorities'
+        ]
+      },
+      'ITALY': {
+        country: 'Italy',
+        requirements: {
+          entry: [
+            'EU/Schengen area — free movement for EU nationals',
+            'Non-EU vessels clear at Guardia di Finanza',
+            'Constituto (transit log) required — obtained at first Italian port',
+            'All vessels must carry safety equipment per Italian regulations'
+          ],
+          fees: 'Tassa di stazionamento for vessels >10m (non-EU flagged)',
+          documentation: ['Passports/ID cards', 'Vessel registration', 'Insurance certificate', 'Constituto (transit log)', 'Radio license']
+        },
+        contacts: {
+          guardiaCoste: 'Guardia Costiera: 1530',
+          guardiaDiFinanza: 'Local Guardia di Finanza office'
+        },
+        notes: [
+          'Marine protected areas require permits (e.g. Cinque Terre)',
+          'Many ports require stern-to Mediterranean mooring',
+          'Italian courtesy flag required',
+          'August is peak season — book marinas well in advance'
+        ]
+      },
+      'GREECE': {
+        country: 'Greece',
+        requirements: {
+          entry: [
+            'EU/Schengen area — free movement for EU nationals',
+            'Non-EU vessels obtain Transit Log (DEKPA) at first port',
+            'Crew list required at each port',
+            'DEKPA must be stamped at port police in each island visited'
+          ],
+          fees: 'Cruising tax (TPP/ΤΠΠ) based on vessel length, €1-3/ft/day',
+          documentation: ['Passports/ID cards', 'Vessel registration', 'Insurance certificate', 'DEKPA transit log', 'Radio license', 'Crew list']
+        },
+        contacts: {
+          portPolice: 'Local Limenarchío (port police)',
+          coastGuard: 'Hellenic Coast Guard: 108'
+        },
+        notes: [
+          'Meltemi winds (Jul-Aug) can reach Force 7-8 in Aegean',
+          'Many islands have limited marina facilities — anchoring common',
+          'Archaeological sites: anchoring prohibited within 500m',
+          'Greek courtesy flag required',
+          'Crew list must be updated at each port'
+        ]
+      },
+      'TURKEY': {
+        country: 'Turkey',
+        requirements: {
+          entry: [
+            'Not EU/Schengen — full customs clearance required',
+            'Obtain Transit Log at first Turkish port',
+            'E-visa required for most nationalities before arrival',
+            'Vessel must clear in at designated port of entry'
+          ],
+          fees: 'Transit log fee ~€100, lighthouse dues, port fees',
+          documentation: ['Passports with e-visa', 'Vessel registration', 'Insurance certificate', 'Transit Log', 'Crew list']
+        },
+        contacts: {
+          customs: 'Local Gümrük (customs) office',
+          coastGuard: 'Turkish Coast Guard: 158'
+        },
+        notes: [
+          'Transit log must be surrendered when departing Turkey',
+          'Vessel cannot be left in Turkey without transit log arrangements',
+          'Excellent boatyard and repair facilities at competitive prices',
+          'Turkish courtesy flag required',
+          'No sailing within 1nm of military areas'
+        ]
+      },
+      'CROATIA': {
+        country: 'Croatia',
+        requirements: {
+          entry: [
+            'EU member (Schengen since 2023) — free movement for EU nationals',
+            'Non-EU vessels clear at designated ports of entry',
+            'Vignette (cruising permit) required for all vessels',
+            'Skipper must hold valid certificate of competence'
+          ],
+          fees: 'Vignette based on vessel length (~€100-800/year), sojourn tax',
+          documentation: ['Passports/ID cards', 'Vessel registration', 'Insurance certificate', 'Skipper license/certificate', 'Crew list']
+        },
+        contacts: {
+          harbourMaster: 'Local Lučka kapetanija',
+          coastGuard: 'Croatian Coast Guard: +385 195'
+        },
+        notes: [
+          'Bora wind can be sudden and severe on eastern Adriatic',
+          'ACI Marina network provides excellent coverage',
+          'Nature park anchorages require fees (Kornati, Mljet)',
+          'Croatian courtesy flag required',
+          'Speed limit 5kn within 300m of shore'
+        ]
+      },
+      'MALTA': {
+        country: 'Malta',
+        requirements: {
+          entry: [
+            'EU/Schengen area — free movement for EU nationals',
+            'Non-EU vessels clear at Grand Harbour or Msida Marina',
+            'Fly Q flag until cleared',
+            'All vessels must register with Transport Malta'
+          ],
+          fees: 'Port dues based on vessel length',
+          documentation: ['Passports/ID cards', 'Vessel registration', 'Insurance certificate', 'Radio license']
+        },
+        contacts: {
+          transportMalta: 'Transport Malta: +356 2122 2203',
+          vts: 'Valletta VTS: VHF Ch 12'
+        },
+        notes: [
+          'Grand Harbour is busy commercial port — follow VTS instructions',
+          'Strong currents between Malta and Gozo',
+          'Limited anchoring in peak season',
+          'Maltese courtesy flag required',
+          'Good boatyard facilities for winter storage'
+        ]
+      },
+      'GIBRALTAR': {
+        country: 'Gibraltar (British Overseas Territory)',
+        requirements: {
+          entry: [
+            'Not EU/Schengen — separate customs territory',
+            'Report to Gibraltar Port Authority on arrival',
+            'Passports required for all crew',
+            'Customs clearance required when arriving from/departing to Spain'
+          ],
+          fees: 'Port dues, light dues apply',
+          documentation: ['Passports', 'Vessel registration', 'Insurance certificate']
+        },
+        contacts: {
+          portAuthority: 'Gibraltar Port Authority: +350 200 46254',
+          vts: 'Gibraltar VTS: VHF Ch 12'
+        },
+        notes: [
+          'Strait of Gibraltar has strong currents and heavy traffic',
+          'TSS (Traffic Separation Scheme) must be followed',
+          'Good provisioning and fuel — duty-free',
+          'Bridge between Atlantic and Mediterranean — weather window important',
+          'Levanter cloud signals strong easterly winds'
         ]
       }
     };

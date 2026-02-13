@@ -220,7 +220,7 @@ export default function PricingPage() {
                 key={tier.name}
                 className={cn(
                   'relative rounded-lg border bg-card p-8 shadow-sm transition-all hover:shadow-lg',
-                  tier.popular && 'border-primary shadow-lg scale-105'
+                  tier.popular && 'border-primary shadow-lg scale-105 mt-4'
                 )}
               >
                 {tier.popular && (

@@ -7,9 +7,7 @@ const STATIC_ASSETS = [
   '/',
   '/offline',
   '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
-  // Add critical CSS/JS files once we know their hashed names
+  '/icon.svg',
 ];
 
 // API routes to cache
@@ -108,13 +106,33 @@ async function handleAPIRequest(request) {
   try {
     // Try network first
     const networkResponse = await fetch(request);
-    
+
     // Cache successful responses
     if (networkResponse.ok) {
       const cache = await caches.open(DYNAMIC_CACHE);
       cache.put(request, networkResponse.clone());
+
+      // Also store passage plans in IndexedDB for offline viewing
+      const url = new URL(request.url);
+      if (url.pathname === '/api/plan' && request.method === 'POST') {
+        try {
+          const responseClone = networkResponse.clone();
+          const data = await responseClone.json();
+          if (data.success && data.plan) {
+            const db = await openDB();
+            const tx = db.transaction('pending_passages', 'readwrite');
+            tx.objectStore('pending_passages').put({
+              id: data.plan.id || `plan-${Date.now()}`,
+              data: data.plan,
+              cachedAt: new Date().toISOString()
+            });
+          }
+        } catch (e) {
+          // Non-critical: don't break the response if caching fails
+        }
+      }
     }
-    
+
     return networkResponse;
   } catch (error) {
     // Fallback to cache for GET requests
@@ -124,7 +142,7 @@ async function handleAPIRequest(request) {
         return cachedResponse;
       }
     }
-    
+
     // Return error response
     return new Response(
       JSON.stringify({ error: 'Offline - request failed' }),
@@ -176,12 +194,40 @@ async function syncPassages() {
   }
 }
 
+// Sync offline analytics events
+async function syncAnalytics() {
+  try {
+    const db = await openDB();
+    const tx = db.transaction('offline_analytics', 'readonly');
+    const store = tx.objectStore('offline_analytics');
+    const events = await store.getAll();
+
+    if (events.length === 0) return;
+
+    // Batch send analytics events
+    await fetch('/api/analytics/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events: events.map(e => e.data) })
+    });
+
+    // Clear sent events
+    const deleteTx = db.transaction('offline_analytics', 'readwrite');
+    const deleteStore = deleteTx.objectStore('offline_analytics');
+    for (const event of events) {
+      deleteStore.delete(event.id);
+    }
+  } catch (error) {
+    console.error('Failed to sync analytics:', error);
+  }
+}
+
 // Push notifications
 self.addEventListener('push', (event) => {
   const options = {
     body: event.data ? event.data.text() : 'New update from Helmwise',
-    icon: '/icon-192.png',
-    badge: '/icon-96.png',
+    icon: '/icon.svg',
+    badge: '/icon.svg',
     vibrate: [100, 50, 100],
     data: {
       dateOfArrival: Date.now(),

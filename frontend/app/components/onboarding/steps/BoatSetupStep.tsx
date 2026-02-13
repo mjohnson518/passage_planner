@@ -137,6 +137,67 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
             step="0.1"
           />
         </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="boatDraft">Draft (feet) *</Label>
+          <Input
+            id="boatDraft"
+            type="number"
+            value={data.boatDraft || ''}
+            onChange={(e) =>
+              onUpdate({ boatDraft: parseFloat(e.target.value) || undefined })
+            }
+            placeholder="e.g., 5.5"
+            step="0.1"
+            min="0.5"
+            max="40"
+          />
+          <p className="text-xs text-muted-foreground">
+            Critical for safety — used for under-keel clearance calculations
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="boatBeam">Beam (feet)</Label>
+          <Input
+            id="boatBeam"
+            type="number"
+            value={data.boatBeam || ''}
+            onChange={(e) =>
+              onUpdate({ boatBeam: parseFloat(e.target.value) || undefined })
+            }
+            placeholder="e.g., 12"
+            step="0.1"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="fuelCapacity">Fuel Capacity (gallons)</Label>
+          <Input
+            id="fuelCapacity"
+            type="number"
+            value={data.fuelCapacity || ''}
+            onChange={(e) =>
+              onUpdate({ fuelCapacity: parseFloat(e.target.value) || undefined })
+            }
+            placeholder="e.g., 80"
+            step="1"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="waterCapacity">Water Capacity (gallons)</Label>
+          <Input
+            id="waterCapacity"
+            type="number"
+            value={data.waterCapacity || ''}
+            onChange={(e) =>
+              onUpdate({ waterCapacity: parseFloat(e.target.value) || undefined })
+            }
+            placeholder="e.g., 100"
+            step="1"
+          />
+        </div>
       </div>
 
       {/* Home Port */}

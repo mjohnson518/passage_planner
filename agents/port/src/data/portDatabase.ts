@@ -1664,6 +1664,1287 @@ export const PORT_DATABASE: Port[] = [
     },
     amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: false, marina: true },
     rating: { overall: 4.7, facilities: 5, protection: 5, convenience: 4 }
+  },
+
+  // =============================================
+  // GULF COAST PORTS
+  // =============================================
+
+  {
+    id: 'pensacola-palafox-pier',
+    name: 'Palafox Pier & Yacht Harbor',
+    type: 'marina',
+    coordinates: { latitude: 30.4045, longitude: -87.2131 },
+    location: { city: 'Pensacola', state: 'FL', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true, hours: '0700-1800 daily' },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'fiberglass', 'electronics'] },
+      haulOut: false, chandlery: true
+    },
+    navigation: {
+      approachDepth: 12, channelDepth: 15, dockDepth: 10, tidalRange: 1.5,
+      approach: 'Enter Pensacola Pass, follow marked channel to downtown waterfront',
+      hazards: ['Strong currents at pass entrance', 'Shallow areas outside channel'],
+      bestTideState: 'Accessible all tides'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 130, reservation: 'Recommended in winter' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - sand', depth: '8-12 ft', protection: ['N', 'E'] }
+    },
+    contact: { vhf: '16', phone: '+1-850-432-9620' },
+    customs: { portOfEntry: true, cbpRequired: true, hours: '0800-1600 weekdays' },
+    localKnowledge: {
+      bestApproach: 'Pensacola Pass has strong currents - time entry for slack water',
+      weatherConsiderations: ['Hurricane season Jun-Nov', 'Summer afternoon thunderstorms common'],
+      notes: ['Popular ICW stop', 'Historic downtown walkable', 'Blue Angels NAS nearby']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.3, facilities: 4, protection: 4, convenience: 5 }
+  },
+
+  {
+    id: 'mobile-dog-river-marina',
+    name: 'Dog River Marina',
+    type: 'marina',
+    coordinates: { latitude: 30.6267, longitude: -88.1018 },
+    location: { city: 'Mobile', state: 'AL', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: false,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'fiberglass'] },
+      haulOut: true, chandlery: false
+    },
+    navigation: {
+      approachDepth: 8, channelDepth: 12, dockDepth: 8, tidalRange: 1.5,
+      approach: 'From Mobile Bay via Dog River entrance',
+      hazards: ['Shallow bar at river entrance'],
+      bestTideState: 'Enter at half tide or higher'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 80 },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - mud', depth: '6-10 ft', protection: ['All'] }
+    },
+    contact: { vhf: '16', phone: '+1-251-471-5443' },
+    customs: { portOfEntry: false, cbpRequired: false },
+    localKnowledge: {
+      bestApproach: 'Well protected in Dog River. Good hurricane hole.',
+      weatherConsiderations: ['Hurricane season Jun-Nov', 'Excellent storm protection'],
+      notes: ['Popular hurricane hole', 'Quiet anchorage', 'ICW access']
+    },
+    amenities: { restaurants: true, groceries: false, hardwareStore: false, publicTransport: false, marina: true },
+    rating: { overall: 3.8, facilities: 3, protection: 5, convenience: 2 }
+  },
+
+  {
+    id: 'gulfport-harbor',
+    name: 'Gulfport Small Craft Harbor',
+    type: 'harbor',
+    coordinates: { latitude: 30.3616, longitude: -89.0928 },
+    location: { city: 'Gulfport', state: 'MS', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: false,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine'] },
+      haulOut: true, chandlery: false
+    },
+    navigation: {
+      approachDepth: 8, channelDepth: 10, dockDepth: 8, tidalRange: 1.5,
+      approach: 'From Mississippi Sound, follow marked channel',
+      hazards: ['Shallow approach in Sound', 'Barrier islands reduce wave action'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 65 },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Fair - sand/mud', depth: '6-8 ft', protection: ['S'] }
+    },
+    contact: { vhf: '16', phone: '+1-228-868-5713' },
+    customs: { portOfEntry: false, cbpRequired: false },
+    localKnowledge: {
+      bestApproach: 'Protected by barrier islands. Good stop on Gulf ICW.',
+      weatherConsiderations: ['Hurricane season Jun-Nov', 'Barrier islands provide some protection'],
+      notes: ['Casino area nearby', 'Good provisioning in town']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 3.5, facilities: 3, protection: 3, convenience: 4 }
+  },
+
+  {
+    id: 'new-orleans-municipal-yacht-harbor',
+    name: 'Municipal Yacht Harbor',
+    type: 'marina',
+    coordinates: { latitude: 30.0244, longitude: -90.0709 },
+    location: { city: 'New Orleans', state: 'LA', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging'] },
+      haulOut: false, chandlery: false
+    },
+    navigation: {
+      approachDepth: 10, channelDepth: 12, dockDepth: 10, tidalRange: 0.5,
+      approach: 'Via Lake Pontchartrain through Inner Harbor Navigation Canal',
+      hazards: ['Strong Mississippi River current', 'Commercial traffic in IHNC'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100, reservation: 'Recommended during festivals' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: false, holding: 'N/A', depth: 'N/A', protection: [] }
+    },
+    contact: { vhf: '16', phone: '+1-504-283-4515' },
+    customs: { portOfEntry: true, cbpRequired: true, hours: '24/7' },
+    localKnowledge: {
+      bestApproach: 'Lake Pontchartrain approach avoids Mississippi River current. Call ahead for lock schedules.',
+      weatherConsiderations: ['Hurricane season Jun-Nov', 'Summer heat extreme', 'Afternoon storms common'],
+      notes: ['French Quarter walkable', 'Mardi Gras reservations essential', 'Rich maritime history']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.0, facilities: 4, protection: 4, convenience: 5 }
+  },
+
+  {
+    id: 'galveston-yacht-basin',
+    name: 'Galveston Yacht Basin',
+    type: 'marina',
+    coordinates: { latitude: 29.3089, longitude: -94.7847 },
+    location: { city: 'Galveston', state: 'TX', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: false,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'fiberglass'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 10, channelDepth: 12, dockDepth: 8, tidalRange: 2.0,
+      approach: 'Enter via Galveston Channel, follow markers to yacht basin',
+      hazards: ['Strong currents in ship channel', 'Commercial traffic'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100 },
+      moorings: { available: false, rental: false },
+      anchorage: { available: false, holding: 'N/A', depth: 'N/A', protection: [] }
+    },
+    contact: { vhf: '16', phone: '+1-409-765-3421' },
+    customs: { portOfEntry: true, cbpRequired: true },
+    localKnowledge: {
+      bestApproach: 'Monitor VHF 13 for ship traffic. Stay well clear of commercial vessels.',
+      weatherConsiderations: ['Hurricane season Jun-Nov', 'Fog in winter', 'Strong southerly sea breeze'],
+      notes: ['Gateway to Texas coast', 'Good provisioning', 'Historic Strand district']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 3.8, facilities: 4, protection: 3, convenience: 4 }
+  },
+
+  // =============================================
+  // PACIFIC COAST PORTS
+  // =============================================
+
+  {
+    id: 'san-diego-shelter-island',
+    name: 'Shelter Island Marina',
+    type: 'marina',
+    coordinates: { latitude: 32.7114, longitude: -117.2268 },
+    location: { city: 'San Diego', state: 'CA', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true, hours: '0700-1700 daily' },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'electronics', 'fiberglass', 'sails'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 25, channelDepth: 40, dockDepth: 15, tidalRange: 5.5,
+      approach: 'Enter San Diego Bay past Point Loma lighthouse',
+      hazards: ['Navy vessel traffic', 'Strong kelp beds outside bay'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 200, reservation: 'Recommended' },
+      moorings: { available: true, rental: true },
+      anchorage: { available: true, holding: 'Good - mud', depth: '12-20 ft', protection: ['All'] }
+    },
+    contact: { vhf: '12', phone: '+1-619-222-1181' },
+    customs: { portOfEntry: true, cbpRequired: true, hours: '24/7', procedures: 'CBP office at Shelter Island' },
+    localKnowledge: {
+      bestApproach: 'Fair-weather port, well protected inside bay. First US port for Mexico returnees.',
+      weatherConsiderations: ['Mild year-round', 'Fog common mornings May-Sep', 'Santa Ana winds Oct-Dec'],
+      notes: ['Major cruising hub', 'Excellent yacht services', 'Baja Ha-Ha staging area']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.8, facilities: 5, protection: 5, convenience: 5 }
+  },
+
+  {
+    id: 'channel-islands-harbor',
+    name: 'Channel Islands Harbor',
+    type: 'harbor',
+    coordinates: { latitude: 34.1567, longitude: -119.2225 },
+    location: { city: 'Oxnard', state: 'CA', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'fiberglass'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 20, dockDepth: 12, tidalRange: 5.0,
+      approach: 'Well-marked entrance, breakwater protected',
+      hazards: ['Surge during large SW swells', 'Kelp beds outside entrance'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100 },
+      moorings: { available: false, rental: false },
+      anchorage: { available: false, holding: 'N/A', depth: 'N/A', protection: [] }
+    },
+    contact: { vhf: '16', phone: '+1-805-382-3001' },
+    customs: { portOfEntry: false, cbpRequired: false },
+    localKnowledge: {
+      bestApproach: 'Gateway to Channel Islands National Park. Well-maintained harbor.',
+      weatherConsiderations: ['NW winds predominant', 'Santa Ana winds Oct-Feb', 'Fog common'],
+      notes: ['Staging point for Channel Islands', 'Good marine services', 'Nice waterfront restaurants']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: false, publicTransport: true, marina: true },
+    rating: { overall: 4.2, facilities: 4, protection: 4, convenience: 4 }
+  },
+
+  {
+    id: 'san-francisco-pier-39',
+    name: 'Pier 39 Marina',
+    type: 'marina',
+    coordinates: { latitude: 37.8087, longitude: -122.4098 },
+    location: { city: 'San Francisco', state: 'CA', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: false, types: [] },
+      haulOut: false, chandlery: false
+    },
+    navigation: {
+      approachDepth: 30, channelDepth: 40, dockDepth: 15, tidalRange: 6.0,
+      approach: 'Enter Golden Gate, turn east to Pier 39 north of Bay Bridge',
+      hazards: ['Extremely strong currents (3-5 knots) at Golden Gate', 'Fog', 'Heavy commercial traffic'],
+      bestTideState: 'Time Golden Gate entry for slack water or favorable current'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100, reservation: 'Required - call ahead' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - mud', depth: '15-30 ft', protection: ['W', 'N'] }
+    },
+    contact: { vhf: '16', phone: '+1-415-705-5556' },
+    customs: { portOfEntry: true, cbpRequired: true, hours: '24/7' },
+    localKnowledge: {
+      bestApproach: 'Time Golden Gate passage for slack water. Max ebb current 5+ knots. Monitor VHF 14 for VTS.',
+      weatherConsiderations: ['Fog very common May-Sep', 'Strong afternoon westerlies 20-30kt', 'Cold water year-round'],
+      notes: ['Iconic location', 'Sea lions on docks', 'Alcatraz views', 'Tourist area']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: false, publicTransport: true, marina: true },
+    rating: { overall: 4.0, facilities: 3, protection: 3, convenience: 5 }
+  },
+
+  {
+    id: 'monterey-harbor',
+    name: 'Monterey Harbor',
+    type: 'harbor',
+    coordinates: { latitude: 36.6049, longitude: -121.8919 },
+    location: { city: 'Monterey', state: 'CA', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'fiberglass'] },
+      haulOut: true, chandlery: false
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 18, dockDepth: 10, tidalRange: 5.0,
+      approach: 'Well-marked breakwater entrance from Monterey Bay',
+      hazards: ['Kelp beds', 'Marine sanctuary restrictions'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 80 },
+      moorings: { available: true, rental: true },
+      anchorage: { available: true, holding: 'Good - sand/mud', depth: '15-25 ft', protection: ['W', 'N', 'E'] }
+    },
+    contact: { vhf: '16', phone: '+1-831-646-3950' },
+    customs: { portOfEntry: false, cbpRequired: false },
+    localKnowledge: {
+      bestApproach: 'Protected from NW swell by breakwater. Monterey Bay National Marine Sanctuary rules apply.',
+      weatherConsiderations: ['Fog common', 'NW winds afternoon', 'Can be exposed to southerly storms'],
+      notes: ['Cannery Row nearby', 'Monterey Bay Aquarium', 'Beautiful coastline']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: false, publicTransport: true, marina: true },
+    rating: { overall: 4.2, facilities: 4, protection: 4, convenience: 4 }
+  },
+
+  {
+    id: 'seattle-shilshole-bay',
+    name: 'Shilshole Bay Marina',
+    type: 'marina',
+    coordinates: { latitude: 47.6808, longitude: -122.4048 },
+    location: { city: 'Seattle', state: 'WA', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true, hours: '0800-1700' },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: false,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'electronics', 'fiberglass'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 20, channelDepth: 25, dockDepth: 15, tidalRange: 11.0,
+      approach: 'From Puget Sound, well-marked entrance breakwater',
+      hazards: ['Large tidal range', 'Current in Puget Sound'],
+      bestTideState: 'Accessible all tides'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 150, reservation: 'Recommended summer' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: false, holding: 'N/A', depth: 'N/A', protection: [] }
+    },
+    contact: { vhf: '16', phone: '+1-206-728-3006' },
+    customs: { portOfEntry: false, cbpRequired: false },
+    localKnowledge: {
+      bestApproach: 'Largest marina in Pacific NW. Monitor VHF 5A for Puget Sound VTS.',
+      weatherConsiderations: ['Rain common Oct-May', 'Mild temperatures', 'Wind funnels through Sound'],
+      notes: ['1400+ slips', 'Excellent marine services', 'Gateway to San Juan Islands']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.5, facilities: 5, protection: 4, convenience: 4 }
+  },
+
+  {
+    id: 'friday-harbor',
+    name: 'Friday Harbor Marina',
+    type: 'marina',
+    coordinates: { latitude: 48.5340, longitude: -123.0168 },
+    location: { city: 'Friday Harbor', state: 'WA', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine'] },
+      haulOut: false, chandlery: false
+    },
+    navigation: {
+      approachDepth: 20, channelDepth: 30, dockDepth: 15, tidalRange: 8.0,
+      approach: 'Enter from San Juan Channel, well-marked harbor',
+      hazards: ['Strong tidal currents in channel (3-4 knots)', 'Whale watching vessels'],
+      bestTideState: 'Time channel transit for slack or favorable current'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 120 },
+      moorings: { available: true, rental: true },
+      anchorage: { available: true, holding: 'Good - mud', depth: '15-30 ft', protection: ['W', 'S'] }
+    },
+    contact: { vhf: '66A', phone: '+1-360-378-2688' },
+    customs: { portOfEntry: true, cbpRequired: true, procedures: 'Clear customs on arrival from Canada' },
+    localKnowledge: {
+      bestApproach: 'Beautiful approach through San Juan Islands. Time for slack current in channels.',
+      weatherConsiderations: ['Rain shadow - drier than Seattle', 'Current is biggest factor', 'Fog occasional'],
+      notes: ['Orca whale watching', 'Charming town', 'Customs clearance for Canada crossings']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: false, publicTransport: false, marina: true },
+    rating: { overall: 4.5, facilities: 4, protection: 4, convenience: 4 }
+  },
+
+  // =============================================
+  // GREAT LAKES PORTS
+  // =============================================
+
+  {
+    id: 'mackinac-island-marina',
+    name: 'Mackinac Island State Dock',
+    type: 'harbor',
+    coordinates: { latitude: 45.8480, longitude: -84.6189 },
+    location: { city: 'Mackinac Island', state: 'MI', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: false, wifi: true,
+      repair: { available: false, types: [] },
+      haulOut: false, chandlery: false
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 20, dockDepth: 12, tidalRange: 0.0,
+      approach: 'From Straits of Mackinac, approach from south or east',
+      hazards: ['Strong currents in Straits', 'Ferry traffic', 'No motorized vehicles on island'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 80 },
+      moorings: { available: true, rental: true },
+      anchorage: { available: true, holding: 'Good - mud', depth: '10-20 ft', protection: ['W'] }
+    },
+    contact: { vhf: '16', phone: '+1-906-847-3561' },
+    customs: { portOfEntry: false, cbpRequired: false },
+    localKnowledge: {
+      bestApproach: 'Iconic Great Lakes destination. No cars on island - bicycle or horse transport.',
+      weatherConsiderations: ['Season May-Oct only', 'Strong storms can develop quickly', 'Ice Nov-Apr'],
+      notes: ['No motor vehicles', 'Historic Grand Hotel', 'Chicago-Mac race finish']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: false, publicTransport: false, marina: true },
+    rating: { overall: 4.3, facilities: 3, protection: 3, convenience: 4 }
+  },
+
+  {
+    id: 'chicago-dusable-harbor',
+    name: 'DuSable Harbor',
+    type: 'harbor',
+    coordinates: { latitude: 41.8692, longitude: -87.6122 },
+    location: { city: 'Chicago', state: 'IL', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: false,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: false, types: [] },
+      haulOut: false, chandlery: false
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 20, dockDepth: 12, tidalRange: 0.0,
+      approach: 'From Lake Michigan, enter breakwater-protected harbor near Navy Pier',
+      hazards: ['Large vessel traffic at harbor entrance', 'Strong NE storms create large waves'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 70, reservation: 'Required in summer' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: false, holding: 'N/A', depth: 'N/A', protection: [] }
+    },
+    contact: { vhf: '16', phone: '+1-312-742-5369' },
+    customs: { portOfEntry: false, cbpRequired: false },
+    localKnowledge: {
+      bestApproach: 'Stunning Chicago skyline approach. Call ahead - fills quickly in summer.',
+      weatherConsiderations: ['Season Apr-Nov', 'Sudden storms on Lake Michigan', 'Ice Dec-Mar'],
+      notes: ['Downtown Chicago location', 'Museums and Magnificent Mile nearby', 'Race to Mackinac staging']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: false, publicTransport: true, marina: true },
+    rating: { overall: 4.0, facilities: 3, protection: 4, convenience: 5 }
+  },
+
+  {
+    id: 'put-in-bay-marina',
+    name: 'Put-in-Bay Marina',
+    type: 'marina',
+    coordinates: { latitude: 41.6522, longitude: -82.8224 },
+    location: { city: 'Put-in-Bay', state: 'OH', country: 'USA' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine'] },
+      haulOut: false, chandlery: false
+    },
+    navigation: {
+      approachDepth: 10, channelDepth: 12, dockDepth: 8, tidalRange: 0.0,
+      approach: 'From Lake Erie, enter harbor from the south',
+      hazards: ['Shallow areas around islands', 'Heavy recreational traffic in summer'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 60 },
+      moorings: { available: true, rental: true },
+      anchorage: { available: true, holding: 'Good - sand/mud', depth: '8-12 ft', protection: ['N', 'E', 'W'] }
+    },
+    contact: { vhf: '16', phone: '+1-419-285-3821' },
+    customs: { portOfEntry: false, cbpRequired: false },
+    localKnowledge: {
+      bestApproach: 'Popular Lake Erie cruising destination. South Bass Island.',
+      weatherConsiderations: ['Season May-Oct', 'Lake Erie storms build quickly', 'Shallow lake = steep waves'],
+      notes: ["Perry's Victory monument", 'Party island atmosphere', 'Good holding in harbor']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: false, publicTransport: false, marina: true },
+    rating: { overall: 4.0, facilities: 3, protection: 4, convenience: 4 }
+  },
+
+  // =============================================
+  // CARIBBEAN / BAHAMAS PORTS
+  // =============================================
+
+  {
+    id: 'marsh-harbour-abacos',
+    name: 'Marsh Harbour Marina',
+    type: 'marina',
+    coordinates: { latitude: 26.5414, longitude: -77.0593 },
+    location: { city: 'Marsh Harbour', state: 'Abaco', country: 'Bahamas' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: false, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'fiberglass'] },
+      haulOut: true, chandlery: false
+    },
+    navigation: {
+      approachDepth: 8, channelDepth: 10, dockDepth: 7, tidalRange: 3.0,
+      approach: 'Via Sea of Abaco from north or south, follow markers to harbour',
+      hazards: ['Coral heads', 'Shallow banks outside channel', 'Strong tidal flow in cuts'],
+      bestTideState: 'Mid to high tide for approach'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100 },
+      moorings: { available: true, rental: true },
+      anchorage: { available: true, holding: 'Good - sand', depth: '6-10 ft', protection: ['W', 'S'] }
+    },
+    contact: { vhf: '16', phone: '+1-242-367-2700' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'Clear in at government dock with immigration and customs' },
+    localKnowledge: {
+      bestApproach: 'Hub of the Abacos. Well-stocked for cruisers. Use updated charts - Hurricane Dorian changed depths.',
+      weatherConsiderations: ['Hurricane season Jun-Nov', 'Trade winds 10-20kt typical', 'Cold fronts Dec-Mar'],
+      notes: ['Cruiser hub', 'Good provisioning', 'Recovering from Hurricane Dorian (2019)']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: false, marina: true },
+    rating: { overall: 4.0, facilities: 4, protection: 3, convenience: 4 }
+  },
+
+  {
+    id: 'nassau-harbor',
+    name: 'Nassau Harbour Club & Marina',
+    type: 'marina',
+    coordinates: { latitude: 25.0800, longitude: -77.3400 },
+    location: { city: 'Nassau', state: 'New Providence', country: 'Bahamas' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'electronics'] },
+      haulOut: false, chandlery: false
+    },
+    navigation: {
+      approachDepth: 12, channelDepth: 15, dockDepth: 10, tidalRange: 3.0,
+      approach: 'Enter Nassau Harbour from the west past the lighthouse',
+      hazards: ['Cruise ship traffic', 'Strong current in harbour entrance', 'Coral on either side'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 150, reservation: 'Recommended in season' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Fair - sand', depth: '10-15 ft', protection: ['N'] }
+    },
+    contact: { vhf: '16', phone: '+1-242-393-0771' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'Clear at main customs dock. Yellow Q flag required until cleared.' },
+    localKnowledge: {
+      bestApproach: 'Time entrance to avoid cruise ship departures (usually 5-7pm). Fly Q flag until cleared.',
+      weatherConsiderations: ['Hurricane season Jun-Nov', 'Trade winds predominant', 'Christmas Winds Dec-Jan'],
+      notes: ['Major Bahamas port of entry', 'Good reprovisioning', 'Bridge to Paradise Island']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.2, facilities: 4, protection: 3, convenience: 5 }
+  },
+
+  {
+    id: 'georgetown-exuma',
+    name: 'Georgetown Anchorage',
+    type: 'anchorage',
+    coordinates: { latitude: 23.5160, longitude: -75.7780 },
+    location: { city: 'Georgetown', state: 'Great Exuma', country: 'Bahamas' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: false, pumpout: false, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: false,
+      repair: { available: false, types: [] },
+      haulOut: false, chandlery: false
+    },
+    navigation: {
+      approachDepth: 8, channelDepth: 10, dockDepth: 6, tidalRange: 3.0,
+      approach: 'From Exuma Sound through various cuts or via bank route',
+      hazards: ['Coral heads in Elizabeth Harbour', 'Strong current in channels'],
+      bestTideState: 'Mid to high tide for cuts'
+    },
+    services: {
+      slips: { available: false, transient: false },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Excellent - sand', depth: '8-15 ft', protection: ['N', 'E', 'S', 'W'] }
+    },
+    contact: { vhf: '16' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'Clear at government dock in town' },
+    localKnowledge: {
+      bestApproach: 'Elizabeth Harbour offers excellent all-weather protection. Cruiser community Feb-Apr.',
+      weatherConsiderations: ['Hurricane season Jun-Nov', 'Trade winds 15-25kt winter', 'Regatta in Apr'],
+      notes: ['Famous cruiser gathering spot', 'Georgetown Regatta April', 'Limited but adequate provisioning']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: false, publicTransport: false, marina: false },
+    rating: { overall: 4.3, facilities: 2, protection: 5, convenience: 3 }
+  },
+
+  // =============================================
+  // UK & CHANNEL PORTS
+  // =============================================
+
+  {
+    id: 'plymouth-queen-anne',
+    name: "Queen Anne's Battery Marina",
+    type: 'marina',
+    coordinates: { latitude: 50.3656, longitude: -4.1310 },
+    location: { city: 'Plymouth', state: 'Devon', country: 'UK' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true, hours: '0800-1800' },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'electronics', 'sails'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 18, channelDepth: 25, dockDepth: 10, tidalRange: 15.0,
+      approach: 'Enter Plymouth Sound past the Breakwater, head east to Cattewater',
+      hazards: ['Large tidal range', 'Naval vessels in Sound', 'Drake Channel traffic'],
+      bestTideState: 'Accessible all tides but check draft at low springs'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 120, reservation: 'Recommended Jul-Aug' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - mud', depth: '10-25 ft', protection: ['N', 'W'] }
+    },
+    contact: { vhf: '80', phone: '+44-1752-671142', website: 'queeneannesbattery.co.uk' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'Report to Border Force on arrival from outside UK' },
+    localKnowledge: {
+      bestApproach: 'Plymouth Breakwater provides excellent protection. Major departure point for Atlantic crossings.',
+      weatherConsiderations: ['SW gales common in winter', 'Fog in summer', 'Large tidal range (4.7m springs)'],
+      tidalConsiderations: 'Tidal streams run strongly at breakwater entrance',
+      notes: ['RNLI base', 'Mayflower Steps nearby', 'Excellent provisioning', 'ARC rally starting point']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.5, facilities: 5, protection: 4, convenience: 5 }
+  },
+
+  {
+    id: 'cowes-yacht-haven',
+    name: 'Cowes Yacht Haven',
+    type: 'marina',
+    coordinates: { latitude: 50.7631, longitude: -1.2988 },
+    location: { city: 'Cowes', state: 'Isle of Wight', country: 'UK' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'sails', 'electronics'] },
+      haulOut: false, chandlery: true
+    },
+    navigation: {
+      approachDepth: 12, channelDepth: 15, dockDepth: 8, tidalRange: 12.0,
+      approach: 'Enter the Solent from east or west, approach Cowes from the north',
+      hazards: ['Very strong tidal streams in the Solent', 'Heavy racing traffic', 'Red Funnel ferry traffic'],
+      bestTideState: 'Tidal gate at Hurst Narrows - time passage accordingly'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 80, reservation: 'Essential during Cowes Week (Aug)' },
+      moorings: { available: true, rental: true },
+      anchorage: { available: true, holding: 'Good - mud', depth: '8-15 ft', protection: ['S', 'W'] }
+    },
+    contact: { vhf: '80', phone: '+44-1983-299975' },
+    customs: { portOfEntry: false, cbpRequired: false },
+    localKnowledge: {
+      bestApproach: 'Sailing capital of the world. Cowes Week first week of August. Book months ahead.',
+      weatherConsiderations: ['Solent funnels wind', 'Tidal streams critical for planning', 'Sheltered from SW'],
+      tidalConsiderations: 'Tidal diamonds essential for Solent navigation',
+      notes: ['Home of the Royal Yacht Squadron', 'Cowes Week regatta', 'Excellent yacht services']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.7, facilities: 5, protection: 4, convenience: 4 }
+  },
+
+  {
+    id: 'falmouth-visitors-yacht-haven',
+    name: 'Falmouth Visitors Yacht Haven',
+    type: 'marina',
+    coordinates: { latitude: 50.1537, longitude: -5.0601 },
+    location: { city: 'Falmouth', state: 'Cornwall', country: 'UK' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'fiberglass', 'sails'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 20, channelDepth: 30, dockDepth: 10, tidalRange: 16.0,
+      approach: 'Enter Carrick Roads past Pendennis and St Mawes castles',
+      hazards: ['Black Rock at harbour entrance', 'Large tidal range', 'Manacles reef to the south'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100 },
+      moorings: { available: true, rental: true },
+      anchorage: { available: true, holding: 'Excellent - mud', depth: '10-30 ft', protection: ['All'] }
+    },
+    contact: { vhf: '12', phone: '+44-1326-310991' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'First UK port for many transatlantic arrivals' },
+    localKnowledge: {
+      bestApproach: 'Third deepest natural harbour in the world. Traditional first/last port for Atlantic crossings.',
+      weatherConsiderations: ['Well protected harbour', 'SW gales can be severe outside', 'Fog occasional'],
+      tidalConsiderations: 'Very large tidal range - check berth depth at low springs',
+      notes: ['Traditional Atlantic landfall/departure', 'National Maritime Museum', 'Excellent boatyards']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.6, facilities: 5, protection: 5, convenience: 4 }
+  },
+
+  // =============================================
+  // ATLANTIC EUROPE
+  // =============================================
+
+  {
+    id: 'brest-marina-moulin-blanc',
+    name: 'Marina du Moulin Blanc',
+    type: 'marina',
+    coordinates: { latitude: 48.3905, longitude: -4.4340 },
+    location: { city: 'Brest', state: 'Brittany', country: 'France' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true, hours: '0800-2000 summer' },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'fiberglass', 'sails'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 20, dockDepth: 10, tidalRange: 22.0,
+      approach: 'Enter Goulet de Brest (narrow strait), then north to marina',
+      hazards: ['Extremely strong tidal streams in Goulet (5+ knots)', 'Naval base - restricted zones', 'Large tidal range (7m springs)'],
+      bestTideState: 'Time Goulet passage for slack water - life-safety critical'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100, reservation: 'Recommended summer' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - mud', depth: '10-20 ft', protection: ['All'] }
+    },
+    contact: { vhf: '9', phone: '+33-2-98-02-20-02' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone - no customs for EU vessels. Non-EU report to Capitainerie.' },
+    localKnowledge: {
+      bestApproach: 'Goulet tidal streams are DANGEROUS at peak flow. Plan passage for slack water.',
+      weatherConsiderations: ['Atlantic gales frequent Oct-Mar', 'Brittany fog', 'Excellent inside rade'],
+      tidalConsiderations: 'One of the largest tidal ranges in Europe (7m+). Goulet currents 5+ knots.',
+      notes: ['Oceanopolis aquarium', 'Major French naval port', 'Gateway to Brittany cruising']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.3, facilities: 5, protection: 5, convenience: 4 }
+  },
+
+  {
+    id: 'la-rochelle-minimes',
+    name: 'Port des Minimes',
+    type: 'marina',
+    coordinates: { latitude: 46.1447, longitude: -1.1672 },
+    location: { city: 'La Rochelle', state: 'Charente-Maritime', country: 'France' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'fiberglass', 'electronics'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 12, channelDepth: 15, dockDepth: 8, tidalRange: 18.0,
+      approach: 'Follow buoyed channel past Ile de Re bridge',
+      hazards: ['Very large tidal range', 'Shallow approaches at low tide', 'Mussel farms nearby'],
+      bestTideState: 'Approach at half tide rising or above'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100, reservation: 'Essential in summer' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - mud', depth: '6-12 ft', protection: ['E'] }
+    },
+    contact: { vhf: '9', phone: '+33-5-46-44-41-20' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone' },
+    localKnowledge: {
+      bestApproach: 'Largest marina on the Atlantic coast (4,500 berths). Excellent stop for Biscay crossing.',
+      weatherConsiderations: ['Bay of Biscay weather systems', 'Protected from SW', 'Summer sea breeze reliable'],
+      tidalConsiderations: 'Large tidal range means significant depth changes - check berth depths',
+      notes: ['4,500 berths - largest Atlantic marina', 'Beautiful medieval old town', 'Grand Pavois boat show (Sep)']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.5, facilities: 5, protection: 4, convenience: 5 }
+  },
+
+  {
+    id: 'cascais-marina',
+    name: 'Cascais Marina',
+    type: 'marina',
+    coordinates: { latitude: 38.6917, longitude: -9.4191 },
+    location: { city: 'Cascais', state: 'Lisbon District', country: 'Portugal' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'fiberglass', 'sails'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 18, dockDepth: 10, tidalRange: 10.0,
+      approach: 'From the west, round Cabo da Roca and head east to Cascais bay',
+      hazards: ['Cabo da Roca - strong winds/seas', 'Swell can wrap into bay', 'River Tagus current near Lisbon'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 120, reservation: 'Recommended' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Fair - sand', depth: '12-20 ft', protection: ['N', 'E'] }
+    },
+    contact: { vhf: '16', phone: '+351-21-482-4800' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone. Non-EU vessels clear at marina office.' },
+    localKnowledge: {
+      bestApproach: 'Popular staging point for ARC and transatlantic passages. Close to Lisbon.',
+      weatherConsiderations: ['Portuguese trade winds (Nortada) strong Jul-Sep', 'Cabo da Roca exposed to NW swell', 'Mild winters'],
+      notes: ['30 min train to Lisbon', 'ARC staging marina', 'Beautiful coastal town', 'Excellent value']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.6, facilities: 5, protection: 4, convenience: 5 }
+  },
+
+  {
+    id: 'gibraltar-marina-bay',
+    name: 'Marina Bay Gibraltar',
+    type: 'marina',
+    coordinates: { latitude: 36.1408, longitude: -5.3536 },
+    location: { city: 'Gibraltar', state: 'Gibraltar', country: 'Gibraltar' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true, hours: '24/7' },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'electronics', 'sails'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 20, channelDepth: 30, dockDepth: 12, tidalRange: 3.0,
+      approach: 'Enter from the west past the runway, or from the east via the Bay',
+      hazards: ['Strait of Gibraltar current (2-3 knots east)', 'Heavy shipping traffic', 'Low-flying aircraft near runway'],
+      bestTideState: 'Time Strait passage for favorable current'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 200, reservation: 'Recommended' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - sand/mud', depth: '15-30 ft', protection: ['W'] }
+    },
+    contact: { vhf: '71', phone: '+350-200-73300' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'British Overseas Territory. Clear customs on arrival. Duty-free fuel available.' },
+    localKnowledge: {
+      bestApproach: 'Gateway between Atlantic and Mediterranean. Duty-free fuel (cheapest in region). Time Strait crossing for current.',
+      weatherConsiderations: ['Levanter (E wind) brings cloud/rain', 'Poniente (W wind) is clear', 'Strait funnels wind dramatically'],
+      tidalConsiderations: 'Strait current typically 1-3 knots eastward. Counter-current close inshore.',
+      notes: ['Duty-free fuel and provisions', 'Strait of Gibraltar crossing point', 'Tax-free shopping', 'Excellent yacht services']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.5, facilities: 5, protection: 4, convenience: 5 }
+  },
+
+  // =============================================
+  // WESTERN MEDITERRANEAN
+  // =============================================
+
+  {
+    id: 'barcelona-port-olimpic',
+    name: 'Port Olímpic',
+    type: 'marina',
+    coordinates: { latitude: 41.3853, longitude: 2.2014 },
+    location: { city: 'Barcelona', state: 'Catalonia', country: 'Spain' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'electronics'] },
+      haulOut: false, chandlery: true
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 20, dockDepth: 10, tidalRange: 1.0,
+      approach: 'From the south or east, well-marked breakwater entrance',
+      hazards: ['Heavy commercial port traffic to the south', 'Cruise ships', 'Strong onshore breeze afternoons'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100, reservation: 'Required in summer' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: false, holding: 'N/A', depth: 'N/A', protection: [] }
+    },
+    contact: { vhf: '9', phone: '+34-93-225-9220' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone' },
+    localKnowledge: {
+      bestApproach: 'Purpose-built for 1992 Olympics. Central Barcelona location with metro access.',
+      weatherConsiderations: ['Tramuntana (N wind) can be very strong', 'Sea breeze afternoon', 'Mild winters'],
+      notes: ['Walking distance to Las Ramblas', 'Excellent restaurants', 'Gateway to Balearics']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: false, publicTransport: true, marina: true },
+    rating: { overall: 4.2, facilities: 4, protection: 4, convenience: 5 }
+  },
+
+  {
+    id: 'palma-real-club-nautico',
+    name: 'Real Club Náutico de Palma',
+    type: 'yacht_club',
+    coordinates: { latitude: 39.5630, longitude: 2.6349 },
+    location: { city: 'Palma de Mallorca', state: 'Balearic Islands', country: 'Spain' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'fiberglass', 'sails', 'electronics'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 20, channelDepth: 25, dockDepth: 12, tidalRange: 0.5,
+      approach: 'Enter Palma Bay from the south, well-marked harbour entrance',
+      hazards: ['Superyacht traffic', 'Ferry wash', 'Shallows near cathedral'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 200, reservation: 'Essential May-Sep' },
+      moorings: { available: true, rental: true },
+      anchorage: { available: true, holding: 'Good - sand', depth: '15-30 ft', protection: ['N', 'W'] }
+    },
+    contact: { vhf: '9', phone: '+34-971-726-848' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone' },
+    localKnowledge: {
+      bestApproach: 'Mediterranean sailing capital. World-class yacht services and infrastructure.',
+      weatherConsiderations: ['Summer sea breeze (embat) reliable 12-20kt', 'Tramuntana (N) can be severe in winter', 'Beautiful sailing conditions Apr-Oct'],
+      notes: ['Superyacht hub', 'STP shipyard world-class', 'Kings Cup regatta', 'Beautiful old town']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.8, facilities: 5, protection: 4, convenience: 5 }
+  },
+
+  {
+    id: 'marseille-vieux-port',
+    name: 'Vieux Port de Marseille',
+    type: 'harbor',
+    coordinates: { latitude: 43.2950, longitude: 5.3698 },
+    location: { city: 'Marseille', state: 'Provence', country: 'France' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'fiberglass'] },
+      haulOut: false, chandlery: false
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 20, dockDepth: 10, tidalRange: 0.5,
+      approach: 'Enter between Fort Saint-Jean and Fort Saint-Nicolas',
+      hazards: ['Mistral wind can blow 40+ knots', 'Ferry traffic', 'Shallow areas in old port'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 60, reservation: 'Essential summer' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - mud', depth: '10-20 ft', protection: ['N'] }
+    },
+    contact: { vhf: '12', phone: '+33-4-91-59-02-40' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone' },
+    localKnowledge: {
+      bestApproach: 'Iconic harbour entrance. Mistral can strike with little warning - have engine ready.',
+      weatherConsiderations: ['Mistral (NW) severe and sudden - up to 60kt', 'Calm in summer', 'Sea state builds rapidly with Mistral'],
+      notes: ['Historic old port', 'Calanques National Park nearby', 'Excellent seafood', 'Gateway to Corsica']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.0, facilities: 3, protection: 3, convenience: 5 }
+  },
+
+  {
+    id: 'genoa-porto-antico',
+    name: 'Marina Porto Antico',
+    type: 'marina',
+    coordinates: { latitude: 44.4097, longitude: 8.9266 },
+    location: { city: 'Genoa', state: 'Liguria', country: 'Italy' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'fiberglass', 'electronics'] },
+      haulOut: false, chandlery: true
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 20, dockDepth: 10, tidalRange: 0.5,
+      approach: 'Enter the commercial port area, marina is in the historic inner harbour',
+      hazards: ['Large vessel traffic', 'Ferry and cruise ship maneuvers', 'Swell from SE'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100 },
+      moorings: { available: false, rental: false },
+      anchorage: { available: false, holding: 'N/A', depth: 'N/A', protection: [] }
+    },
+    contact: { vhf: '9', phone: '+39-010-246-8681' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone' },
+    localKnowledge: {
+      bestApproach: 'Heart of Genoa. Aquarium and historic centre adjacent. Good base for Italian Riviera.',
+      weatherConsiderations: ['Libeccio (SW) can be strong', 'Winter gales occasional', 'Well protected inside harbour'],
+      notes: ['Genoa Boat Show (Sep)', 'UNESCO World Heritage old town', 'Gateway to Italian Riviera & Cinque Terre']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.2, facilities: 4, protection: 4, convenience: 5 }
+  },
+
+  // =============================================
+  // CENTRAL & EASTERN MEDITERRANEAN
+  // =============================================
+
+  {
+    id: 'valletta-grand-harbour',
+    name: 'Grand Harbour Marina',
+    type: 'marina',
+    coordinates: { latitude: 35.8911, longitude: 14.5140 },
+    location: { city: 'Valletta', state: 'Grand Harbour', country: 'Malta' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'fiberglass', 'electronics'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 25, channelDepth: 35, dockDepth: 15, tidalRange: 0.5,
+      approach: 'Enter Grand Harbour past the breakwater - dramatic entrance below fortifications',
+      hazards: ['Strong Gregale (NE) wind can make entrance rough', 'Commercial traffic'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 200, reservation: 'Recommended Oct-Jun' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - mud', depth: '20-40 ft', protection: ['W', 'S'] }
+    },
+    contact: { vhf: '12', phone: '+356-2180-0700' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone. English widely spoken.' },
+    localKnowledge: {
+      bestApproach: 'One of the most spectacular harbour entrances in the world. Below the Knights of Malta fortifications.',
+      weatherConsiderations: ['Gregale (NE) can blow hard', 'Sirocco (SE) brings heat and sand', 'Mild year-round'],
+      notes: ['UNESCO World Heritage Site', 'Excellent mid-Med stop', 'Rolex Middle Sea Race (Oct)', 'English-speaking']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.7, facilities: 5, protection: 5, convenience: 5 }
+  },
+
+  {
+    id: 'split-aci-marina',
+    name: 'ACI Marina Split',
+    type: 'marina',
+    coordinates: { latitude: 43.5024, longitude: 16.4394 },
+    location: { city: 'Split', state: 'Dalmatia', country: 'Croatia' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'fiberglass'] },
+      haulOut: true, chandlery: false
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 20, dockDepth: 10, tidalRange: 1.0,
+      approach: 'Enter Split harbour from the west, marina on the south side',
+      hazards: ['Bura (NE) katabatic wind can be sudden and violent', 'Ferry traffic', 'Tourist boats in summer'],
+      bestTideState: 'Minimal tidal range - accessible all tides'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 80, reservation: 'Essential Jul-Aug' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - mud', depth: '15-30 ft', protection: ['N'] }
+    },
+    contact: { vhf: '17', phone: '+385-21-398-548' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone (Croatia joined 2023)' },
+    localKnowledge: {
+      bestApproach: 'Main charter base for Dalmatian islands. Diocletian Palace UNESCO site in town.',
+      weatherConsiderations: ['Bura (NE) violent katabatic - can strike suddenly at 50+ knots', 'Jugo (SE) brings rain', 'Maestral (NW) sea breeze reliable summer'],
+      tidalConsiderations: 'Minimal tidal range but seiches can cause 50cm changes',
+      notes: ['Charter capital of Adriatic', '1000+ islands to explore', 'UNESCO Diocletian Palace', 'Excellent cuisine']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.5, facilities: 4, protection: 3, convenience: 5 }
+  },
+
+  {
+    id: 'dubrovnik-aci-marina',
+    name: 'ACI Marina Dubrovnik',
+    type: 'marina',
+    coordinates: { latitude: 42.6584, longitude: 18.0601 },
+    location: { city: 'Dubrovnik', state: 'Dalmatia', country: 'Croatia' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine'] },
+      haulOut: false, chandlery: false
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 20, dockDepth: 10, tidalRange: 1.0,
+      approach: 'Marina is in Komolac at the head of Rijeka Dubrovacka inlet',
+      hazards: ['Bura wind in inlet', 'Cruise ship traffic at Gruz port'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 70, reservation: 'Essential in season' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - mud', depth: '15-25 ft', protection: ['All'] }
+    },
+    contact: { vhf: '17', phone: '+385-20-455-020' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone. Montenegro border nearby - check if crossing.' },
+    localKnowledge: {
+      bestApproach: 'Sheltered inlet provides good protection. Bus to Old Town. Book well ahead.',
+      weatherConsiderations: ['Bura can be strong', 'Well protected in inlet', 'Hot summers'],
+      notes: ['UNESCO Old Town', 'Game of Thrones filming location', 'Near Montenegro border', 'Very popular - book ahead']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: false, publicTransport: true, marina: true },
+    rating: { overall: 4.3, facilities: 4, protection: 4, convenience: 4 }
+  },
+
+  {
+    id: 'athens-alimos-marina',
+    name: 'Alimos Marina (Kalamaki)',
+    type: 'marina',
+    coordinates: { latitude: 37.9135, longitude: 23.7053 },
+    location: { city: 'Athens', state: 'Attica', country: 'Greece' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'fiberglass', 'electronics'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 12, channelDepth: 15, dockDepth: 8, tidalRange: 0.5,
+      approach: 'Enter from Saronic Gulf, well-marked breakwater',
+      hazards: ['Meltemi wind (N) can be very strong Jul-Aug', 'Shallow patches near entrance'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100, reservation: 'Recommended' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: false, holding: 'N/A', depth: 'N/A', protection: [] }
+    },
+    contact: { vhf: '16', phone: '+30-210-988-6666' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone. DEKPA (transit log) required for non-EU flagged vessels.' },
+    localKnowledge: {
+      bestApproach: 'Largest marina in Greece. Gateway to Saronic Gulf and Cyclades islands.',
+      weatherConsiderations: ['Meltemi (N) dominates Jul-Aug, 25-40kt', 'Calm in Saronic Gulf compared to Cyclades', 'Hot dry summers'],
+      notes: ['Metro to central Athens', 'Major charter base', 'Gateway to Greek islands', 'Affordable by Med standards']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.0, facilities: 4, protection: 4, convenience: 5 }
+  },
+
+  {
+    id: 'lefkada-marina',
+    name: 'Lefkas Marina',
+    type: 'marina',
+    coordinates: { latitude: 38.8326, longitude: 20.7070 },
+    location: { city: 'Lefkada', state: 'Ionian Islands', country: 'Greece' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'fiberglass'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 8, channelDepth: 10, dockDepth: 6, tidalRange: 0.5,
+      approach: 'Through the Lefkada Canal from the north - swing bridge opens on the hour',
+      hazards: ['Canal is narrow and shallow (2m depth)', 'Swing bridge schedule', 'Sand bar at canal entrance'],
+      bestTideState: 'Check for any seiche effects'
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 80 },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - mud', depth: '10-20 ft', protection: ['E', 'W'] }
+    },
+    contact: { vhf: '16', phone: '+30-26450-24494' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone. Port police for check-in.' },
+    localKnowledge: {
+      bestApproach: 'Canal bridge opens at set times - check schedule. Major charter base for Ionian islands.',
+      weatherConsiderations: ['Ionian is calmer than Aegean - no Meltemi', 'Afternoon thermal breeze', 'Green and lush (more rain than Aegean)'],
+      notes: ['Major Ionian charter base', 'Protected from Meltemi', 'Beautiful beaches', 'Bridge schedule critical']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: false, marina: true },
+    rating: { overall: 4.3, facilities: 4, protection: 4, convenience: 4 }
+  },
+
+  {
+    id: 'rhodes-mandraki',
+    name: 'Mandraki Harbour',
+    type: 'harbor',
+    coordinates: { latitude: 36.4489, longitude: 28.2262 },
+    location: { city: 'Rhodes', state: 'Dodecanese', country: 'Greece' },
+    facilities: {
+      fuel: { diesel: true, gasoline: false },
+      water: true, electricity: true, pumpout: false, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine'] },
+      haulOut: false, chandlery: false
+    },
+    navigation: {
+      approachDepth: 12, channelDepth: 15, dockDepth: 8, tidalRange: 0.5,
+      approach: 'Enter from the north past the iconic deer statues on columns',
+      hazards: ['Meltemi creates rough seas in approach', 'Surge in harbour with NW winds', 'Shallow near walls'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 60 },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Fair - sand', depth: '15-25 ft', protection: ['W'] }
+    },
+    contact: { vhf: '16', phone: '+30-22410-22220' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'EU Schengen zone. Useful stop before/after Turkey.' },
+    localKnowledge: {
+      bestApproach: 'Historic harbour where the Colossus once stood. Med-moor stern-to on the quay.',
+      weatherConsiderations: ['Meltemi can blow 30+ knots Jul-Aug', 'Sheltered from south', 'Hot dry summers'],
+      notes: ['UNESCO Medieval Old Town', 'Close to Turkish coast', 'Last Greek stop before Turkey', 'Historic Knights quarter']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: false, publicTransport: true, marina: false },
+    rating: { overall: 3.8, facilities: 3, protection: 3, convenience: 5 }
+  },
+
+  // =============================================
+  // TURKEY
+  // =============================================
+
+  {
+    id: 'marmaris-yacht-marina',
+    name: 'Marmaris Yacht Marina',
+    type: 'marina',
+    coordinates: { latitude: 36.8503, longitude: 28.2675 },
+    location: { city: 'Marmaris', state: 'Mugla', country: 'Turkey' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'rigging', 'fiberglass', 'sails', 'electronics'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 15, channelDepth: 20, dockDepth: 10, tidalRange: 0.5,
+      approach: 'Enter the large natural bay from the southwest, marina at the head',
+      hazards: ['Gulet and day-tripper traffic in summer', 'Shallow area near town quay'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 150, reservation: 'Recommended May-Oct' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - mud', depth: '15-30 ft', protection: ['All'] }
+    },
+    contact: { vhf: '16', phone: '+90-252-412-2708' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'Turkish transit log required. Check in with Harbour Master, customs, and immigration.' },
+    localKnowledge: {
+      bestApproach: 'One of the best protected natural harbours in the Med. Popular wintering spot.',
+      weatherConsiderations: ['Excellent protection from all directions', 'Hot summers', 'Mild winters - popular overwinter spot'],
+      notes: ['Major charter base', 'Excellent value for repairs', 'Beautiful Turkish coast', 'Popular overwinter destination']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.6, facilities: 5, protection: 5, convenience: 5 }
+  },
+
+  {
+    id: 'bodrum-milta-marina',
+    name: 'Milta Bodrum Marina',
+    type: 'marina',
+    coordinates: { latitude: 37.0318, longitude: 27.4239 },
+    location: { city: 'Bodrum', state: 'Mugla', country: 'Turkey' },
+    facilities: {
+      fuel: { diesel: true, gasoline: true },
+      water: true, electricity: true, pumpout: true, ice: true, provisions: true,
+      showers: true, laundry: true, wifi: true,
+      repair: { available: true, types: ['engine', 'fiberglass', 'sails'] },
+      haulOut: true, chandlery: true
+    },
+    navigation: {
+      approachDepth: 12, channelDepth: 15, dockDepth: 8, tidalRange: 0.5,
+      approach: 'Enter Bodrum Bay from the west, marina below the Castle of St. Peter',
+      hazards: ['Meltemi creates steep seas in approach', 'Tourist boat traffic', 'Shallow near castle'],
+    },
+    services: {
+      slips: { available: true, transient: true, maxLength: 100, reservation: 'Essential Jul-Aug' },
+      moorings: { available: false, rental: false },
+      anchorage: { available: true, holding: 'Good - sand/mud', depth: '15-25 ft', protection: ['N', 'E'] }
+    },
+    contact: { vhf: '16', phone: '+90-252-316-1860' },
+    customs: { portOfEntry: true, cbpRequired: false, procedures: 'Turkish transit log required.' },
+    localKnowledge: {
+      bestApproach: 'Beautiful approach below the Crusader castle. Home of blue voyage (gulet) tradition.',
+      weatherConsiderations: ['Meltemi can blow hard Jul-Aug', 'Protected from S and W', 'Excellent spring/autumn sailing'],
+      notes: ['Castle of St. Peter (museum)', 'Bodrum Cup regatta', 'Home of gulet tradition', 'Vibrant nightlife']
+    },
+    amenities: { restaurants: true, groceries: true, hardwareStore: true, publicTransport: true, marina: true },
+    rating: { overall: 4.4, facilities: 4, protection: 3, convenience: 5 }
   }
 ];
 

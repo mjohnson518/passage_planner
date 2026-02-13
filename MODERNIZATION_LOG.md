@@ -764,6 +764,42 @@ The frontend now runs with full TypeScript strict mode:
 - `frontend/app/globals.css` — Global styles and design tokens
 - `tests/playwright.config.ts` — Playwright test configuration
 
+---
+
+## Phase 8: Tier 1 Safety-Critical Fixes
+
+**Date:** 2026-02-12
+**Status:** Complete
+
+### Summary
+
+Implemented 6 life-safety-critical fixes across the orchestrator and agent layers. These address audit logging, data freshness enforcement, failure messaging, weather worst-case warnings, and route detour verification.
+
+### Changes
+
+| Step | Fix | Files Modified |
+|------|-----|----------------|
+| 1 | **Safety audit logging** — SafetyAuditLogger integrated into orchestrator. Logs route analyses, data sources, and all warnings shown to users for incident investigation. Flushes pending writes on shutdown. | `orchestrator/src/SimpleOrchestrator.ts` |
+| 2 | **Weather freshness enforcement** — New `validateWeatherFreshness()` rejects data >1hr old per CLAUDE.md, warns on approaching staleness (>30min), flags missing freshness metadata, propagates confidence levels to user. | `orchestrator/src/SimpleOrchestrator.ts` |
+| 3 | **Tidal freshness validation** — New `validateTidalFreshness()` in TidalAgent checks prediction coverage vs requested time range, detects gaps >6hrs, warns on distant stations (>40nm). Orchestrator extracts and surfaces tidal warnings. | `agents/tidal/src/index.ts`, `orchestrator/src/SimpleOrchestrator.ts` |
+| 4 | **Enriched safety failure messaging** — SafetyAgent crash no longer returns a single generic message. Now provides: failure reason/timestamp, 6-item manual safety checklist (NOAA warnings, depth verification, restricted areas, weather, tides, emergency contacts), 4 required actions (manual verification, official charts, float plan, VHF 16), `systemFailure` flag, and urgent disclaimer. | `orchestrator/src/SimpleOrchestrator.ts` |
+| 5 | **Weather worst-case warnings** — Strengthened `generateWarnings()` with gale warning (>33kt), moderate wind warning (>20kt), rough seas warning (>4m), and single-source confidence warning. Handles both array and object weather formats. Also includes `windGust` and `significantWaveHeight` fields. | `orchestrator/src/SimpleOrchestrator.ts` |
+| 6 | **Route detour clearance verification** — Legacy `calculateDetour()` replaced with iterative version that tries 10/20/30nm offsets on both sides, verifies both new segments clear all avoid areas using `turf.booleanCrosses()`/`turf.booleanWithin()`, and throws requiring manual route planning if no clear path found. | `agents/route/src/RouteAgent.ts` |
+
+### Files Modified: 3
+
+| File | Lines Changed |
+|------|--------------|
+| `orchestrator/src/SimpleOrchestrator.ts` | +180 (audit logging, freshness checks, enriched fallbacks, tidal warning extraction, strengthened weather warnings) |
+| `agents/tidal/src/index.ts` | +45 (tidal freshness validation, response enrichment) |
+| `agents/route/src/RouteAgent.ts` | +60 (iterative clearance-verified detour calculation) |
+
+### Verification
+
+- **Build:** `npm run build` — all workspaces pass
+- **Tests:** `npm test` — 669+ tests pass, 0 new failures
+- **Type check:** `npm run type-check` — 0 errors (shared, orchestrator, frontend)
+
 ### Key Directories
 - `frontend/app/components/ui/` — 25 shadcn/ui components
 - `frontend/app/components/` — 40+ domain components

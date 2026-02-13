@@ -195,7 +195,16 @@ export class TidalAgent extends BaseAgent {
         new Date(startDate),
         new Date(endDate)
       );
-      
+
+      // Validate tidal data freshness and coverage
+      const freshnessWarnings = this.validateTidalFreshness(
+        predictions,
+        new Date(startDate),
+        new Date(endDate),
+        latitude,
+        longitude
+      );
+
       return {
         content: [
           {
@@ -204,7 +213,10 @@ export class TidalAgent extends BaseAgent {
           },
           {
             type: 'data',
-            data: predictions
+            data: {
+              ...predictions,
+              freshnessWarnings
+            }
           }
         ]
       };
@@ -265,6 +277,58 @@ export class TidalAgent extends BaseAgent {
     }
   }
   
+  /**
+   * Validate tidal data freshness and coverage
+   * SAFETY CRITICAL: Incomplete tidal data can lead to groundings
+   */
+  private validateTidalFreshness(
+    predictions: any,
+    requestedStart: Date,
+    requestedEnd: Date,
+    latitude?: number,
+    longitude?: number
+  ): string[] {
+    const warnings: string[] = [];
+
+    if (!predictions) {
+      warnings.push('⚠️ TIDAL DATA UNAVAILABLE - verify tidal conditions from official sources before departure');
+      return warnings;
+    }
+
+    // Check if prediction time range covers requested range
+    if (predictions.extremes && predictions.extremes.length > 0) {
+      const predictionStart = new Date(predictions.extremes[0].time);
+      const predictionEnd = new Date(predictions.extremes[predictions.extremes.length - 1].time);
+
+      if (predictionStart > requestedStart) {
+        warnings.push(`⚠️ Tidal predictions start at ${predictionStart.toISOString()} but passage starts at ${requestedStart.toISOString()} - early portion not covered`);
+      }
+      if (predictionEnd < requestedEnd) {
+        warnings.push(`⚠️ Tidal predictions end at ${predictionEnd.toISOString()} but passage extends to ${requestedEnd.toISOString()} - later portion not covered`);
+      }
+
+      // Check for gaps >6 hours in predictions
+      for (let i = 1; i < predictions.extremes.length; i++) {
+        const prev = new Date(predictions.extremes[i - 1].time);
+        const curr = new Date(predictions.extremes[i].time);
+        const gapHours = (curr.getTime() - prev.getTime()) / (1000 * 60 * 60);
+        if (gapHours > 6) {
+          warnings.push(`⚠️ Gap of ${Math.round(gapHours)} hours in tidal predictions between ${prev.toISOString()} and ${curr.toISOString()}`);
+          break; // Only report the first gap
+        }
+      }
+    } else {
+      warnings.push('⚠️ No tidal extremes data available - verify high/low tide times from official sources');
+    }
+
+    // Warn if station is distant (lower accuracy)
+    if (predictions.station?.distance && predictions.station.distance > 40) {
+      warnings.push(`⚠️ Nearest tidal station is ${Math.round(predictions.station.distance)}nm away - predictions may have reduced accuracy`);
+    }
+
+    return warnings;
+  }
+
   private formatTidalSummary(predictions: any, stationId: string): string {
     const lines = [
       `🌊 Tidal Predictions for Station ${stationId}`,
