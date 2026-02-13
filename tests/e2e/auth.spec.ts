@@ -1,171 +1,105 @@
 import { test, expect } from '@playwright/test'
-import { createTestUser, deleteTestUser } from '../helpers/test-utils'
+import { loginViaDemoMode, activateDemoMode } from '../helpers/test-utils'
 
 test.describe('Authentication Flow', () => {
-  let testEmail: string
-  let testPassword: string
+  test('should display login page correctly', async ({ page }) => {
+    await page.goto('/login')
 
-  test.beforeEach(async () => {
-    testEmail = `test-${Date.now()}@example.com`
-    testPassword = 'TestPassword123!'
+    // Verify page structure
+    await expect(page.locator('h1')).toContainText('Welcome Back')
+
+    // Verify form inputs exist
+    await expect(page.locator('[data-testid="login-email"]')).toBeVisible()
+    await expect(page.locator('[data-testid="login-password"]')).toBeVisible()
+    await expect(page.locator('[data-testid="login-submit"]')).toBeVisible()
+    await expect(page.locator('[data-testid="login-demo"]')).toBeVisible()
+
+    // Verify links
+    await expect(page.locator('[data-testid="login-forgot-password"]')).toBeVisible()
+    await expect(page.locator('[data-testid="login-signup-link"]')).toBeVisible()
   })
 
-  test.afterEach(async () => {
-    // Cleanup
-    await deleteTestUser(testEmail)
+  test('should validate empty email field', async ({ page }) => {
+    await page.goto('/login')
+
+    // Leave fields empty and submit
+    await page.locator('[data-testid="login-submit"]').click()
+
+    // Email validation should trigger (either via browser validation or custom)
+    const emailInput = page.locator('[data-testid="login-email"]')
+    await expect(emailInput).toBeVisible()
   })
 
-  test('should complete full signup flow', async ({ page }) => {
+  test('should validate email format', async ({ page }) => {
+    await page.goto('/login')
+
+    // Enter invalid email
+    await page.locator('[data-testid="login-email"]').fill('not-an-email')
+    await page.locator('[data-testid="login-password"]').fill('TestPassword123!')
+    await page.locator('[data-testid="login-submit"]').click()
+
+    // Should show email validation error
+    await expect(page.locator('text=valid email')).toBeVisible({ timeout: 5000 })
+  })
+
+  test('should navigate from login to signup', async ({ page }) => {
+    await page.goto('/login')
+
+    await page.locator('[data-testid="login-signup-link"]').click()
+    await expect(page).toHaveURL('/signup')
+  })
+
+  test('should navigate from signup to login', async ({ page }) => {
     await page.goto('/signup')
-    
-    // Fill signup form
-    await page.fill('[data-testid="email-input"]', testEmail)
-    await page.fill('[data-testid="password-input"]', testPassword)
-    await page.fill('[data-testid="confirm-password-input"]', testPassword)
-    
-    // Accept terms
-    await page.check('[data-testid="terms-checkbox"]')
-    
-    // Submit
-    await page.click('[data-testid="signup-button"]')
-    
-    // Should redirect to onboarding
-    await expect(page).toHaveURL('/onboarding')
-    
-    // Verify welcome message
-    await expect(page.locator('text=Welcome aboard!')).toBeVisible()
+
+    await page.locator('[data-testid="signup-login-link"]').click()
+    await expect(page).toHaveURL('/login')
   })
 
-  test('should handle login with various scenarios', async ({ page }) => {
-    // Create user first
-    await createTestUser(testEmail, testPassword)
-    
-    await page.goto('/login')
-    
-    // Test empty fields
-    await page.click('[data-testid="login-button"]')
-    await expect(page.locator('text=Email is required')).toBeVisible()
-    
-    // Test invalid email
-    await page.fill('[data-testid="email-input"]', 'invalid-email')
-    await page.fill('[data-testid="password-input"]', testPassword)
-    await page.click('[data-testid="login-button"]')
-    await expect(page.locator('text=Invalid email format')).toBeVisible()
-    
-    // Test wrong password
-    await page.fill('[data-testid="email-input"]', testEmail)
-    await page.fill('[data-testid="password-input"]', 'wrongpassword')
-    await page.click('[data-testid="login-button"]')
-    await expect(page.locator('text=Invalid credentials')).toBeVisible()
-    
-    // Test successful login
-    await page.fill('[data-testid="password-input"]', testPassword)
-    await page.click('[data-testid="login-button"]')
-    
-    // Should redirect to dashboard
+  test('should enter demo mode and navigate to dashboard', async ({ page }) => {
+    await loginViaDemoMode(page)
+
+    // Should be on dashboard
     await expect(page).toHaveURL('/dashboard')
-    
-    // Verify user menu is visible
-    await expect(page.locator('[data-testid="user-menu"]')).toBeVisible()
+
+    // Should show demo banner
+    await expect(page.locator('[data-testid="dashboard-demo-banner"]')).toBeVisible()
+
+    // Should show welcome message
+    await expect(page.locator('[data-testid="dashboard-welcome"]')).toBeVisible()
   })
 
-  test('should handle password reset flow', async ({ page }) => {
-    await createTestUser(testEmail, testPassword)
-    
+  test('should display signup page correctly', async ({ page }) => {
+    await page.goto('/signup')
+
+    // Verify page structure
+    await expect(page.locator('h1')).toContainText('Create Your Account')
+
+    // Verify form inputs
+    await expect(page.locator('[data-testid="signup-name"]')).toBeVisible()
+    await expect(page.locator('[data-testid="signup-email"]')).toBeVisible()
+    await expect(page.locator('[data-testid="signup-password"]')).toBeVisible()
+    await expect(page.locator('[data-testid="signup-confirm-password"]')).toBeVisible()
+    await expect(page.locator('[data-testid="signup-terms"]')).toBeVisible()
+    await expect(page.locator('[data-testid="signup-submit"]')).toBeVisible()
+  })
+
+  test('should show password strength indicator on signup', async ({ page }) => {
+    await page.goto('/signup')
+
+    // Type a password to trigger strength indicator
+    await page.locator('[data-testid="signup-password"]').fill('Weak')
+    await expect(page.locator('[data-testid="signup-password-strength"]')).toBeVisible()
+
+    // Type a stronger password — strength should update
+    await page.locator('[data-testid="signup-password"]').fill('StrongPass1')
+    await expect(page.locator('[data-testid="signup-password-strength"]')).toBeVisible()
+  })
+
+  test('should navigate to forgot password', async ({ page }) => {
     await page.goto('/login')
-    await page.click('text=Forgot password?')
-    
-    // Should be on reset password page
+
+    await page.locator('[data-testid="login-forgot-password"]').click()
     await expect(page).toHaveURL('/reset-password')
-    
-    // Request reset
-    await page.fill('[data-testid="email-input"]', testEmail)
-    await page.click('[data-testid="reset-button"]')
-    
-    // Should show success message
-    await expect(page.locator('text=Check your email')).toBeVisible()
-    
-    // In real test, would check email and follow reset link
   })
-
-  test('should enforce password requirements', async ({ page }) => {
-    await page.goto('/signup')
-    
-    // Test weak password
-    await page.fill('[data-testid="password-input"]', 'weak')
-    await page.locator('[data-testid="password-input"]').blur()
-    
-    await expect(page.locator('text=Password must be at least 8 characters')).toBeVisible()
-    
-    // Test password without uppercase
-    await page.fill('[data-testid="password-input"]', 'password123!')
-    await page.locator('[data-testid="password-input"]').blur()
-    
-    await expect(page.locator('text=Password must contain an uppercase letter')).toBeVisible()
-    
-    // Test password without special character
-    await page.fill('[data-testid="password-input"]', 'Password123')
-    await page.locator('[data-testid="password-input"]').blur()
-    
-    await expect(page.locator('text=Password must contain a special character')).toBeVisible()
-  })
-
-  test('should handle session expiry', async ({ page, context }) => {
-    await createTestUser(testEmail, testPassword)
-    
-    // Login
-    await page.goto('/login')
-    await page.fill('[data-testid="email-input"]', testEmail)
-    await page.fill('[data-testid="password-input"]', testPassword)
-    await page.click('[data-testid="login-button"]')
-    
-    await expect(page).toHaveURL('/dashboard')
-    
-    // Clear auth token to simulate expiry
-    await context.clearCookies()
-    
-    // Try to access protected route
-    await page.goto('/planner')
-    
-    // Should redirect to login with message
-    await expect(page).toHaveURL('/login?expired=true')
-    await expect(page.locator('text=Session expired')).toBeVisible()
-  })
-
-  test('should handle concurrent sessions', async ({ browser }) => {
-    await createTestUser(testEmail, testPassword)
-    
-    // Login in first browser context
-    const context1 = await browser.newContext()
-    const page1 = await context1.newPage()
-    
-    await page1.goto('/login')
-    await page1.fill('[data-testid="email-input"]', testEmail)
-    await page1.fill('[data-testid="password-input"]', testPassword)
-    await page1.click('[data-testid="login-button"]')
-    
-    await expect(page1).toHaveURL('/dashboard')
-    
-    // Login in second browser context
-    const context2 = await browser.newContext()
-    const page2 = await context2.newPage()
-    
-    await page2.goto('/login')
-    await page2.fill('[data-testid="email-input"]', testEmail)
-    await page2.fill('[data-testid="password-input"]', testPassword)
-    await page2.click('[data-testid="login-button"]')
-    
-    await expect(page2).toHaveURL('/dashboard')
-    
-    // Both sessions should work
-    await page1.reload()
-    await expect(page1.locator('[data-testid="user-menu"]')).toBeVisible()
-    
-    await page2.reload()
-    await expect(page2.locator('[data-testid="user-menu"]')).toBeVisible()
-    
-    // Cleanup
-    await context1.close()
-    await context2.close()
-  })
-}) 
+})

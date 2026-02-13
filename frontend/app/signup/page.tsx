@@ -113,6 +113,7 @@ export default function SignupPage() {
                 <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   id="name"
+                  data-testid="signup-name"
                   name="name"
                   type="text"
                   placeholder="Captain Jack Sparrow"
@@ -130,6 +131,7 @@ export default function SignupPage() {
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   id="email"
+                  data-testid="signup-email"
                   name="email"
                   type="email"
                   placeholder="captain@example.com"
@@ -147,6 +149,7 @@ export default function SignupPage() {
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   id="password"
+                  data-testid="signup-password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
@@ -170,7 +173,7 @@ export default function SignupPage() {
               
               {/* Password Strength Indicator */}
               {formData.password && (
-                <div className="space-y-2 mt-2">
+                <div data-testid="signup-password-strength" className="space-y-2 mt-2">
                   <div className="flex gap-1">
                     {[...Array(4)].map((_, i) => (
                       <div
@@ -215,6 +218,7 @@ export default function SignupPage() {
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   id="confirmPassword"
+                  data-testid="signup-confirm-password"
                   name="confirmPassword"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
@@ -229,6 +233,7 @@ export default function SignupPage() {
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="terms"
+                data-testid="signup-terms"
                 checked={agreedToTerms}
                 onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
               />
@@ -249,6 +254,7 @@ export default function SignupPage() {
 
             <Button
               type="submit"
+              data-testid="signup-submit"
               fullWidth
               disabled={loading || !agreedToTerms || passwordStrength < 4}
               className="btn-primary"
@@ -266,7 +272,7 @@ export default function SignupPage() {
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link href="/login" className="text-primary hover:underline font-medium">
+            <Link href="/login" data-testid="signup-login-link" className="text-primary hover:underline font-medium">
               Sign in
             </Link>
           </p>

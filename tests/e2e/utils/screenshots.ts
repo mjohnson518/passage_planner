@@ -27,8 +27,14 @@ export const PUBLIC_ROUTES: RouteDefinition[] = [
   { path: '/signup',         name: 'signup' },
   { path: '/reset-password', name: 'reset-password' },
   { path: '/pricing',        name: 'pricing' },
-  { path: '/api-docs',       name: 'api-docs' },
-  { path: '/offline',        name: 'offline' },
+  { path: '/privacy',        name: 'privacy' },
+  { path: '/cookies',        name: 'cookies' },
+  { path: '/contact',        name: 'contact' },
+  { path: '/features',       name: 'features' },
+  { path: '/docs',           name: 'docs' },
+  { path: '/changelog',      name: 'changelog' },
+  { path: '/blog',           name: 'blog' },
+  { path: '/careers',        name: 'careers' },
 ]
 
 export const AUTH_ROUTES: RouteDefinition[] = [

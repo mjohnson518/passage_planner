@@ -159,7 +159,7 @@ export default function DashboardPage() {
         <div className="relative container mx-auto px-4 py-8 lg:py-12 max-w-7xl">
           {/* Demo Mode Banner */}
           {isDemoMode && (
-            <div className="mb-6 p-4 bg-brass-100 dark:bg-brass-900/20 border border-brass-300 dark:border-brass-700 rounded-lg flex items-center justify-between">
+            <div data-testid="dashboard-demo-banner" className="mb-6 p-4 bg-brass-100 dark:bg-brass-900/20 border border-brass-300 dark:border-brass-700 rounded-lg flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <AlertCircle className="h-5 w-5 text-brass-600 dark:text-brass-400" />
                 <div>
@@ -174,7 +174,7 @@ export default function DashboardPage() {
           )}
 
           {/* Welcome Section */}
-          <div className="mb-10">
+          <div data-testid="dashboard-welcome" className="mb-10">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-ocean-deep flex items-center justify-center">
                 <Anchor className="h-6 w-6 text-primary-foreground" />
@@ -222,7 +222,7 @@ export default function DashboardPage() {
                 accent: 'muted',
               },
             ].map((item) => (
-              <Link key={item.href} href={item.href} className="group">
+              <Link key={item.href} href={item.href} className="group" {...(item.href === '/planner' ? { 'data-testid': 'dashboard-new-passage' } : {})}>
                 <Card className="h-full card-hover">
                   <CardContent className="p-5 lg:p-6 text-center">
                     <div className={cn(

@@ -62,6 +62,12 @@ export default function PlannerPage() {
     boat: '',
     cruiseSpeed: 6,
     maxSpeed: 8,
+    draft: 0,
+    fuelCapacity: 0,
+    fuelRate: 0,
+    waterCapacity: 0,
+    crewSize: 2,
+    checklist: {} as Record<string, boolean>,
     waypoints: [] as Waypoint[]
   })
 
@@ -161,9 +167,9 @@ export default function PlannerPage() {
         },
         vessel: {
           cruiseSpeed: formData.cruiseSpeed,
-          draft: 5.5, // Default draft in feet
-          crewExperience: 'advanced', // Default to advanced
-          crewSize: 2
+          draft: formData.draft > 0 ? formData.draft : 5.5,
+          crewExperience: 'advanced',
+          crewSize: formData.crewSize || 2
         }
       };
 
@@ -203,7 +209,7 @@ export default function PlannerPage() {
 
       {/* Agent Status Display */}
       {loading && (
-        <Card className="mb-6 border-blue-200 bg-blue-50">
+        <Card data-testid="planner-loading" className="mb-6 border-blue-200 bg-blue-50">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -235,7 +241,7 @@ export default function PlannerPage() {
       {passagePlan && (
         <div className="space-y-6 mb-6">
           {/* Safety Decision - PROMINENT DISPLAY */}
-          <Card className={`border-2 ${
+          <Card data-testid="planner-safety-decision" className={`border-2 ${
             passagePlan.summary.safetyDecision === 'GO' ? 'border-green-500 bg-green-50' :
             passagePlan.summary.safetyDecision === 'CAUTION' ? 'border-yellow-500 bg-yellow-50' :
             'border-red-500 bg-red-50'
@@ -273,7 +279,7 @@ export default function PlannerPage() {
           </Card>
 
           {/* Route Summary */}
-          <Card>
+          <Card data-testid="planner-route-results">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Compass className="h-5 w-5" />
@@ -303,7 +309,7 @@ export default function PlannerPage() {
           </Card>
 
           {/* Weather Data */}
-          <Card>
+          <Card data-testid="planner-weather-results">
           <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Ship className="h-5 w-5" />
@@ -345,7 +351,7 @@ export default function PlannerPage() {
           </Card>
 
           {/* Tidal Data */}
-          <Card>
+          <Card data-testid="planner-tidal-results">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
@@ -376,7 +382,7 @@ export default function PlannerPage() {
           </Card>
 
           {/* Navigation Warnings */}
-          <Card>
+          <Card data-testid="planner-nav-warnings">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5" />
@@ -414,7 +420,7 @@ export default function PlannerPage() {
           </Card>
 
           {/* Safety Analysis */}
-          <Card>
+          <Card data-testid="planner-safety-analysis">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5" />
@@ -456,7 +462,7 @@ export default function PlannerPage() {
           </Card>
 
           {/* Port Information */}
-          <Card>
+          <Card data-testid="planner-port-info">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MapPin className="h-5 w-5" />
@@ -529,6 +535,7 @@ export default function PlannerPage() {
                 </span>
                 <div className="flex gap-2">
                   <Button
+                    data-testid="planner-export-gpx"
                     size="sm"
                     variant="outline"
                     onClick={async () => {
@@ -553,6 +560,7 @@ export default function PlannerPage() {
                     📥 GPX
                   </Button>
                   <Button
+                    data-testid="planner-export-pdf"
                     size="sm"
                     variant="outline"
                     onClick={async () => {
@@ -620,15 +628,15 @@ export default function PlannerPage() {
       {/* Mobile-optimized tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-6">
-          <TabsTrigger value="route" className="text-xs sm:text-sm">
+          <TabsTrigger data-testid="planner-tab-route" value="route" className="text-xs sm:text-sm">
             <MapPin className="h-4 w-4 mr-1 sm:mr-2" />
             <span className="hidden sm:inline">Route</span>
           </TabsTrigger>
-          <TabsTrigger value="details" className="text-xs sm:text-sm">
+          <TabsTrigger data-testid="planner-tab-details" value="details" className="text-xs sm:text-sm">
             <Calendar className="h-4 w-4 mr-1 sm:mr-2" />
             <span className="hidden sm:inline">Details</span>
           </TabsTrigger>
-          <TabsTrigger value="preferences" className="text-xs sm:text-sm">
+          <TabsTrigger data-testid="planner-tab-preferences" value="preferences" className="text-xs sm:text-sm">
             <Ship className="h-4 w-4 mr-1 sm:mr-2" />
             <span className="hidden sm:inline">Preferences</span>
           </TabsTrigger>
@@ -647,6 +655,7 @@ export default function PlannerPage() {
                   <div className="relative mt-1">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
                     <PortSelector
+                      data-testid="planner-departure"
                       value={formData.departure}
                       onChange={(value) => setFormData(prev => ({ ...prev, departure: value }))}
                       onPortSelected={(port) => {
@@ -668,6 +677,7 @@ export default function PlannerPage() {
                   <div className="relative mt-1">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
                     <PortSelector
+                      data-testid="planner-destination"
                       value={formData.destination}
                       onChange={(value) => setFormData(prev => ({ ...prev, destination: value }))}
                       onPortSelected={(port) => {
@@ -691,6 +701,7 @@ export default function PlannerPage() {
                   <Label>Waypoints (Optional)</Label>
                   <Button
                     type="button"
+                    data-testid="planner-add-waypoint"
                     variant="outline"
                     size="sm"
                     onClick={addWaypoint}
@@ -753,6 +764,7 @@ export default function PlannerPage() {
                 <Label htmlFor="boat">Boat Type *</Label>
                 <select
                   id="boat"
+                  data-testid="planner-boat-type"
                   value={formData.boat}
                   onChange={(e) => setFormData(prev => ({ ...prev, boat: e.target.value }))}
                   className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -770,6 +782,7 @@ export default function PlannerPage() {
                   <Label htmlFor="cruise-speed">Cruise Speed (kts)</Label>
                   <Input
                     id="cruise-speed"
+                    data-testid="planner-cruise-speed"
                     type="number"
                     min="1"
                     max="30"
@@ -789,21 +802,143 @@ export default function PlannerPage() {
                   />
                 </div>
               </div>
+
+              <div>
+                <Label htmlFor="draft">Vessel Draft (feet)</Label>
+                <Input
+                  id="draft"
+                  data-testid="planner-draft"
+                  type="number"
+                  min="0.5"
+                  max="40"
+                  step="0.1"
+                  value={formData.draft || ''}
+                  placeholder="e.g., 5.5"
+                  onChange={(e) => setFormData(prev => ({ ...prev, draft: parseFloat(e.target.value) || 0 }))}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Used for under-keel clearance calculations. Defaults to 5.5ft if not set.
+                </p>
+              </div>
             </CardContent>
           </TabsContent>
 
           <TabsContent value="preferences" className="mt-0">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg">Passage Preferences</CardTitle>
-              <CardDescription>Customize your passage planning preferences</CardDescription>
+              <CardTitle className="text-lg">Vessel & Provisioning</CardTitle>
+              <CardDescription>Fuel, water, and provisioning calculations with 30% safety reserves</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="bg-muted/30 rounded-lg p-4">
-                  <p className="text-sm">
-                    Your default preferences from your boat profile will be used. 
-                    You can adjust these after the passage is created.
-                  </p>
+            <CardContent className="space-y-6">
+              {/* Fuel Calculator */}
+              <div>
+                <p className="font-semibold text-sm mb-3">Fuel Planning</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="fuelCapacity" className="text-xs">Tank Capacity (gal)</Label>
+                    <Input
+                      id="fuelCapacity"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={formData.fuelCapacity || ''}
+                      placeholder="e.g., 80"
+                      onChange={(e) => setFormData(prev => ({ ...prev, fuelCapacity: parseFloat(e.target.value) || 0 }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="fuelRate" className="text-xs">Consumption (gal/hr)</Label>
+                    <Input
+                      id="fuelRate"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formData.fuelRate || ''}
+                      placeholder="e.g., 2.5"
+                      onChange={(e) => setFormData(prev => ({ ...prev, fuelRate: parseFloat(e.target.value) || 0 }))}
+                    />
+                  </div>
+                </div>
+                {formData.fuelCapacity > 0 && formData.fuelRate > 0 && (
+                  <div className="mt-2 p-3 bg-muted/30 rounded text-sm space-y-1">
+                    <p>Range at cruise: <strong>{(formData.fuelCapacity / formData.fuelRate * formData.cruiseSpeed).toFixed(0)} nm</strong></p>
+                    <p>Fuel needed (est): <strong>{passagePlan ? (passagePlan.route.estimatedDurationHours * formData.fuelRate).toFixed(1) : '---'} gal</strong></p>
+                    <p>30% reserve: <strong>{passagePlan ? (passagePlan.route.estimatedDurationHours * formData.fuelRate * 1.3).toFixed(1) : '---'} gal</strong></p>
+                    {passagePlan && (formData.fuelCapacity < passagePlan.route.estimatedDurationHours * formData.fuelRate * 1.3) && (
+                      <p className="text-red-600 font-semibold">Insufficient fuel with 30% reserve!</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Water Calculator */}
+              <div>
+                <p className="font-semibold text-sm mb-3">Water Planning</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="waterCapacity" className="text-xs">Tank Capacity (gal)</Label>
+                    <Input
+                      id="waterCapacity"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={formData.waterCapacity || ''}
+                      placeholder="e.g., 100"
+                      onChange={(e) => setFormData(prev => ({ ...prev, waterCapacity: parseFloat(e.target.value) || 0 }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="crewSize" className="text-xs">Crew Size</Label>
+                    <Input
+                      id="crewSize"
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={formData.crewSize || 2}
+                      onChange={(e) => setFormData(prev => ({ ...prev, crewSize: parseInt(e.target.value) || 2 }))}
+                    />
+                  </div>
+                </div>
+                {formData.waterCapacity > 0 && (
+                  <div className="mt-2 p-3 bg-muted/30 rounded text-sm space-y-1">
+                    <p>Water per person/day: <strong>1 gallon (min)</strong></p>
+                    <p>Water needed (est): <strong>{passagePlan ? ((passagePlan.route.estimatedDurationHours / 24) * (formData.crewSize || 2)).toFixed(1) : '---'} gal</strong></p>
+                    <p>30% reserve: <strong>{passagePlan ? ((passagePlan.route.estimatedDurationHours / 24) * (formData.crewSize || 2) * 1.3).toFixed(1) : '---'} gal</strong></p>
+                  </div>
+                )}
+              </div>
+
+              {/* Pre-Departure Checklist */}
+              <div>
+                <p className="font-semibold text-sm mb-3">Pre-Departure Checklist</p>
+                <div className="space-y-2">
+                  {[
+                    { id: 'weather', label: 'Check latest weather forecast & marine warnings' },
+                    { id: 'tides', label: 'Verify tidal heights for departure and arrival' },
+                    { id: 'floatplan', label: 'File float plan with shore contact' },
+                    { id: 'safety', label: 'Check safety equipment (PFDs, flares, fire extinguisher)' },
+                    { id: 'nav', label: 'Review charts and update navigation equipment' },
+                    { id: 'fuel', label: 'Verify fuel and water levels' },
+                    { id: 'engine', label: 'Engine check (oil, coolant, belts)' },
+                    { id: 'vhf', label: 'Test VHF radio - confirm Channel 16 reception' },
+                    { id: 'crew', label: 'Crew briefing: route, watch schedule, MOB procedures' },
+                    { id: 'epirb', label: 'EPIRB/PLB registered and charged' },
+                  ].map(item => (
+                    <label key={item.id} className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.checklist?.[item.id] || false}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          checklist: { ...prev.checklist, [item.id]: e.target.checked }
+                        }))}
+                        className="mt-1 rounded border-gray-300"
+                      />
+                      <span className="text-sm">{item.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-3 text-xs text-muted-foreground">
+                  {Object.values(formData.checklist || {}).filter(Boolean).length}/10 items completed
                 </div>
               </div>
             </CardContent>
@@ -822,6 +957,7 @@ export default function PlannerPage() {
             Cancel
           </Button>
           <Button
+            data-testid="planner-submit"
             onClick={handleSubmit}
             disabled={loading || !formData.departure || !formData.destination}
             className="flex-1 lg:flex-initial"

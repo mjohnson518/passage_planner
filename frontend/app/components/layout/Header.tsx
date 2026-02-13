@@ -71,10 +71,10 @@ export function Header() {
         ? 'glass-heavy shadow-maritime'
         : 'bg-background/80 backdrop-blur-sm'
     )}>
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-8">
+      <nav data-testid="header-nav" className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-8">
         {/* Logo */}
         <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2.5 group">
+          <Link href="/" data-testid="header-logo" className="flex items-center gap-2.5 group">
             <div className="relative">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-ocean-deep flex items-center justify-center shadow-maritime group-hover:shadow-maritime-lg transition-shadow">
                 <Anchor className="h-5 w-5 text-primary-foreground" />
@@ -142,7 +142,7 @@ export function Header() {
 
           {/* User Menu */}
           {isAuthenticated ? (
-            <div className="relative group hidden lg:block">
+            <div data-testid="header-user-menu" className="relative group hidden lg:block">
               <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors">
                 <div className={cn(
                   'w-8 h-8 rounded-full flex items-center justify-center text-xs text-white font-semibold',

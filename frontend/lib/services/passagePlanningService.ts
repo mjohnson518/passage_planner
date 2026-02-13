@@ -1,7 +1,7 @@
 /**
  * Passage Planning Service
  * Connects to production backend API to fetch comprehensive passage planning data
- * 
+ *
  * Integrates 6 data sources:
  * 1. Route calculations
  * 2. Weather data (NOAA)
@@ -11,8 +11,24 @@
  * 6. Port information
  */
 
+import { getSupabase } from '../../app/lib/supabase-client';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://passage-plannerorchestrator-production.up.railway.app';
 const TIMEOUT = 30000; // 30 second timeout
+
+/**
+ * Get auth token from Supabase session (if available)
+ */
+async function getAuthToken(): Promise<string | null> {
+  try {
+    const supabase = getSupabase();
+    if (!supabase) return null;
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token || null;
+  } catch {
+    return null;
+  }
+}
 
 export interface PassagePlanningRequest {
   departure: {
@@ -230,12 +246,18 @@ export async function planPassage(
 
   try {
     console.log('Calling passage planning API:', `${API_URL}/api/passage-planning/analyze`);
-    
+
+    const token = await getAuthToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`${API_URL}/api/passage-planning/analyze`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(request),
       signal: controller.signal,
     });

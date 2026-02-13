@@ -18,6 +18,7 @@ interface PortSelectorProps {
   placeholder?: string
   className?: string
   id?: string
+  'data-testid'?: string
 }
 
 // Global port database for fallback when Google Maps unavailable
@@ -76,7 +77,8 @@ export default function PortSelector({
   onPortSelected,
   placeholder = 'Type port name...',
   className = '',
-  id
+  id,
+  'data-testid': dataTestId
 }: PortSelectorProps) {
   const [searchTerm, setSearchTerm] = useState(value)
   const [showDropdown, setShowDropdown] = useState(false)
@@ -119,9 +121,10 @@ export default function PortSelector({
   }
 
   return (
-    <div ref={wrapperRef} className="relative">
+    <div ref={wrapperRef} className="relative" data-testid={dataTestId || (id ? `port-selector-${id}` : 'port-selector')}>
       <Input
         type="text"
+        data-testid={id ? `port-selector-${id}-input` : 'port-selector-input'}
         value={searchTerm}
         onChange={(e) => {
           setSearchTerm(e.target.value)
@@ -132,9 +135,9 @@ export default function PortSelector({
         className={className}
         id={id}
       />
-      
+
       {showDropdown && filteredPorts.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+        <div data-testid="port-selector-dropdown" className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
           {filteredPorts.map((port, index) => (
             <div
               key={index}

@@ -100,40 +100,31 @@ export default function HomePage() {
 
               <div className="mt-10 flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
                 <Link href="/signup">
-                  <Button size="lg" className="btn-primary group">
+                  <Button data-testid="hero-cta-signup" size="lg" className="btn-primary group">
                     Start Free Trial
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Button>
                 </Link>
                 <Link href="/demo">
-                  <Button size="lg" variant="outline" className="btn-secondary">
+                  <Button data-testid="hero-cta-demo" size="lg" variant="outline" className="btn-secondary">
                     View Demo
                   </Button>
                 </Link>
               </div>
 
-              {/* Social proof */}
+              {/* Platform highlights */}
               <div className="mt-12 flex flex-col sm:flex-row items-center gap-6 justify-center lg:justify-start text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="flex -space-x-2">
-                    {[1,2,3,4].map((i) => (
-                      <div
-                        key={i}
-                        className="w-8 h-8 rounded-full bg-gradient-to-br from-ocean-300 to-ocean-600 border-2 border-background flex items-center justify-center text-xs text-white font-medium"
-                      >
-                        {['JD', 'MK', 'SL', 'RB'][i-1]}
-                      </div>
-                    ))}
-                  </div>
-                  <span className="text-muted-foreground">500+ sailors trust Helmwise</span>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Shield className="h-4 w-4 text-primary" />
+                  <span>Safety-first passage planning</span>
                 </div>
-                <div className="flex items-center gap-1 text-accent">
-                  {[1,2,3,4,5].map((i) => (
-                    <svg key={i} className="w-4 h-4 fill-current" viewBox="0 0 20 20">
-                      <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"/>
-                    </svg>
-                  ))}
-                  <span className="ml-1 text-muted-foreground">4.9/5 rating</span>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Navigation className="h-4 w-4 text-primary" />
+                  <span>70+ ports covered</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Zap className="h-4 w-4 text-primary" />
+                  <span>6 AI agents in parallel</span>
                 </div>
               </div>
             </div>
@@ -206,15 +197,15 @@ export default function HomePage() {
         <WaveDecoration className="absolute bottom-0 left-0 right-0 w-full h-24 text-secondary" />
       </section>
 
-      {/* Trusted By / Stats Section */}
+      {/* Platform Capabilities Section */}
       <section className="relative px-4 py-16 sm:px-6 lg:px-8 bg-secondary/30">
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
-              { value: '50K+', label: 'Passages Planned', icon: Map },
-              { value: '2M+', label: 'Nautical Miles', icon: Navigation },
-              { value: '99.9%', label: 'Uptime', icon: BarChart3 },
+              { value: '6', label: 'Specialized AI Agents', icon: Zap },
+              { value: '70+', label: 'Ports Covered', icon: Map },
               { value: '<30s', label: 'Avg. Plan Time', icon: Clock },
+              { value: '5', label: 'Data Sources Integrated', icon: BarChart3 },
             ].map((stat, i) => (
               <div key={i} className="group">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary mb-4 group-hover:scale-110 transition-transform">
@@ -345,98 +336,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Agent Showcase */}
-      <section className="relative px-4 py-20 sm:px-6 lg:px-8 lg:py-28 overflow-hidden">
-        <div className="absolute inset-0 chart-grid opacity-30" />
-        <CompassRose className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] text-primary opacity-[0.03]" />
-
-        <div className="relative mx-auto max-w-7xl">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <span className="badge-brass mb-4">Technology</span>
-              <h2 className="font-display mt-4 mb-6">
-                Powered by the Model Context Protocol
-              </h2>
-              <p className="text-lg text-muted-foreground mb-8">
-                Helmwise leverages cutting-edge AI orchestration to coordinate specialized agents. Each agent is an expert in its domain, working in parallel to deliver comprehensive analysis in seconds.
-              </p>
-
-              <div className="space-y-4">
-                {[
-                  { name: 'Route Agent', desc: 'Calculates optimal waypoints and bearings' },
-                  { name: 'Weather Agent', desc: 'Analyzes NOAA forecasts and conditions' },
-                  { name: 'Tidal Agent', desc: 'Predicts tides and currents' },
-                  { name: 'Safety Agent', desc: 'Assesses risks and emergency options' },
-                  { name: 'Port Agent', desc: 'Gathers marina and facility data' },
-                  { name: 'Warning Agent', desc: 'Monitors NAVTEX and coast guard alerts' },
-                ].map((agent, i) => (
-                  <div key={i} className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                    <div>
-                      <p className="font-medium">{agent.name}</p>
-                      <p className="text-sm text-muted-foreground">{agent.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="relative">
-              <div className="aspect-square max-w-md mx-auto">
-                {/* Central hub */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full bg-gradient-to-br from-primary to-ocean-deep flex items-center justify-center shadow-maritime-lg z-10">
-                  <Anchor className="h-10 w-10 text-primary-foreground" />
-                </div>
-
-                {/* Orbiting agents */}
-                {[Cloud, Waves, Map, Shield, Anchor, Compass].map((Icon, i) => {
-                  const angle = (i * 60) * (Math.PI / 180)
-                  const radius = 140
-                  const x = Math.cos(angle) * radius
-                  const y = Math.sin(angle) * radius
-
-                  return (
-                    <div
-                      key={i}
-                      className="absolute w-14 h-14 rounded-full bg-card border-2 border-primary/20 flex items-center justify-center shadow-maritime animate-float"
-                      style={{
-                        top: `calc(50% + ${y}px - 28px)`,
-                        left: `calc(50% + ${x}px - 28px)`,
-                        animationDelay: `${i * 0.3}s`,
-                      }}
-                    >
-                      <Icon className="h-6 w-6 text-primary" />
-                    </div>
-                  )
-                })}
-
-                {/* Connection lines */}
-                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 400">
-                  {[0, 1, 2, 3, 4, 5].map((i) => {
-                    const angle = (i * 60) * (Math.PI / 180)
-                    const x = 200 + Math.cos(angle) * 140
-                    const y = 200 + Math.sin(angle) * 140
-                    return (
-                      <line
-                        key={i}
-                        x1="200"
-                        y1="200"
-                        x2={x}
-                        y2={y}
-                        stroke="currentColor"
-                        strokeWidth="1"
-                        className="text-primary/20"
-                        strokeDasharray="4 4"
-                      />
-                    )
-                  })}
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Pricing Section */}
       <PricingSection />
 
@@ -447,7 +346,7 @@ export default function HomePage() {
             Ready to Navigate Smarter?
           </h2>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-primary-foreground/80">
-            Join thousands of sailors who trust Helmwise for safer, smarter passage planning. Start your free trial today.
+            Experience AI-powered passage planning with real-time weather, tidal analysis, and comprehensive safety briefings. Start your free trial today.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/signup">
@@ -470,7 +369,7 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="px-4 py-12 sm:px-6 lg:px-8 border-t border-border">
+      <footer data-testid="footer" className="px-4 py-12 sm:px-6 lg:px-8 border-t border-border">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 md:grid-cols-4">
             <div>

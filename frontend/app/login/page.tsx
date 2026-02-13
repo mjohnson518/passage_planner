@@ -263,7 +263,7 @@ export default function LoginPage() {
             )}
 
             {error && (
-              <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+              <div data-testid="login-error" className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
                 <p className="text-destructive text-sm">{error}</p>
               </div>
             )}
@@ -275,6 +275,7 @@ export default function LoginPage() {
                   <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <Input
                     id="email"
+                    data-testid="login-email"
                     type="email"
                     placeholder="captain@example.com"
                     value={email}
@@ -298,7 +299,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <Link href="/reset-password" className="text-sm text-primary hover:underline">
+                  <Link href="/reset-password" data-testid="login-forgot-password" className="text-sm text-primary hover:underline">
                     Forgot password?
                   </Link>
                 </div>
@@ -306,6 +307,7 @@ export default function LoginPage() {
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <Input
                     id="password"
+                    data-testid="login-password"
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Enter your password"
                     value={password}
@@ -339,6 +341,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
+                data-testid="login-submit"
                 fullWidth
                 disabled={loading || !supabaseConfigured}
                 className="btn-primary h-12"
@@ -358,6 +361,7 @@ export default function LoginPage() {
             <div className="mt-4">
               <Button
                 type="button"
+                data-testid="login-demo"
                 variant="outline"
                 fullWidth
                 onClick={handleDemoLogin}
@@ -385,6 +389,7 @@ export default function LoginPage() {
                   <div className="mt-6 grid grid-cols-2 gap-3">
                     <Button
                       type="button"
+                      data-testid="login-google"
                       variant="outline"
                       onClick={handleGoogleSignIn}
                       disabled={loading}
@@ -412,6 +417,7 @@ export default function LoginPage() {
                     </Button>
                     <Button
                       type="button"
+                      data-testid="login-github"
                       variant="outline"
                       onClick={handleGitHubSignIn}
                       disabled={loading}
@@ -429,7 +435,7 @@ export default function LoginPage() {
 
             <p className="mt-6 text-center text-sm text-muted-foreground">
               Don't have an account?{' '}
-              <Link href="/signup" className="text-primary hover:underline font-medium">
+              <Link href="/signup" data-testid="login-signup-link" className="text-primary hover:underline font-medium">
                 Sign up for free
               </Link>
             </p>
