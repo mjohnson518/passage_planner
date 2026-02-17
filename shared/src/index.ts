@@ -65,5 +65,19 @@ export * from './services/api-client';
 export * from './services/data-freshness';
 export { CircuitBreakerFactory } from './services/resilience/circuit-breaker';
 
+// Export MCP errors (selective to avoid name conflicts with ErrorHandler, types/errors, types/core)
+export {
+  MCPError,
+  NOAAAPIError,
+  CacheError,
+  CircuitBreakerError,
+  DataError,
+  isRetryableError,
+  toMCPError,
+  ValidationError as MCPValidationError,
+  AgentError as MCPAgentError,
+  ErrorCode as MCPErrorCode,
+} from './errors/mcp-errors';
+
 // Export utilities
-export * from './utils/validateEnv'; 
+export * from './utils/validateEnv';

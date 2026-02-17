@@ -1,5 +1,5 @@
 import { BaseAgent, NOAAWeatherService, CacheManager, CircuitBreakerFactory, NDBCBuoyService, GribService } from '@passage-planner/shared';
-import { ValidationError, NOAAAPIError, toMCPError } from '@passage-planner/shared/dist/errors/mcp-errors';
+import { MCPValidationError as ValidationError, NOAAAPIError, toMCPError } from '@passage-planner/shared';
 import { Logger } from 'pino';
 import pino from 'pino';
 import { 

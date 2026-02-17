@@ -69,6 +69,9 @@
     "doc": "docs",
     "test": "tests"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC"
