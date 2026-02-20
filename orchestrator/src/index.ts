@@ -7,12 +7,16 @@ import pino from 'pino';
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 // Validate environment FIRST - fail fast with clear errors
-try {
-  const env = validateEnv();
-  logger.info({ env: getSafeEnvInfo() }, 'Environment validation passed');
-} catch (error) {
-  logger.fatal({ error: (error as Error).message }, 'Environment validation failed');
-  process.exit(1);
+if (process.env.SKIP_ENV_VALIDATION === 'true') {
+  logger.warn('Skipping environment validation (SKIP_ENV_VALIDATION=true)');
+} else {
+  try {
+    const env = validateEnv();
+    logger.info({ env: getSafeEnvInfo() }, 'Environment validation passed');
+  } catch (error) {
+    logger.fatal({ error: (error as Error).message }, 'Environment validation failed');
+    process.exit(1);
+  }
 }
 
 // Initialize error tracking SECOND - after validation

@@ -25,7 +25,7 @@ interface AgentRegistry {
 
 export class SimpleOrchestrator {
   private agents: AgentRegistry = {};
-  private redis: Redis;
+  private redis: Redis | null;
   private wss: WebSocketServer;
   private httpServer: http.Server;
   private app: express.Application;
@@ -37,16 +37,14 @@ export class SimpleOrchestrator {
   constructor() {
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) {
-      throw new Error(
-        'FATAL: REDIS_URL environment variable is required. ' +
-        'Cannot start orchestrator without Redis configured.'
-      );
+      logger.warn('REDIS_URL not set — running without Redis (no caching/rate limiting)');
+      this.redis = null;
+    } else {
+      this.redis = new Redis(redisUrl, {
+        maxRetriesPerRequest: 1,
+        retryStrategy: () => null // Don't retry if Redis is down
+      });
     }
-    
-    this.redis = new Redis(redisUrl, {
-      maxRetriesPerRequest: 1,
-      retryStrategy: () => null // Don't retry if Redis is down
-    });
     
     this.app = express();
     this.httpServer = http.createServer(this.app);
@@ -1230,6 +1228,8 @@ export class SimpleOrchestrator {
       const limit = 20;
       const windowSeconds = 60;
 
+      if (!this.redis) return true; // No Redis — skip rate limiting
+
       const current = await this.redis.incr(key);
       if (current === 1) {
         await this.redis.expire(key, windowSeconds);
@@ -1661,7 +1661,7 @@ export class SimpleOrchestrator {
         
         for (const [name] of Object.entries(this.agents)) {
           try {
-            const agentHealth = await this.redis.hgetall(`agent:health:${name}-agent`);
+            const agentHealth = this.redis ? await this.redis.hgetall(`agent:health:${name}-agent`) : {};
             health.agents[name] = {
               status: agentHealth.status || 'unknown',
               lastHeartbeat: agentHealth.lastHeartbeat || null
@@ -1730,7 +1730,7 @@ export class SimpleOrchestrator {
     }
 
     try {
-      await this.redis.quit();
+      if (this.redis) await this.redis.quit();
     } catch (error) {
       // Ignore Redis errors during shutdown
     }
