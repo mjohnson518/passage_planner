@@ -4,7 +4,7 @@ import pino from 'pino';
 import { 
   CallToolRequestSchema,
   ListToolsRequestSchema 
-} from '@modelcontextprotocol/sdk/types';
+} from '@modelcontextprotocol/sdk/types.js';
 import { RoutingEngine, LatLon, Route } from './routing-engine';
 
 /**

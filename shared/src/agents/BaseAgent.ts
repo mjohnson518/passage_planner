@@ -1,5 +1,5 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index'
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio'
+import { Server } from '@modelcontextprotocol/sdk/server'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { Logger } from 'pino'
 import { EventEmitter } from 'events'
 
