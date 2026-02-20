@@ -3,7 +3,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-ENV NODE_ENV=production
+# Don't set NODE_ENV=production yet — npm ci needs devDependencies
+# (autoprefixer, postcss, tailwindcss) for the build step
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Copy package files for all workspaces
@@ -20,12 +21,18 @@ COPY frontend/package*.json ./frontend/
 
 RUN npm ci
 
+# Copy root tsconfig (shared extends it)
+COPY tsconfig.json ./
+
 # Copy all source
 COPY shared/ ./shared/
 COPY frontend/ ./frontend/
 
 # Build shared first, then frontend
 RUN npm run build:shared && npm run build --workspace=passage-planner-frontend
+
+# Set production env for runtime only (after build is done)
+ENV NODE_ENV=production
 
 EXPOSE 3000
 

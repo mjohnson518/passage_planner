@@ -3,7 +3,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-ENV NODE_ENV=production
+# Don't set NODE_ENV=production yet — npm ci needs devDependencies
+# (@types/express, @types/cors, etc.) for the tsc build step
 
 # Copy package files for all workspaces
 COPY package*.json ./
@@ -19,6 +20,9 @@ COPY frontend/package*.json ./frontend/
 
 RUN npm ci
 
+# Copy root tsconfig (shared and orchestrator extend it)
+COPY tsconfig.json ./
+
 # Copy all source
 COPY shared/ ./shared/
 COPY orchestrator/ ./orchestrator/
@@ -26,6 +30,9 @@ COPY agents/ ./agents/
 
 # Build shared first, then orchestrator
 RUN npm run build:shared && npm run build --workspace=@passage-planner/orchestrator
+
+# Set production env for runtime only (after build is done)
+ENV NODE_ENV=production
 
 EXPOSE 8080
 
