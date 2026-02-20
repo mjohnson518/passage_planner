@@ -36,4 +36,4 @@ ENV NODE_ENV=production
 
 EXPOSE 8080
 
-CMD ["node", "orchestrator/dist/index.js"]
+CMD ["node", "orchestrator/dist/orchestrator/src/index.js"]

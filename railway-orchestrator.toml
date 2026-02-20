@@ -2,7 +2,7 @@
 buildCommand = "npm run build:shared && npm run build --workspace=@passage-planner/orchestrator"
 
 [deploy]
-startCommand = "node orchestrator/dist/index.js"
+startCommand = "node orchestrator/dist/orchestrator/src/index.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
