@@ -5,7 +5,7 @@ import pino from 'pino';
 import { 
   CallToolRequestSchema,
   ListToolsRequestSchema 
-} from '@modelcontextprotocol/sdk/types';
+} from '@modelcontextprotocol/sdk/types.js';
 
 export class WeatherAgent extends BaseAgent {
   private weatherService: NOAAWeatherService;
