@@ -45,7 +45,9 @@ export abstract class BaseAgent extends EventEmitter {
         version: config.version,
       },
       {
-        capabilities: {},
+        capabilities: {
+          tools: {},
+        },
       }
     )
 
