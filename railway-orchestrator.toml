@@ -1,5 +1,5 @@
 [build]
-buildCommand = "npm run build:shared && npm run build --workspace=@passage-planner/orchestrator"
+dockerfilePath = "orchestrator/Dockerfile"
 
 [deploy]
 startCommand = "node orchestrator/dist/orchestrator/src/index.js"
