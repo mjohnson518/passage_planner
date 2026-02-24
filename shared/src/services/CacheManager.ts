@@ -8,30 +8,36 @@ export interface CacheOptions {
 }
 
 export class CacheManager {
-  private redis: RedisClientType;
+  private redis: RedisClientType | null = null;
   private logger: Logger;
   private defaultTTL = 3600; // 1 hour
   private connected = false;
-  
+
   constructor(logger?: Logger) {
     this.logger = logger || console as any;
-    this.redis = createClient({
-      url: process.env.REDIS_URL || 'redis://localhost:6379',
-    });
-    
+
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      this.logger.info('REDIS_URL not set — CacheManager running in pass-through mode');
+      return;
+    }
+
+    this.redis = createClient({ url: redisUrl });
+
     this.redis.on('error', (err) => {
       this.logger.error({ error: err }, 'Redis client error');
     });
-    
+
     this.redis.on('connect', () => {
       this.connected = true;
       this.logger.info('Connected to Redis');
     });
-    
+
     this.connectAsync();
   }
-  
+
   private async connectAsync() {
+    if (!this.redis) return;
     try {
       await this.redis.connect();
     } catch (error) {
@@ -40,7 +46,7 @@ export class CacheManager {
   }
   
   async get<T>(key: string): Promise<T | null> {
-    if (!this.connected) return null;
+    if (!this.connected || !this.redis) return null;
     
     try {
       const value = await this.redis.get(key);
@@ -54,7 +60,7 @@ export class CacheManager {
   }
   
   async set(key: string, value: any, ttl?: number): Promise<void> {
-    if (!this.connected) return;
+    if (!this.connected || !this.redis) return;
     
     try {
       const serialized = JSON.stringify(value);
@@ -70,7 +76,7 @@ export class CacheManager {
    * Set a value with explicit TTL in seconds
    */
   async setWithTTL(key: string, value: any, ttlSeconds: number): Promise<void> {
-    if (!this.connected) return;
+    if (!this.connected || !this.redis) return;
     
     try {
       const serialized = JSON.stringify(value);
@@ -94,7 +100,7 @@ export class CacheManager {
    * Get a value with metadata about TTL and age
    */
   async getWithMetadata<T = any>(key: string): Promise<{ value: T | null; ttl: number; age: number } | null> {
-    if (!this.connected) return null;
+    if (!this.connected || !this.redis) return null;
     
     try {
       // Get value and metadata in parallel
@@ -128,7 +134,7 @@ export class CacheManager {
   }
   
   async delete(key: string): Promise<void> {
-    if (!this.connected) return;
+    if (!this.connected || !this.redis) return;
     
     try {
       await this.redis.del(key);
@@ -138,7 +144,7 @@ export class CacheManager {
   }
   
   async exists(key: string): Promise<boolean> {
-    if (!this.connected) return false;
+    if (!this.connected || !this.redis) return false;
     
     try {
       const result = await this.redis.exists(key);
@@ -150,7 +156,7 @@ export class CacheManager {
   }
   
   async getTTL(key: string): Promise<number> {
-    if (!this.connected) return -1;
+    if (!this.connected || !this.redis) return -1;
     
     try {
       return await this.redis.ttl(key);
@@ -161,7 +167,7 @@ export class CacheManager {
   }
   
   async invalidatePattern(pattern: string): Promise<void> {
-    if (!this.connected) return;
+    if (!this.connected || !this.redis) return;
     
     try {
       const keys = await this.redis.keys(pattern);
@@ -174,7 +180,7 @@ export class CacheManager {
   }
   
   async flush(): Promise<void> {
-    if (!this.connected) return;
+    if (!this.connected || !this.redis) return;
     
     try {
       await this.redis.flushAll();
@@ -184,7 +190,7 @@ export class CacheManager {
   }
   
   async disconnect(): Promise<void> {
-    if (this.connected) {
+    if (this.connected && this.redis) {
       await this.redis.quit();
       this.connected = false;
     }

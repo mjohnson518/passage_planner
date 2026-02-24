@@ -14,7 +14,7 @@ interface RateLimitRequest extends Request {
 }
 
 export class RateLimiter {
-  private redis: RedisClientType;
+  private redis: RedisClientType | null;
   private logger: Logger;
 
   private readonly LIMITS = {
@@ -43,7 +43,7 @@ export class RateLimiter {
     blockDurationMs: 60 * 60 * 1000, // 1 hour block after exceeded
   };
 
-  constructor(redis: RedisClientType, logger: Logger) {
+  constructor(redis: RedisClientType | null, logger: Logger) {
     this.redis = redis;
     this.logger = logger.child({ middleware: 'rateLimiter' });
   }
@@ -52,6 +52,9 @@ export class RateLimiter {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
+
+    // Skip rate limiting if Redis is unavailable
+    if (!this.redis) return next();
 
     const tier = req.subscription?.tier || 'free';
     const limits = this.LIMITS[tier as keyof typeof this.LIMITS] || this.LIMITS.free;
@@ -105,6 +108,9 @@ export class RateLimiter {
    * Stricter limits to prevent brute force and credential stuffing attacks
    */
   async authRateLimit(req: Request, res: Response, next: NextFunction) {
+    // Skip rate limiting if Redis is unavailable
+    if (!this.redis) return next();
+
     // Get client IP - prefer X-Forwarded-For for proxied requests
     const forwardedFor = req.headers['x-forwarded-for'];
     const clientIp = typeof forwardedFor === 'string'

@@ -82,9 +82,16 @@ export class HttpServer {
       connectionString: process.env.DATABASE_URL,
     });
     
-    this.redis = createClient({
-      url: process.env.REDIS_URL,
-    });
+    const redisUrl = process.env.REDIS_URL;
+    if (redisUrl) {
+      this.redis = createClient({ url: redisUrl });
+      this.redis.on('error', (err: any) => {
+        this.logger.error({ error: err }, 'Redis client error');
+      });
+    } else {
+      this.redis = null;
+      this.logger.warn('REDIS_URL not set — HttpServer running without Redis');
+    }
     
     this.authMiddleware = new AuthMiddleware(this.postgres, this.logger);
     
@@ -2131,7 +2138,15 @@ export class HttpServer {
   }
 
   async start(port: number = 8080) {
-    await this.redis.connect();
+    if (this.redis) {
+      try {
+        await this.redis.connect();
+        this.logger.info('Redis connected');
+      } catch (error) {
+        this.logger.warn({ error }, 'Redis connection failed — continuing without Redis');
+        this.redis = null;
+      }
+    }
     await this.orchestrator.start();
     
     this.httpServer.listen(port, () => {
@@ -2141,7 +2156,7 @@ export class HttpServer {
 
   async stop() {
     await this.orchestrator.shutdown();
-    await this.redis.quit();
+    if (this.redis) await this.redis.quit();
     await this.postgres.end();
     this.httpServer.close();
   }

@@ -125,10 +125,10 @@ const ENV_RULES: EnvRules = {
   },
   
   REDIS_URL: {
-    required: true,
+    required: false,
     format: 'url',
     protocol: 'redis:',
-    description: 'Redis cache connection string',
+    description: 'Redis cache connection string (optional — app degrades gracefully without it)',
     example: 'redis://localhost:6379'
   },
   
