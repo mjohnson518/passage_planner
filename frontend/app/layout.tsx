@@ -6,6 +6,7 @@ import { MobileNav } from './components/navigation/MobileNav'
 import { FeedbackWidget } from './components/FeedbackWidget'
 import { InstallPrompt } from './components/pwa/InstallPrompt'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { CookieConsent } from './components/legal/CookieConsent'
 import './globals.css'
 
 const libreBaskerville = Libre_Baskerville({
@@ -49,11 +50,20 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_US',
     siteName: 'Helmwise',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Helmwise — AI-powered maritime passage planning',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Helmwise - AI-Powered Sailing Passage Planning',
     description: 'Plan safer sailing passages with real-time weather routing, tidal predictions, and comprehensive safety briefings.',
+    images: ['/og-image.png'],
   },
 }
 
@@ -92,6 +102,7 @@ export default function RootLayout({
           />
           <FeedbackWidget />
           <InstallPrompt />
+          <CookieConsent />
         </Providers>
       </body>
     </html>

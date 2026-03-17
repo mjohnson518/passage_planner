@@ -514,8 +514,12 @@ export class AreaChecker {
   private checkLineSegment(start: Waypoint, end: Waypoint): RestrictedArea[] {
     const conflicts: RestrictedArea[] = [];
 
-    // Sample points along the line segment
-    const samples = 20; // Check 20 points between waypoints
+    // Distance-based adaptive sampling: 1 point per nautical mile, minimum 50 points
+    // This catches small restricted areas that fixed 20-point sampling could miss on long segments.
+    const dLat = end.latitude - start.latitude;
+    const dLon = end.longitude - start.longitude;
+    const approxNm = Math.sqrt(dLat * dLat + dLon * dLon) * 60; // rough nm from degrees
+    const samples = Math.max(50, Math.ceil(approxNm));
     for (let i = 0; i <= samples; i++) {
       const fraction = i / samples;
       const samplePoint: Waypoint = {

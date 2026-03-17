@@ -14,16 +14,38 @@ export class EmailService {
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_KEY!
     )
-    this.from = process.env.EMAIL_FROM || 'Passage Planner <noreply@passageplanner.com>'
+    this.from = process.env.EMAIL_FROM || 'Helmwise <noreply@helmwise.co>'
+  }
+
+  /**
+   * CAN-SPAM compliant unsubscribe footer — required for all commercial emails
+   */
+  private getUnsubscribeFooter(email: string): string {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'
+    const unsubUrl = `${appUrl}/unsubscribe?email=${encodeURIComponent(email)}`
+    return `
+      <div style="padding: 16px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; margin-top: 24px;">
+        <p style="margin: 0 0 8px;">Helmwise, Inc. &bull; Maritime passage planning software</p>
+        <p style="margin: 0;">
+          You received this email because you have an account at Helmwise.
+          <a href="${unsubUrl}" style="color: #64748b;">Unsubscribe</a>
+        </p>
+      </div>
+    `
   }
 
   async sendWelcomeEmail(userId: string, email: string, userName?: string): Promise<void> {
     try {
+      const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'}/unsubscribe?email=${encodeURIComponent(email)}`
       await resend.emails.send({
         from: this.from,
         to: email,
-        subject: 'Welcome to Passage Planner!',
-        html: this.getWelcomeEmailHtml(userName || 'Captain'),
+        subject: 'Welcome to Helmwise!',
+        html: this.getWelcomeEmailHtml(userName || 'Captain') + this.getUnsubscribeFooter(email),
+        headers: {
+          'List-Unsubscribe': `<${unsubUrl}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
       })
 
       // Log email sent
@@ -50,11 +72,16 @@ export class EmailService {
       if (error) throw error
 
       for (const user of users || []) {
+        const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'}/unsubscribe?email=${encodeURIComponent(user.email)}`
         await resend.emails.send({
           from: this.from,
           to: user.email,
-          subject: 'Your Passage Planner trial ends in 3 days',
-          html: this.getTrialEndingEmailHtml(3),
+          subject: 'Your Helmwise trial ends in 3 days',
+          html: this.getTrialEndingEmailHtml(3) + this.getUnsubscribeFooter(user.email),
+          headers: {
+            'List-Unsubscribe': `<${unsubUrl}>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          },
         })
 
         await this.logEmailSent(user.id, 'trial_ending', user.email)
@@ -85,11 +112,16 @@ export class EmailService {
         const stats = await this.getUserMonthlyStats(user.id, lastMonth)
 
         if (stats.passagesPlanned > 0) {
+          const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'}/unsubscribe?email=${encodeURIComponent(user.email)}`
           await resend.emails.send({
             from: this.from,
             to: user.email,
-            subject: `Your ${monthName} ${year} Passage Planner Summary`,
-            html: this.getUsageReportEmailHtml(monthName, year, stats),
+            subject: `Your ${monthName} ${year} Helmwise Summary`,
+            html: this.getUsageReportEmailHtml(monthName, year, stats) + this.getUnsubscribeFooter(user.email),
+            headers: {
+              'List-Unsubscribe': `<${unsubUrl}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            },
           })
 
           await this.logEmailSent(user.id, 'usage_report', user.email)
@@ -108,11 +140,16 @@ export class EmailService {
     tier: 'premium' | 'pro'
   ): Promise<void> {
     try {
+      const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'}/unsubscribe?email=${encodeURIComponent(email)}`
       await resend.emails.send({
         from: this.from,
         to: email,
-        subject: `Welcome to Passage Planner ${tier === 'premium' ? 'Premium' : 'Pro'}!`,
-        html: this.getSubscriptionConfirmationHtml(userName, tier),
+        subject: `Welcome to Helmwise ${tier === 'premium' ? 'Premium' : 'Pro'}!`,
+        html: this.getSubscriptionConfirmationHtml(userName, tier) + this.getUnsubscribeFooter(email),
+        headers: {
+          'List-Unsubscribe': `<${unsubUrl}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
       })
 
       await this.logEmailSent(userId, 'subscription_confirmation', email)
@@ -129,11 +166,16 @@ export class EmailService {
     endDate: Date
   ): Promise<void> {
     try {
+      const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'}/unsubscribe?email=${encodeURIComponent(email)}`
       await resend.emails.send({
         from: this.from,
         to: email,
-        subject: 'Your Passage Planner subscription has been cancelled',
-        html: this.getCancellationConfirmationHtml(userName, endDate),
+        subject: 'Your Helmwise subscription has been cancelled',
+        html: this.getCancellationConfirmationHtml(userName, endDate) + this.getUnsubscribeFooter(email),
+        headers: {
+          'List-Unsubscribe': `<${unsubUrl}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
       })
 
       await this.logEmailSent(userId, 'cancellation_confirmation', email)
@@ -157,7 +199,7 @@ export class EmailService {
       await resend.emails.send({
         from: this.from,
         to: inviteeEmail,
-        subject: `You've been invited to join ${fleetName} on Passage Planner`,
+        subject: `You've been invited to join ${fleetName} on Helmwise`,
         html: this.getFleetInvitationHtml(inviteeName, fleetName, inviterName, role, acceptUrl),
       })
 
@@ -185,7 +227,7 @@ export class EmailService {
         <div style="padding: 32px; background-color: #f8fafc;">
           <h1 style="color: #1e293b; font-size: 24px; margin-top: 0;">Hello ${inviteeName},</h1>
           <p style="color: #64748b; font-size: 16px; line-height: 24px;">
-            <strong>${inviterName}</strong> has invited you to join <strong>${fleetName}</strong> as a <strong>${roleLabel}</strong> on Passage Planner.
+            <strong>${inviterName}</strong> has invited you to join <strong>${fleetName}</strong> as a <strong>${roleLabel}</strong> on Helmwise.
           </p>
           <p style="color: #64748b; font-size: 16px; line-height: 24px;">
             As a ${roleLabel.toLowerCase()}, you'll be able to collaborate on passage planning, view fleet vessels, and share sailing insights with your team.
@@ -196,7 +238,7 @@ export class EmailService {
             </a>
           </div>
           <p style="color: #94a3b8; font-size: 14px; text-align: center;">
-            This invitation expires in 7 days. If you don't have a Passage Planner account, you'll be prompted to create one.
+            This invitation expires in 7 days. If you don't have a Helmwise account, you'll be prompted to create one.
           </p>
         </div>
         <div style="padding: 16px; text-align: center; color: #94a3b8; font-size: 12px;">
@@ -254,7 +296,7 @@ export class EmailService {
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #1e293b; font-size: 32px; text-align: center;">Welcome aboard, ${userName}!</h1>
         <p style="color: #64748b; font-size: 16px; line-height: 24px;">
-          We're thrilled to have you join Passage Planner. Start planning smarter, safer passages with AI-powered insights.
+          We're thrilled to have you join Helmwise. Start planning smarter, safer passages with AI-powered insights.
         </p>
         <div style="text-align: center; margin: 32px 0;">
           <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard" style="display: inline-block; background-color: #0ea5e9; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">

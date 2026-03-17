@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react'
+import { io, Socket } from 'socket.io-client'
 import { useAuth } from './AuthContext'
 
 interface PlanningUpdate {
@@ -30,94 +31,114 @@ interface SocketContextType {
 const SocketContext = createContext<SocketContextType | undefined>(undefined)
 
 export function SocketProvider({ children }: { children: ReactNode }) {
-  const [ws, setWs] = useState<WebSocket | null>(null)
+  const { user } = useAuth()
   const [connected, setConnected] = useState(false)
   const [agentStatuses, setAgentStatuses] = useState<Record<string, AgentStatus>>({})
   const [currentPlanningId, setCurrentPlanningId] = useState<string | null>(null)
   const handlersRef = useRef<Set<(update: PlanningUpdate) => void>>(new Set())
+  const socketRef = useRef<Socket | null>(null)
 
   useEffect(() => {
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080';
-    const websocket = new WebSocket(wsUrl);
+    const wsUrl = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || 'http://localhost:8080'
 
-    websocket.onopen = () => {
-      console.log('WebSocket connected to orchestrator');
-      setConnected(true);
-    };
+    const socket = io(wsUrl, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+      timeout: 10000,
+    })
 
-    websocket.onclose = () => {
-      console.log('WebSocket disconnected');
-      setConnected(false);
-    };
+    socketRef.current = socket
 
-    websocket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
+    socket.on('connect', () => {
+      console.log('Socket.IO connected to orchestrator')
+      setConnected(true)
 
-    websocket.onmessage = (event) => {
-      try {
-        const update: PlanningUpdate = JSON.parse(event.data);
-        
-        // Handle different update types
-        switch (update.type) {
-          case 'planning_started':
-            setCurrentPlanningId(update.planningId);
-            setAgentStatuses({});
-            break;
-            
-          case 'agent_active':
-            if (update.agent) {
-              setAgentStatuses(prev => ({
-                ...prev,
-                [update.agent!]: {
-                  name: update.agent!,
-                  status: 'active',
-                  message: update.status
-                }
-              }));
-            }
-            break;
-            
-          case 'planning_completed':
-            if (update.planningId === currentPlanningId) {
-              // Mark all agents as complete
-              setAgentStatuses(prev => {
-                const updated = { ...prev };
-                Object.keys(updated).forEach(key => {
-                  updated[key].status = 'complete';
-                });
-                return updated;
-              });
-            }
-            break;
-            
-          case 'planning_error':
-            setAgentStatuses({});
-            break;
-        }
-        
-        // Notify all subscribed handlers
-        handlersRef.current.forEach(handler => handler(update));
-        
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
+      // Authenticate immediately after connecting if we have a token
+      const token = typeof window !== 'undefined'
+        ? localStorage.getItem('auth_token') ?? sessionStorage.getItem('auth_token')
+        : null
+      if (token) {
+        socket.emit('authenticate', token)
       }
-    };
+    })
 
-    setWs(websocket);
+    socket.on('disconnect', () => {
+      console.log('Socket.IO disconnected')
+      setConnected(false)
+    })
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket.IO connection error:', error.message)
+    })
+
+    socket.on('authenticated', () => {
+      console.log('Socket.IO authenticated')
+    })
+
+    socket.on('authentication_error', () => {
+      console.warn('Socket.IO authentication failed')
+    })
+
+    // Planning event handlers (matches server.ts orchestrator event forwarding)
+    const handlePlanningUpdate = (update: PlanningUpdate) => {
+      switch (update.type) {
+        case 'planning_started':
+          setCurrentPlanningId(update.planningId)
+          setAgentStatuses({})
+          break
+
+        case 'agent_active':
+          if (update.agent) {
+            setAgentStatuses(prev => ({
+              ...prev,
+              [update.agent!]: {
+                name: update.agent!,
+                status: 'active',
+                message: update.status,
+              },
+            }))
+          }
+          break
+
+        case 'planning_completed':
+          setAgentStatuses(prev => {
+            const updated = { ...prev }
+            Object.keys(updated).forEach(key => {
+              updated[key] = { ...updated[key], status: 'complete' }
+            })
+            return updated
+          })
+          break
+
+        case 'planning_error':
+          setAgentStatuses({})
+          break
+      }
+
+      // Notify all subscribed handlers
+      handlersRef.current.forEach(handler => handler(update))
+    }
+
+    // The server emits planning updates as JSON messages on the 'message' event
+    // and structured updates on named events
+    socket.on('planning_update', handlePlanningUpdate)
+    socket.on('agent_status', handlePlanningUpdate)
+    socket.on('progress', handlePlanningUpdate)
 
     return () => {
-      websocket.close();
-    };
-  }, []);
+      socket.disconnect()
+      socketRef.current = null
+    }
+  }, [])
 
   const subscribe = (handler: (update: PlanningUpdate) => void) => {
-    handlersRef.current.add(handler);
-  };
+    handlersRef.current.add(handler)
+  }
 
   const unsubscribe = (handler: (update: PlanningUpdate) => void) => {
-    handlersRef.current.delete(handler);
-  };
+    handlersRef.current.delete(handler)
+  }
 
   return (
     <SocketContext.Provider
@@ -140,4 +161,4 @@ export function useSocket() {
     throw new Error('useSocket must be used within a SocketProvider')
   }
   return context
-} 
+}

@@ -200,6 +200,14 @@ export default function PlannerPage() {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-4xl">
+      {/* Safety disclaimer — persistent, non-dismissible (CLAUDE.md requirement) */}
+      <div className="mb-4 rounded-md border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <strong>Navigation Aid Only:</strong> This tool is an aid to passage planning only. It is not a substitute
+        for professional seamanship, official nautical charts, current NOTAMs, or sound judgment. Always
+        independently verify all data before departure.{' '}
+        <a href="/terms" className="underline hover:text-slate-900">See full Terms of Service.</a>
+      </div>
+
       <div className="mb-6">
         <h1 className="text-2xl lg:text-3xl font-bold">Plan New Passage</h1>
         <p className="text-muted-foreground mt-1">
@@ -240,6 +248,21 @@ export default function PlannerPage() {
       {/* Passage Plan Results - All 6 Data Sources */}
       {passagePlan && (
         <div className="space-y-6 mb-6">
+          {/* SAFETY_UNVERIFIED critical banner — shown when SafetyAgent failed */}
+          {(passagePlan as any).status === 'SAFETY_UNVERIFIED' && (
+            <div className="rounded-md border-2 border-red-600 bg-red-50 px-5 py-4" role="alert">
+              <p className="font-bold text-red-800 text-base uppercase tracking-wide mb-1">
+                ⚠ Safety Checks Could Not Be Completed
+              </p>
+              <p className="text-red-700 text-sm">
+                Automated safety verification failed for this passage plan. <strong>Manual verification is
+                required before departure.</strong> Do not rely on this plan without independently
+                checking all safety conditions against official nautical charts, NOAA marine forecasts,
+                active NOTAMs, and current tidal information.
+              </p>
+            </div>
+          )}
+
           {/* Safety Decision - PROMINENT DISPLAY */}
           <Card data-testid="planner-safety-decision" className={`border-2 ${
             passagePlan.summary.safetyDecision === 'GO' ? 'border-green-500 bg-green-50' :

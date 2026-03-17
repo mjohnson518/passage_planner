@@ -17,9 +17,14 @@ export class AuthService {
   private saltRounds: number = 12;
   
   constructor() {
-    this.jwtSecret = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
     if (!process.env.JWT_SECRET) {
-      console.warn('JWT_SECRET not set, using random secret (not suitable for production)');
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('FATAL: JWT_SECRET environment variable must be set in production');
+      }
+      console.warn('JWT_SECRET not set, using random secret (tokens will not persist across restarts — not suitable for production)');
+      this.jwtSecret = crypto.randomBytes(64).toString('hex');
+    } else {
+      this.jwtSecret = process.env.JWT_SECRET;
     }
   }
   

@@ -4,6 +4,7 @@ import { NOAAAPIClient } from './noaa-api-client';
 import { CircuitBreakerFactory } from './resilience/circuit-breaker';
 import CircuitBreaker from 'opossum';
 import { NDBCBuoyService } from './NDBCBuoyService';
+import { NOAAForecastResponseSchema, NOAAAlertsResponseSchema } from '../types/weather/api-response-schemas';
 
 export interface MarineWeatherForecast {
   location: {
@@ -145,6 +146,28 @@ export class NOAAWeatherService {
         this.noaaClient.getActiveAlerts(latitude, longitude)
       ]);
       
+      // SAFETY CRITICAL: Validate API responses at boundary before processing
+      const forecastParse = NOAAForecastResponseSchema.safeParse(forecast);
+      if (!forecastParse.success) {
+        this.logger.error({
+          latitude,
+          longitude,
+          issues: forecastParse.error.issues,
+          responseKeys: forecast ? Object.keys(forecast) : [],
+        }, 'NOAA forecast response failed schema validation — rejecting malformed data');
+        throw new Error('NOAA forecast response has unexpected shape — cannot safely parse for navigation');
+      }
+      const validatedForecast = forecastParse.data;
+
+      const alertsParse = NOAAAlertsResponseSchema.safeParse(alerts);
+      if (!alertsParse.success) {
+        // Alerts are important but non-fatal — log and continue with empty alerts
+        this.logger.warn({
+          issues: alertsParse.error.issues,
+        }, 'NOAA alerts response failed schema validation — using empty alerts');
+      }
+      const validatedAlerts = alertsParse.success ? alertsParse.data : [];
+
       // Fetch wave data from NDBC buoys
       const waveData = await this.getWaveDataForLocation(latitude, longitude);
 
@@ -155,8 +178,8 @@ export class NOAAWeatherService {
           longitude,
           name: undefined // Will be populated from grid point city
         },
-        issuedAt: new Date(forecast.generatedAt),
-        periods: forecast.periods.slice(0, days * 2).map(period => ({
+        issuedAt: new Date(validatedForecast.generatedAt),
+        periods: validatedForecast.periods.slice(0, days * 2).map(period => ({
           startTime: new Date(period.startTime),
           endTime: new Date(period.endTime),
           temperature: period.temperature,
@@ -168,20 +191,20 @@ export class NOAAWeatherService {
           precipitationChance: period.probabilityOfPrecipitation?.value || 0,
           isDaytime: period.isDaytime
         })),
-        warnings: alerts.map(alert => ({
+        warnings: validatedAlerts.map(alert => ({
           id: alert.id,
           type: this.mapWarningType(alert.event),
           severity: alert.severity.toLowerCase() as 'extreme' | 'severe' | 'moderate' | 'minor',
           headline: alert.headline,
           description: alert.description,
-          instruction: alert.instruction,
+          instruction: alert.instruction ?? undefined, // normalize null → undefined
           onset: new Date(alert.onset),
           expires: new Date(alert.expires),
           areas: alert.areaDesc.split('; ')
         })),
         waveHeight: waveData,
-        windData: this.extractWindData(forecast.periods),
-        visibility: this.extractVisibilityData(forecast.periods) // Parse from forecast text
+        windData: this.extractWindData(validatedForecast.periods),
+        visibility: this.extractVisibilityData(validatedForecast.periods) // Parse from forecast text
       };
       
       // Cache the result with proper TTL (3 hours for weather data)
@@ -189,8 +212,8 @@ export class NOAAWeatherService {
       
       // Also store a fallback cache with longer TTL for circuit breaker scenarios
       await this.cache.setWithTTL(
-        `weather:forecast:fallback:${latitude.toFixed(4)},${longitude.toFixed(4)}`, 
-        forecast, 
+        `weather:forecast:fallback:${latitude.toFixed(4)},${longitude.toFixed(4)}`,
+        validatedForecast,
         86400  // 24 hour TTL for fallback
       );
       

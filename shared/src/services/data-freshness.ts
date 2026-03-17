@@ -7,10 +7,11 @@
 
 import { DataFreshnessError } from '../types/errors';
 import { Logger } from 'pino';
+import { WEATHER_REJECT_AGE_MS, TIDAL_REJECT_AGE_MS } from '../constants/safety-thresholds';
 
 export interface DataFreshnessConfig {
-  weatherForecastMaxAgeMs: number;    // Default: 3 hours
-  tidalPredictionMaxAgeMs: number;    // Default: 24 hours
+  weatherForecastMaxAgeMs: number;    // Default: WEATHER_REJECT_AGE_MS (1 hour per CLAUDE.md)
+  tidalPredictionMaxAgeMs: number;    // Default: TIDAL_REJECT_AGE_MS (24 hours)
   navigationWarningMaxAgeMs: number;  // Default: 48 hours
   portInformationMaxAgeMs: number;    // Default: 7 days
   chartDataMaxAgeMs: number;          // Default: 30 days
@@ -28,8 +29,8 @@ export class DataFreshnessValidator {
 
   constructor(config?: Partial<DataFreshnessConfig>, logger?: Logger) {
     this.config = {
-      weatherForecastMaxAgeMs: config?.weatherForecastMaxAgeMs ?? 3 * 60 * 60 * 1000, // 3 hours
-      tidalPredictionMaxAgeMs: config?.tidalPredictionMaxAgeMs ?? 24 * 60 * 60 * 1000, // 24 hours
+      weatherForecastMaxAgeMs: config?.weatherForecastMaxAgeMs ?? WEATHER_REJECT_AGE_MS, // 1 hour (CLAUDE.md)
+      tidalPredictionMaxAgeMs: config?.tidalPredictionMaxAgeMs ?? TIDAL_REJECT_AGE_MS, // 24 hours
       navigationWarningMaxAgeMs: config?.navigationWarningMaxAgeMs ?? 48 * 60 * 60 * 1000, // 48 hours
       portInformationMaxAgeMs: config?.portInformationMaxAgeMs ?? 7 * 24 * 60 * 60 * 1000, // 7 days
       chartDataMaxAgeMs: config?.chartDataMaxAgeMs ?? 30 * 24 * 60 * 60 * 1000, // 30 days

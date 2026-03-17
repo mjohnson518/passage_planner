@@ -16,6 +16,14 @@ import http from 'http';
 import pino from 'pino';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import {
+  WEATHER_WARN_AGE_MS,
+  WEATHER_REJECT_AGE_MS,
+  WEATHER_DELAY_FACTOR,
+  FUEL_WATER_RESERVE_FACTOR,
+  PLAN_STATUS,
+  type PlanStatus,
+} from '@passage-planner/shared';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -429,11 +437,54 @@ export class SimpleOrchestrator {
       // Generate watch schedule
       const crewSize = request.crew?.size || request.vessel?.crewSize || 2;
       const departureTimeForWatch = new Date(request.departure.time || Date.now());
-      const watchSchedule = this.generateWatchSchedule(crewSize, currentAdjustment.adjustedDuration, departureTimeForWatch);
+
+      // SAFETY CRITICAL: Enforce 30% fuel/water reserves (CLAUDE.md non-negotiable)
+      const reserveWarnings: string[] = [];
+      const vessel = request.vessel;
+      if (vessel) {
+        const routeDistanceNm: number = (route as any)?.totalDistance || 0;
+        const durationHours: number = (route as any)?.estimatedDuration || 0;
+
+        if (vessel.fuelCapacity && vessel.fuelRatePerHour && durationHours > 0) {
+          const estimatedFuelUse = vessel.fuelRatePerHour * durationHours;
+          const requiredFuel = estimatedFuelUse * FUEL_WATER_RESERVE_FACTOR;
+          if (vessel.fuelCapacity < requiredFuel) {
+            reserveWarnings.push(
+              `🔴 CRITICAL: Insufficient fuel for this passage with required 30% reserve. ` +
+              `Estimated use: ${estimatedFuelUse.toFixed(0)}L, Required with reserve: ${requiredFuel.toFixed(0)}L, ` +
+              `Vessel capacity: ${vessel.fuelCapacity}L. DO NOT depart without additional fuel.`
+            );
+          }
+        }
+
+        if (vessel.waterCapacity && vessel.waterRatePerDay && durationHours > 0) {
+          const estimatedWaterUse = vessel.waterRatePerDay * (durationHours / 24);
+          const requiredWater = estimatedWaterUse * FUEL_WATER_RESERVE_FACTOR;
+          if (vessel.waterCapacity < requiredWater) {
+            reserveWarnings.push(
+              `🔴 CRITICAL: Insufficient water for this passage with required 30% reserve. ` +
+              `Estimated use: ${estimatedWaterUse.toFixed(0)}L, Required with reserve: ${requiredWater.toFixed(0)}L, ` +
+              `Vessel capacity: ${vessel.waterCapacity}L. DO NOT depart without additional water.`
+            );
+          }
+        }
+      }
+
+      // Apply 20% weather delay buffer to ALL routes (CLAUDE.md non-negotiable margin)
+      // Weather routing (isochrone) already accounts for conditions internally.
+      // For direct route we explicitly apply the buffer here.
+      const usingWeatherRoute = !!weatherRoute;
+      const tidalAdjustedDuration = currentAdjustment.adjustedDuration;
+      const bufferedDuration = usingWeatherRoute
+        ? tidalAdjustedDuration // weather routing service handles buffer internally
+        : Math.ceil(tidalAdjustedDuration * WEATHER_DELAY_FACTOR * 10) / 10;
+
+      const watchSchedule = this.generateWatchSchedule(crewSize, bufferedDuration, departureTimeForWatch);
 
       // Compile comprehensive passage plan
       const passagePlan = {
         id: planningId,
+        status: (safetySystemFailed ? PLAN_STATUS.SAFETY_UNVERIFIED : PLAN_STATUS.OK) as PlanStatus,
         request,
         route,
         weather: {
@@ -479,15 +530,19 @@ export class SimpleOrchestrator {
         },
         summary: {
           totalDistance: route.totalDistance,
-          estimatedDuration: currentAdjustment.adjustedDuration,
+          estimatedDuration: bufferedDuration,
           baseDuration: route.estimatedDuration,
+          durationNote: usingWeatherRoute
+            ? 'Duration accounts for forecast wind/current conditions'
+            : 'Duration includes 20% weather delay buffer',
           departureTime: request.departure.time,
           estimatedArrival: new Date(
             new Date(request.departure.time || Date.now()).getTime() +
-            currentAdjustment.adjustedDuration * 60 * 60 * 1000
+            bufferedDuration * 60 * 60 * 1000
           ),
-          // Combine ALL warnings: weather, freshness, aggregation, tidal, currents, buoy, and safety
+          // Combine ALL warnings: reserve checks first (most critical), then weather/safety
           warnings: [
+            ...reserveWarnings,       // fuel/water reserve violations (CRITICAL)
             ...freshnessWarnings,
             ...weatherWarnings,
             ...weatherAggregation.warnings,
@@ -588,10 +643,12 @@ export class SimpleOrchestrator {
       const ageMinutes = freshness.ageMinutes;
 
       if (ageMinutes !== undefined) {
-        if (ageMinutes > 60) {
+        const rejectAgeMinutes = WEATHER_REJECT_AGE_MS / (60 * 1000); // 60 min
+        const warnAgeMinutes = WEATHER_WARN_AGE_MS / (60 * 1000);     // 30 min
+        if (ageMinutes > rejectAgeMinutes) {
           // CLAUDE.md: "Reject stale data (weather >1hr)"
           warnings.push(`🔴 CRITICAL: Weather data for ${location} is ${Math.round(ageMinutes)} minutes old - DATA REJECTED as stale. Verify weather independently before departure.`);
-        } else if (freshness.isStale || ageMinutes > 30) {
+        } else if (freshness.isStale || ageMinutes > warnAgeMinutes) {
           warnings.push(`⚠️ Weather data for ${location} is ${Math.round(ageMinutes)} minutes old and approaching staleness. Consider refreshing before departure.`);
         }
       }
@@ -1160,6 +1217,11 @@ export class SimpleOrchestrator {
       type: z.string().max(100).optional(),
       crewSize: z.number().int().min(1).max(50).optional(),
       crewExperience: z.enum(['novice', 'intermediate', 'advanced', 'professional']).optional(),
+      // Fuel/water reserve fields (used for 30% reserve enforcement)
+      fuelCapacity: z.number().min(0).optional(),  // litres
+      fuelRatePerHour: z.number().min(0).optional(), // litres/hour
+      waterCapacity: z.number().min(0).optional(), // litres
+      waterRatePerDay: z.number().min(0).optional(), // litres/day
     }).optional(),
     crew: z.object({
       size: z.number().int().min(1).max(50).optional(),
@@ -1180,11 +1242,16 @@ export class SimpleOrchestrator {
 
   /**
    * JWT auth middleware - verifies Supabase JWTs
-   * Dev bypass: skip auth when NODE_ENV=development && SKIP_AUTH=true
+   * Dev bypass: skip auth ONLY when NODE_ENV=development && SKIP_AUTH=true && DEV_AUTH_BYPASS_KEY is set
    */
   private async verifyAuth(req: express.Request, res: express.Response): Promise<boolean> {
-    // Dev bypass for local development
-    if (process.env.NODE_ENV === 'development' && process.env.SKIP_AUTH === 'true') {
+    // Dev bypass — triple check: must NOT be production, must have SKIP_AUTH, must have bypass key
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (
+      !isProduction &&
+      process.env.SKIP_AUTH === 'true' &&
+      process.env.DEV_AUTH_BYPASS_KEY
+    ) {
       return true;
     }
 
@@ -1198,13 +1265,15 @@ export class SimpleOrchestrator {
     const jwtSecret = process.env.SUPABASE_JWT_SECRET;
 
     if (!jwtSecret) {
-      // If no JWT secret configured, allow in development
-      if (process.env.NODE_ENV === 'development') {
-        logger.warn('SUPABASE_JWT_SECRET not set — skipping auth in development');
-        return true;
+      // In production, missing JWT secret is a fatal misconfiguration
+      if (process.env.NODE_ENV === 'production') {
+        logger.error('SUPABASE_JWT_SECRET not set in production — rejecting all requests');
+        res.status(500).json({ success: false, error: 'Authentication not configured' });
+        return false;
       }
-      res.status(500).json({ success: false, error: 'Authentication not configured' });
-      return false;
+      // Allow in development with loud warning only
+      logger.warn('SUPABASE_JWT_SECRET not set — skipping auth in development');
+      return true;
     }
 
     try {
@@ -1614,7 +1683,7 @@ export class SimpleOrchestrator {
         logger.error({ error }, 'Planning failed');
         res.status(500).json({
           success: false,
-          error: error.message
+          error: 'Passage planning failed. Please try again or contact support.'
         });
       }
     });
@@ -1645,7 +1714,7 @@ export class SimpleOrchestrator {
         logger.error({ error }, 'Planning failed');
         res.status(500).json({
           success: false,
-          error: error.message
+          error: 'Passage planning failed. Please try again or contact support.'
         });
       }
     });

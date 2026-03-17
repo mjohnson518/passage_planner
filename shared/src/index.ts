@@ -81,3 +81,6 @@ export {
 
 // Export utilities
 export * from './utils/validateEnv';
+
+// Export safety constants (single source of truth)
+export * from './constants/safety-thresholds';

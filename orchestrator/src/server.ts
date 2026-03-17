@@ -16,6 +16,7 @@ import { Pool } from 'pg';
 import { createClient } from 'redis';
 import * as crypto from 'crypto';
 import pino from 'pino';
+import { z } from 'zod';
 
 const startupLogger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -230,10 +231,23 @@ export class HttpServer {
 
   private async checkSubscription(req: Request, res: Response, next: NextFunction) {
     if (!req.user) return next();
-    
+
     const subscription = await this.getSubscription(req.user.id);
     req.subscription = subscription;
     next();
+  }
+
+  /**
+   * Convenience middleware chain for all authenticated + rate-limited routes.
+   * Usage: this.app.get('/path', ...this.authChain(), handler)
+   */
+  private authChain() {
+    return [
+      this.authenticateToken.bind(this),
+      this.checkSubscription.bind(this),
+      (req: Request, res: Response, next: NextFunction) =>
+        this.rateLimiter!.limit(req, res, next),
+    ];
   }
 
   private setupRoutes() {
@@ -261,56 +275,83 @@ export class HttpServer {
       }
     });
 
-    // Authentication routes
-    this.app.post('/api/auth/signup', async (req, res) => {
-      try {
-        const { email, password, displayName } = req.body;
-        
-        // Check if user exists
-        const existing = await this.getUserByEmail(email);
-        if (existing) {
-          return res.status(400).json({ error: 'Email already registered' });
-        }
-        
-        // Create user
-        const hashedPassword = await this.authService.hashPassword(password);
-        const user = await this.createUser(email, hashedPassword, displayName);
-        
-        // Generate token
-        const token = await this.authService.generateToken(user);
-        
-        res.json({ token, user });
-      } catch (error) {
-        this.logger.error({ error }, 'Signup failed');
-        res.status(500).json({ error: 'Signup failed' });
-      }
+    // Authentication routes — protected by rate limiting and input validation
+    const signupSchema = z.object({
+      email: z.string().email(),
+      password: z.string().min(12, 'Password must be at least 12 characters'),
+      displayName: z.string().max(100).optional(),
     });
 
-    this.app.post('/api/auth/login', async (req, res) => {
-      try {
-        const { email, password } = req.body;
-        
-        const user = await this.getUserByEmail(email);
-        if (!user) {
-          return res.status(401).json({ error: 'Invalid credentials' });
-        }
-        
-        const valid = await this.authService.verifyPassword(password, user.password_hash);
-        if (!valid) {
-          return res.status(401).json({ error: 'Invalid credentials' });
-        }
-        
-        const token = await this.authService.generateToken(user);
-        res.json({ token, user });
-      } catch (error) {
-        this.logger.error({ error }, 'Login failed');
-        res.status(500).json({ error: 'Login failed' });
-      }
+    const loginSchema = z.object({
+      email: z.string().email(),
+      password: z.string().min(1),
     });
+
+    this.app.post('/api/auth/signup',
+      (req, res, next) => this.rateLimiter!.authRateLimit(req, res, next),
+      async (req, res) => {
+        // Validate input
+        const parsed = signupSchema.safeParse(req.body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error.errors[0]?.message || 'Invalid input' });
+        }
+        const { email, password, displayName } = parsed.data;
+
+        try {
+          // Check if user exists
+          const existing = await this.getUserByEmail(email);
+          if (existing) {
+            return res.status(400).json({ error: 'Email already registered' });
+          }
+
+          // Create user
+          const hashedPassword = await this.authService.hashPassword(password);
+          const user = await this.createUser(email, hashedPassword, displayName);
+
+          // Generate token
+          const token = await this.authService.generateToken(user);
+
+          res.json({ token, user });
+        } catch (error) {
+          this.logger.error({ error }, 'Signup failed');
+          res.status(500).json({ error: 'Signup failed' });
+        }
+      }
+    );
+
+    this.app.post('/api/auth/login',
+      (req, res, next) => this.rateLimiter!.authRateLimit(req, res, next),
+      async (req, res) => {
+        // Validate input
+        const parsed = loginSchema.safeParse(req.body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: 'Invalid credentials' });
+        }
+        const { email, password } = parsed.data;
+
+        try {
+          const user = await this.getUserByEmail(email);
+          if (!user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+          }
+
+          const valid = await this.authService.verifyPassword(password, user.password_hash);
+          if (!valid) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+          }
+
+          const token = await this.authService.generateToken(user);
+          res.json({ token, user });
+        } catch (error) {
+          this.logger.error({ error }, 'Login failed');
+          res.status(500).json({ error: 'Login failed' });
+        }
+      }
+    );
 
     // Dashboard stats endpoint
     this.app.get('/api/dashboard/stats',
-      this.authenticateToken.bind(this),
+      ...this.authChain(),
       async (req, res) => {
         try {
           const userId = req.user.id;
@@ -380,7 +421,7 @@ export class HttpServer {
 
     // Profile endpoints
     this.app.get('/api/profile',
-      this.authenticateToken.bind(this),
+      ...this.authChain(),
       async (req, res) => {
         try {
           const userId = req.user!.id;
@@ -410,7 +451,7 @@ export class HttpServer {
     );
 
     this.app.put('/api/profile',
-      this.authenticateToken.bind(this),
+      ...this.authChain(),
       async (req, res) => {
         try {
           const userId = req.user!.id;
@@ -444,7 +485,7 @@ export class HttpServer {
 
     // Passages endpoints
     this.app.get('/api/passages',
-      this.authenticateToken.bind(this),
+      ...this.authChain(),
       async (req, res) => {
         try {
           const userId = req.user.id;
@@ -469,7 +510,7 @@ export class HttpServer {
     );
 
     this.app.get('/api/passages/recent',
-      this.authenticateToken.bind(this),
+      ...this.authChain(),
       async (req, res) => {
         try {
           const userId = req.user.id;
@@ -496,8 +537,7 @@ export class HttpServer {
     );
 
     this.app.post('/api/passages',
-      this.authenticateToken.bind(this),
-      this.checkSubscription.bind(this),
+      ...this.authChain(),
       async (req, res) => {
         try {
           const userId = req.user.id;
@@ -554,7 +594,7 @@ export class HttpServer {
     );
 
     this.app.get('/api/passages/:passageId',
-      this.authenticateToken.bind(this),
+      ...this.authChain(),
       async (req, res) => {
         try {
           const userId = req.user.id;
@@ -585,7 +625,7 @@ export class HttpServer {
     );
 
     this.app.delete('/api/passages/:passageId',
-      this.authenticateToken.bind(this),
+      ...this.authChain(),
       async (req, res) => {
         try {
           const userId = req.user.id;
@@ -610,7 +650,7 @@ export class HttpServer {
 
     // Weather endpoints
     this.app.post('/api/weather/current',
-      this.authenticateToken.bind(this),
+      ...this.authChain(),
       async (req, res) => {
         try {
           const { location, coordinates } = req.body;
@@ -720,8 +760,7 @@ export class HttpServer {
 
     // MCP tool proxy
     this.app.post('/api/mcp/tools/call', 
-      this.authenticateToken.bind(this),
-      this.checkSubscription.bind(this),
+      ...this.authChain(),
       this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
@@ -773,7 +812,7 @@ export class HttpServer {
 
     // Subscription routes
     this.app.post('/api/subscription/create-checkout-session',
-      this.authenticateToken.bind(this),
+      ...this.authChain(),
       this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
@@ -1830,21 +1869,68 @@ export class HttpServer {
   }
 
   private setupWebSocket() {
+    // SECURITY: IP-based connection rate limiting (5 connections/IP/minute)
+    const WS_RATE_WINDOW_MS = 60 * 1000;
+    const WS_MAX_CONNECTIONS_PER_WINDOW = 5;
+    const WS_AUTH_TIMEOUT_MS = 10 * 1000; // disconnect if not authenticated within 10s
+    const wsConnectionTracker = new Map<string, { count: number; windowStart: number }>();
+
+    this.io.use((socket, next) => {
+      const ip = socket.handshake.headers['x-forwarded-for']
+        ? (socket.handshake.headers['x-forwarded-for'] as string).split(',')[0].trim()
+        : socket.handshake.address;
+
+      const now = Date.now();
+      const tracker = wsConnectionTracker.get(ip);
+
+      if (tracker && now - tracker.windowStart < WS_RATE_WINDOW_MS) {
+        if (tracker.count >= WS_MAX_CONNECTIONS_PER_WINDOW) {
+          this.logger.warn({ ip }, 'WebSocket connection rate limit exceeded');
+          return next(new Error('Too many connection attempts'));
+        }
+        tracker.count++;
+      } else {
+        wsConnectionTracker.set(ip, { count: 1, windowStart: now });
+      }
+
+      // Clean up stale entries periodically (every 100 connections)
+      if (wsConnectionTracker.size > 100) {
+        for (const [trackerIp, data] of wsConnectionTracker) {
+          if (now - data.windowStart >= WS_RATE_WINDOW_MS) {
+            wsConnectionTracker.delete(trackerIp);
+          }
+        }
+      }
+
+      next();
+    });
+
     this.io.on('connection', (socket) => {
       this.logger.info({ socketId: socket.id }, 'WebSocket connected');
-      
+
+      // SECURITY: Disconnect unauthenticated sockets after 10 seconds
+      const authTimeout = setTimeout(() => {
+        if (!socket.data.userId) {
+          this.logger.warn({ socketId: socket.id }, 'WebSocket auth timeout — disconnecting');
+          socket.disconnect(true);
+        }
+      }, WS_AUTH_TIMEOUT_MS);
+
       socket.on('authenticate', async (token) => {
         try {
           const payload = await this.authService.verifyToken(token);
           socket.data.userId = payload.userId;
           socket.join(`user:${payload.userId}`);
+          clearTimeout(authTimeout);
           socket.emit('authenticated');
         } catch (error) {
           socket.emit('authentication_error');
+          socket.disconnect(true);
         }
       });
-      
+
       socket.on('disconnect', () => {
+        clearTimeout(authTimeout);
         this.logger.info({ socketId: socket.id }, 'WebSocket disconnected');
       });
     });

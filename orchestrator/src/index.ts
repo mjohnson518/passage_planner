@@ -25,6 +25,22 @@ process.on('unhandledRejection', (reason) => {
 });
 
 async function main() {
+  // SECURITY: Hard block dangerous misconfiguration in production
+  if (process.env.NODE_ENV === 'production') {
+    if (process.env.SKIP_AUTH === 'true') {
+      console.error('[FATAL] SKIP_AUTH=true is not allowed in production — aborting startup');
+      process.exit(1);
+    }
+    if (!process.env.JWT_SECRET) {
+      console.error('[FATAL] JWT_SECRET is required in production — aborting startup');
+      process.exit(1);
+    }
+    if (!process.env.SUPABASE_JWT_SECRET) {
+      console.error('[FATAL] SUPABASE_JWT_SECRET is required in production — aborting startup');
+      process.exit(1);
+    }
+  }
+
   // Validate environment FIRST - fail fast with clear errors
   if (process.env.SKIP_ENV_VALIDATION === 'true') {
     logger.warn('Skipping environment validation (SKIP_ENV_VALIDATION=true)');

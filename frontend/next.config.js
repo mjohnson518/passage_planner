@@ -38,7 +38,11 @@ const nextConfig = {
   },
 
   images: {
-    unoptimized: true,
+    // Enable Next.js image optimization (was disabled, re-enabling for performance)
+    remotePatterns: [
+      { protocol: 'https', hostname: '**.supabase.co' },
+      { protocol: 'https', hostname: '**.supabase.in' },
+    ],
   },
 
   webpack: (config, { isServer }) => {

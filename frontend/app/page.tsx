@@ -68,8 +68,21 @@ function WaveDecoration({ className }: { className?: string }) {
 }
 
 export default function HomePage() {
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'Helmwise',
+    url: 'https://helmwise.co',
+    description: 'AI-powered maritime passage planning for safer voyages.',
+    sameAs: [],
+  }
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Header />
 
       {/* Hero Section */}

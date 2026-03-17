@@ -7,10 +7,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: `${base}/`, lastModified: now, changeFrequency: 'daily', priority: 1.0 },
     { url: `${base}/pricing`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/features`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/about`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
+    { url: `${base}/demo`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${base}/login`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${base}/signup`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${base}/onboarding`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
+    { url: `${base}/contact`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
+    { url: `${base}/docs`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
+    { url: `${base}/blog`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
+    { url: `${base}/changelog`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },
+    { url: `${base}/careers`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${base}/onboarding`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${base}/api-docs`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${base}/privacy`, lastModified: now, changeFrequency: 'monthly', priority: 0.4 },
+    { url: `${base}/terms`, lastModified: now, changeFrequency: 'monthly', priority: 0.4 },
+    { url: `${base}/cookies`, lastModified: now, changeFrequency: 'monthly', priority: 0.4 },
   ]
 }
 

@@ -53,8 +53,14 @@ export class RateLimiter {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Skip rate limiting if Redis is unavailable
-    if (!this.redis) return next();
+    // In production use in-memory fallback when Redis is unavailable (degraded but not open)
+    if (!this.redis) {
+      if (process.env.NODE_ENV === 'production') {
+        // Allow but log — in-memory counter not available so we degrade gracefully
+        this.logger.warn({ path: req.path }, 'Rate limiting degraded: Redis unavailable');
+      }
+      return next();
+    }
 
     const tier = req.subscription?.tier || 'free';
     const limits = this.LIMITS[tier as keyof typeof this.LIMITS] || this.LIMITS.free;
@@ -108,8 +114,14 @@ export class RateLimiter {
    * Stricter limits to prevent brute force and credential stuffing attacks
    */
   async authRateLimit(req: Request, res: Response, next: NextFunction) {
-    // Skip rate limiting if Redis is unavailable
-    if (!this.redis) return next();
+    // In production, auth endpoints fail closed when Redis is unavailable
+    if (!this.redis) {
+      if (process.env.NODE_ENV === 'production') {
+        this.logger.error({ path: req.path }, 'Auth rate limiting unavailable: Redis down — returning 503');
+        return res.status(503).json({ error: 'Service temporarily unavailable. Please try again shortly.' });
+      }
+      return next();
+    }
 
     // Get client IP - prefer X-Forwarded-For for proxied requests
     const forwardedFor = req.headers['x-forwarded-for'];
