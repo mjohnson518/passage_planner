@@ -222,29 +222,24 @@ export class SimpleOrchestrator {
           planningId, undefined, 'system_failure', 'critical', undefined,
           `SafetyAgent failed: ${error.message || 'Unknown error'}`
         );
-        // Return enriched fallback with manual safety checklist
+        // Return enriched fallback — populate warnings so they surface to the mariner
         return {
-          warnings: [],
+          warnings: [
+            { id: 'sf-1', type: 'system_failure', severity: 'critical', description: 'DO NOT depart without completing manual safety verification' },
+            { id: 'sf-2', type: 'system_failure', severity: 'critical', description: 'Consult official nautical charts for the entire route' },
+            { id: 'sf-3', type: 'manual_check', severity: 'critical', description: 'Check NOAA marine weather warnings for your route area' },
+            { id: 'sf-4', type: 'manual_check', severity: 'critical', description: 'Verify water depths against official nautical charts (NOAA/UKHO)' },
+            { id: 'sf-5', type: 'manual_check', severity: 'critical', description: 'Check for restricted areas and active NOTAMs along route' },
+            { id: 'sf-6', type: 'manual_check', severity: 'critical', description: 'Verify tidal heights are safe for vessel draft at all waypoints' },
+            { id: 'sf-7', type: 'manual_check', severity: 'critical', description: 'File a float plan with a trusted shore contact' },
+            { id: 'sf-8', type: 'manual_check', severity: 'critical', description: 'Monitor VHF Channel 16 continuously during passage' },
+          ],
           hazards: [],
           recommendations: ['Safety check failed - exercise extreme caution'],
           safetyCheckFailed: true,
           failureDetails: {
             reason: error.message || 'Safety system unavailable',
             timestamp: new Date().toISOString(),
-            manualChecklist: [
-              'Check NOAA marine weather warnings for your route area',
-              'Verify water depths against official nautical charts (NOAA/UKHO)',
-              'Check for restricted areas and active NOTAMs along route',
-              'Confirm current weather conditions at departure and destination',
-              'Verify tidal heights are safe for vessel draft at all waypoints',
-              'Ensure emergency contacts and Coast Guard frequencies are accessible'
-            ],
-            requiredActions: [
-              'DO NOT depart without completing manual safety verification',
-              'Consult official nautical charts for the entire route',
-              'File a float plan with a trusted shore contact',
-              'Monitor VHF Channel 16 continuously during passage'
-            ]
           }
         };
       });
@@ -325,15 +320,44 @@ export class SimpleOrchestrator {
         return null;
       });
 
-      // Emergency harbors along route midpoint (SAFETY CRITICAL)
-      const midLat = (request.departure.latitude + request.destination.latitude) / 2;
-      const midLon = (request.departure.longitude + request.destination.longitude) / 2;
+      // Emergency harbors at 25%, 50%, and 75% along the route (SAFETY CRITICAL)
+      // Search at multiple points so mariners have refuge options throughout the passage
+      const depLat = request.departure.latitude;
+      const depLon = request.departure.longitude;
+      const destLat = request.destination.latitude;
+      const destLon = request.destination.longitude;
+      const quarterPoints = [0.25, 0.5, 0.75].map(f => ({
+        latitude: depLat + (destLat - depLat) * f,
+        longitude: depLon + (destLon - depLon) * f,
+      }));
+
       const emergencyHarborsPromise = Promise.race([
-        this.portAgent.handleToolCall('find_emergency_harbors', {
-          latitude: midLat,
-          longitude: midLon,
-          maxDistance: 100,
-          draft: request.vessel?.draft
+        Promise.all(
+          quarterPoints.map(pt =>
+            this.portAgent.handleToolCall('find_emergency_harbors', {
+              latitude: pt.latitude,
+              longitude: pt.longitude,
+              maxDistance: 100,
+              draft: request.vessel?.draft
+            }).catch(() => null)
+          )
+        ).then(results => {
+          // Merge and deduplicate harbors from all three search points
+          const seen = new Set<string>();
+          const harbors: any[] = [];
+          for (const result of results) {
+            if (!result) continue;
+            const content = result?.content?.find((c: any) => c.type === 'data')?.data?.harbors || [];
+            for (const h of content) {
+              const key = h.id || h.name;
+              if (key && !seen.has(key)) {
+                seen.add(key);
+                harbors.push(h);
+              }
+            }
+          }
+          // Return in same MCP content format as a single call
+          return { content: [{ type: 'data', data: { harbors } }] };
         }),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Emergency harbor search timeout')), agentTimeout)
@@ -364,8 +388,33 @@ export class SimpleOrchestrator {
       const parallelTime = Date.now() - parallelStart;
       logger.info({ parallelTime, planningId }, 'All agents completed in parallel execution (including safety)');
 
+      // Two-pass safety: if route agent produced intermediate waypoints, re-run safety
+      // with the full waypoint list (initial safety check only had departure + destination)
+      let finalSafetyRoute = safetyRoute;
+      const routeWaypointsFull: any[] = (route as any)?.waypoints;
+      if (Array.isArray(routeWaypointsFull) && routeWaypointsFull.length > 2) {
+        logger.info({ waypointCount: routeWaypointsFull.length, planningId },
+          'Running two-pass safety check with full route waypoints');
+        try {
+          const fullSafetyResult = await Promise.race([
+            this.agents['safety'].callTool('check_route_safety', {
+              route: routeWaypointsFull,
+              departure_time: request.departure.time || new Date().toISOString(),
+              vessel_draft: request.vessel?.draft || 6
+            }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Full-route safety check timeout')), agentTimeout)
+            )
+          ]);
+          finalSafetyRoute = fullSafetyResult;
+          logger.info({ planningId }, 'Two-pass safety check complete — using full-route result');
+        } catch (error) {
+          logger.warn({ error, planningId }, 'Full-route safety check failed — using initial result');
+        }
+      }
+
       // Extract safety warnings from safety route check
-      const safetyWarnings = this.extractSafetyWarnings(safetyRoute);
+      const safetyWarnings = this.extractSafetyWarnings(finalSafetyRoute);
 
       // Step 2: Validate weather data freshness (SAFETY CRITICAL - reject stale data)
       const freshnessWarnings: string[] = [];
@@ -382,7 +431,7 @@ export class SimpleOrchestrator {
       );
 
       // Step 4: Detect if safety system failed and build appropriate disclaimer
-      const safetySystemFailed = !!(safetyRoute as any)?.safetyCheckFailed;
+      const safetySystemFailed = !!(finalSafetyRoute as any)?.safetyCheckFailed;
       const safetyDisclaimer = safetySystemFailed
         ? 'WARNING: Automated safety checks failed. Manual verification is REQUIRED before departure. Skipper retains ultimate responsibility for vessel safety.'
         : 'This safety analysis is advisory only. Skipper retains ultimate responsibility for vessel safety.';
@@ -481,10 +530,26 @@ export class SimpleOrchestrator {
 
       const watchSchedule = this.generateWatchSchedule(crewSize, bufferedDuration, departureTimeForWatch);
 
+      // Determine plan status based on safety findings
+      // SAFETY_WARNING: critical/severe hazards detected (e.g. grounding risk, gale force winds)
+      // SAFETY_UNVERIFIED: safety agent failed to run
+      // OK: no critical issues found
+      const hasCriticalHazards = (finalSafetyRoute as any)?.hazards?.some(
+        (h: any) => h.severity === 'critical' || h.severity === 'severe'
+      ) || (finalSafetyRoute as any)?.warnings?.some(
+        (w: any) => w.severity === 'critical'
+      );
+      const planStatus: PlanStatus = safetySystemFailed
+        ? PLAN_STATUS.SAFETY_UNVERIFIED
+        : hasCriticalHazards
+          ? PLAN_STATUS.SAFETY_WARNING
+          : PLAN_STATUS.OK;
+
       // Compile comprehensive passage plan
       const passagePlan = {
         id: planningId,
-        status: (safetySystemFailed ? PLAN_STATUS.SAFETY_UNVERIFIED : PLAN_STATUS.OK) as PlanStatus,
+        timestamp: new Date().toISOString(),
+        status: planStatus,
         request,
         route,
         weather: {
@@ -522,7 +587,7 @@ export class SimpleOrchestrator {
         },
         // CRITICAL: Safety data for mariner awareness
         safety: {
-          routeAnalysis: safetyRoute,
+          routeAnalysis: finalSafetyRoute,
           brief: safetyBrief,
           warnings: safetyWarnings,
           systemFailure: safetySystemFailed,
@@ -627,6 +692,9 @@ export class SimpleOrchestrator {
    * - Reject stale data (weather >1hr)
    * - Warn on approaching staleness
    * SAFETY CRITICAL: Stale weather data is life-threatening for mariners
+   *
+   * Agent response is MCP format: { content: [{ type: 'data', data: forecast }] }
+   * We extract issuedAt from the inner forecast object.
    */
   private validateWeatherFreshness(weatherData: any, location: string): string[] {
     const warnings: string[] = [];
@@ -636,35 +704,43 @@ export class SimpleOrchestrator {
       return warnings;
     }
 
-    // Check metadata.freshnessStatus if available
-    const metadata = weatherData?.metadata || weatherData?.freshnessStatus;
-    if (metadata?.freshnessStatus || metadata?.ageMinutes !== undefined) {
-      const freshness = metadata.freshnessStatus || metadata;
-      const ageMinutes = freshness.ageMinutes;
-
-      if (ageMinutes !== undefined) {
-        const rejectAgeMinutes = WEATHER_REJECT_AGE_MS / (60 * 1000); // 60 min
-        const warnAgeMinutes = WEATHER_WARN_AGE_MS / (60 * 1000);     // 30 min
-        if (ageMinutes > rejectAgeMinutes) {
-          // CLAUDE.md: "Reject stale data (weather >1hr)"
-          warnings.push(`🔴 CRITICAL: Weather data for ${location} is ${Math.round(ageMinutes)} minutes old - DATA REJECTED as stale. Verify weather independently before departure.`);
-        } else if (freshness.isStale || ageMinutes > warnAgeMinutes) {
-          warnings.push(`⚠️ Weather data for ${location} is ${Math.round(ageMinutes)} minutes old and approaching staleness. Consider refreshing before departure.`);
-        }
-      }
+    // Extract forecast from MCP content format: { content: [{ type: 'data', data: forecast }] }
+    let forecast: any = weatherData;
+    if (weatherData?.content && Array.isArray(weatherData.content)) {
+      const dataContent = weatherData.content.find((c: any) => c.type === 'data');
+      if (dataContent?.data) forecast = dataContent.data;
     }
 
-    // Check for confidence level and single-source data
-    const confidence = weatherData?.metadata?.confidence || weatherData?.confidence;
+    // Check issuedAt from the forecast object
+    const issuedAt = forecast?.issuedAt
+      ? new Date(forecast.issuedAt)
+      : forecast?.metadata?.issuedAt
+        ? new Date(forecast.metadata.issuedAt)
+        : null;
+
+    if (issuedAt && !isNaN(issuedAt.getTime())) {
+      const ageMs = Date.now() - issuedAt.getTime();
+      const ageMinutes = ageMs / (60 * 1000);
+      const rejectAgeMinutes = WEATHER_REJECT_AGE_MS / (60 * 1000); // 60 min
+      const warnAgeMinutes = WEATHER_WARN_AGE_MS / (60 * 1000);     // 30 min
+
+      if (ageMs > WEATHER_REJECT_AGE_MS) {
+        // CLAUDE.md: "Reject stale data (weather >1hr)"
+        warnings.push(`🔴 CRITICAL: Weather data for ${location} is ${Math.round(ageMinutes)} minutes old - DATA REJECTED as stale. Verify weather independently before departure.`);
+      } else if (ageMs > WEATHER_WARN_AGE_MS) {
+        warnings.push(`⚠️ Weather data for ${location} is ${Math.round(ageMinutes)} minutes old and approaching staleness. Consider refreshing before departure.`);
+      }
+    } else {
+      // No issuedAt timestamp — cannot verify freshness
+      warnings.push(`⚠️ Weather freshness for ${location} could not be verified - data age unknown. Verify independently before departure.`);
+    }
+
+    // Check for confidence level
+    const confidence = forecast?.confidence || weatherData?.metadata?.confidence;
     if (confidence === 'low') {
       warnings.push(`⚠️ Weather data for ${location} has LOW confidence - verify weather independently before departure`);
     } else if (confidence === 'medium') {
       warnings.push(`⚠️ Weather data for ${location} has moderate confidence - consider verifying independently`);
-    }
-
-    // Warn if no freshness metadata (can't verify data currency)
-    if (!metadata?.freshnessStatus && metadata?.ageMinutes === undefined && !weatherData?.timestamp) {
-      warnings.push(`⚠️ Weather freshness for ${location} could not be verified - data age unknown`);
     }
 
     return warnings;

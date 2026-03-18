@@ -520,12 +520,16 @@ export class AreaChecker {
     const dLon = end.longitude - start.longitude;
     const approxNm = Math.sqrt(dLat * dLat + dLon * dLon) * 60; // rough nm from degrees
     const samples = Math.max(50, Math.ceil(approxNm));
+    // Use great-circle interpolation for segments >100nm to follow the actual vessel track
+    const useGreatCircle = approxNm > 100;
     for (let i = 0; i <= samples; i++) {
       const fraction = i / samples;
-      const samplePoint: Waypoint = {
-        latitude: start.latitude + (end.latitude - start.latitude) * fraction,
-        longitude: start.longitude + (end.longitude - start.longitude) * fraction,
-      };
+      const samplePoint: Waypoint = useGreatCircle
+        ? this.greatCircleInterpolate(start, end, fraction)
+        : {
+            latitude: start.latitude + dLat * fraction,
+            longitude: start.longitude + dLon * fraction,
+          };
 
       const pointConflicts = this.checkWaypoint(samplePoint);
       for (const conflict of pointConflicts) {
@@ -539,15 +543,62 @@ export class AreaChecker {
   }
 
   /**
-   * Check if point is within geographic bounds
+   * Spherical linear interpolation (SLERP) along a great-circle arc.
+   * More accurate than linear lat/lon interpolation for long offshore segments.
+   */
+  private greatCircleInterpolate(start: Waypoint, end: Waypoint, fraction: number): Waypoint {
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const toDeg = (rad: number) => (rad * 180) / Math.PI;
+
+    const lat1 = toRad(start.latitude);
+    const lon1 = toRad(start.longitude);
+    const lat2 = toRad(end.latitude);
+    const lon2 = toRad(end.longitude);
+
+    // Convert to 3D unit-sphere Cartesian
+    const x1 = Math.cos(lat1) * Math.cos(lon1);
+    const y1 = Math.cos(lat1) * Math.sin(lon1);
+    const z1 = Math.sin(lat1);
+
+    const x2 = Math.cos(lat2) * Math.cos(lon2);
+    const y2 = Math.cos(lat2) * Math.sin(lon2);
+    const z2 = Math.sin(lat2);
+
+    const dot = Math.min(1, Math.max(-1, x1 * x2 + y1 * y2 + z1 * z2));
+    const omega = Math.acos(dot);
+
+    let x: number, y: number, z: number;
+    if (omega < 1e-10) {
+      x = x1; y = y1; z = z1;
+    } else {
+      const sinOmega = Math.sin(omega);
+      const a = Math.sin((1 - fraction) * omega) / sinOmega;
+      const b = Math.sin(fraction * omega) / sinOmega;
+      x = a * x1 + b * x2;
+      y = a * y1 + b * y2;
+      z = a * z1 + b * z2;
+    }
+
+    return {
+      latitude: toDeg(Math.asin(Math.min(1, Math.max(-1, z)))),
+      longitude: toDeg(Math.atan2(y, x)),
+    };
+  }
+
+  /**
+   * Check if point is within geographic bounds.
+   * Handles the international date line correctly when west > east.
    */
   private isPointInBounds(point: Waypoint, bounds: GeographicBounds): boolean {
-    return (
-      point.latitude >= bounds.south &&
-      point.latitude <= bounds.north &&
-      point.longitude >= bounds.west &&
-      point.longitude <= bounds.east
-    );
+    const latOk = point.latitude >= bounds.south && point.latitude <= bounds.north;
+    if (!latOk) return false;
+
+    // Antimeridian-crossing bounds: west > east (e.g. west=170, east=-170)
+    if (bounds.west > bounds.east) {
+      return point.longitude >= bounds.west || point.longitude <= bounds.east;
+    }
+
+    return point.longitude >= bounds.west && point.longitude <= bounds.east;
   }
 
   /**

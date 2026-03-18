@@ -450,8 +450,10 @@ export class SafetyAgent {
     }
 
     // Validate each waypoint
+    // SAFETY: Use explicit null/undefined checks — !value is truthy for lat=0 (equator)
     for (const waypoint of route) {
-      if (!waypoint.latitude || !waypoint.longitude) {
+      if (waypoint.latitude === undefined || waypoint.latitude === null ||
+          waypoint.longitude === undefined || waypoint.longitude === null) {
         throw new Error('Each waypoint must have latitude and longitude');
       }
       if (waypoint.latitude < -90 || waypoint.latitude > 90) {
@@ -500,6 +502,75 @@ export class SafetyAgent {
       );
     }
 
+    // SAFETY: Helper to check depth at a single lat/lon point
+    const checkDepthAtPoint = async (point: { latitude: number; longitude: number }) => {
+      try {
+        const depthResult = await this.bathymetryService.getDepth(point.latitude, point.longitude);
+
+        if (isNaN(depthResult.depth) || depthResult.confidence === 'unknown') {
+          this.logger.warn({ location: point, source: depthResult.source, requestId },
+            'SAFETY WARNING: Unable to obtain reliable depth data');
+          warnings.push({
+            id: uuidv4(),
+            type: 'data_unavailable',
+            location: point,
+            description: 'Unable to obtain reliable depth data for this area. Exercise extreme caution.',
+            severity: 'warning',
+            issued: new Date().toISOString(),
+            source: 'BathymetryService',
+          });
+        }
+
+        const chartedDepthFeet = depthResult.depthFeet;
+        const tidalResult = await this.getLowestTidalAdjustment(
+          point.latitude, point.longitude, departure_time, 24
+        );
+        const tidalAdjustment = tidalResult.tidalHeight;
+        const depthCalc = this.depthCalculator.calculateDepthSafety(
+          point, chartedDepthFeet, vessel_draft, tidalAdjustment
+        );
+
+        this.auditLogger.logDataSource(requestId, 'bathymetry',
+          depthResult.source, depthResult.confidence, point);
+        this.auditLogger.logDataSource(requestId, 'tidal',
+          `NOAA Station: ${tidalResult.stationName} (${tidalResult.stationId})`,
+          tidalResult.confidence, point);
+
+        if (tidalResult.confidence === 'low') {
+          warnings.push({
+            id: uuidv4(),
+            type: 'tidal_data_quality',
+            location: point,
+            description: `Tidal data confidence is low (Station: ${tidalResult.stationName}). ` +
+                         `Using conservative estimate of ${tidalResult.tidalHeight.toFixed(1)}ft. ` +
+                         `Verify local tide conditions independently.`,
+            severity: 'warning',
+            issued: new Date().toISOString(),
+            source: 'NOAATidalService',
+          });
+        }
+
+        if (depthCalc.isGroundingRisk) {
+          hazards.push({
+            id: uuidv4(),
+            type: 'shallow_water',
+            location: point,
+            description: `Shallow water: ${depthCalc.recommendation}`,
+            severity: depthCalc.severity,
+            avoidance: depthCalc.severity === 'critical'
+              ? 'DO NOT PROCEED - find alternative route'
+              : 'Monitor depth closely, consider waiting for higher tide',
+          });
+          this.auditLogger.logHazardDetected(
+            requestId, undefined, 'shallow_water', point,
+            depthCalc.severity, depthCalc.recommendation
+          );
+        }
+      } catch (error) {
+        this.logger.warn({ error, point }, 'Depth calculation failed for point');
+      }
+    };
+
     // Analyze each segment of the route
     for (let i = 0; i < route.length - 1; i++) {
       const segment = {
@@ -510,110 +581,27 @@ export class SafetyAgent {
 
       // Check for shallow water hazards if vessel draft is provided
       if (vessel_draft) {
-        try {
-          // SAFETY CRITICAL: Query real bathymetric data from NOAA GEBCO/ETOPO
-          const depthResult = await this.bathymetryService.getDepth(
-            segment.from.latitude,
-            segment.from.longitude
-          );
+        // Always check the departure point of each segment
+        await checkDepthAtPoint(segment.from);
 
-          // Log if we couldn't get reliable depth data
-          if (isNaN(depthResult.depth) || depthResult.confidence === 'unknown') {
-            this.logger.warn({
-              location: segment.from,
-              source: depthResult.source,
-              confidence: depthResult.confidence,
-              requestId,
-            }, 'SAFETY WARNING: Unable to obtain reliable depth data for segment');
-
-            warnings.push({
-              id: uuidv4(),
-              type: 'data_unavailable',
-              location: segment.from,
-              description: 'Unable to obtain reliable depth data for this area. Exercise extreme caution.',
-              severity: 'warning',
-              issued: new Date().toISOString(),
-              source: 'BathymetryService',
-            });
+        // Check intermediate points for long segments (max 5 samples to limit API calls)
+        const SAMPLE_INTERVAL_NM = 10; // sample every 10nm
+        const MAX_INTERMEDIATE_SAMPLES = 5;
+        if (segment.distance > SAMPLE_INTERVAL_NM) {
+          const numSamples = Math.min(Math.floor(segment.distance / SAMPLE_INTERVAL_NM), MAX_INTERMEDIATE_SAMPLES);
+          for (let s = 1; s <= numSamples; s++) {
+            const fraction = s / (numSamples + 1);
+            const intPoint = {
+              latitude: segment.from.latitude + (segment.to.latitude - segment.from.latitude) * fraction,
+              longitude: segment.from.longitude + (segment.to.longitude - segment.from.longitude) * fraction,
+            };
+            await checkDepthAtPoint(intPoint);
           }
+        }
 
-          // Convert meters to feet for consistency with vessel draft (typically in feet)
-          const chartedDepthFeet = depthResult.depthFeet;
-
-          // CRITICAL SAFETY: Get real tidal data using MOST CONSERVATIVE approach
-          // Uses the LOWEST predicted tide in the passage window to ensure safety
-          // at the worst-case scenario (prevents groundings during low tide)
-          const tidalResult = await this.getLowestTidalAdjustment(
-            segment.from.latitude,
-            segment.from.longitude,
-            departure_time,
-            24 // Check 24 hour window from departure
-          );
-          const tidalAdjustment = tidalResult.tidalHeight;
-
-          const depthCalc = this.depthCalculator.calculateDepthSafety(
-            segment.from,
-            chartedDepthFeet,
-            vessel_draft,
-            tidalAdjustment
-          );
-
-          // Log depth data source and confidence for audit
-          this.auditLogger.logDataSource(
-            requestId,
-            'bathymetry',
-            depthResult.source,
-            depthResult.confidence,
-            segment.from
-          );
-
-          // Log tidal data source for audit trail
-          this.auditLogger.logDataSource(
-            requestId,
-            'tidal',
-            `NOAA Station: ${tidalResult.stationName} (${tidalResult.stationId})`,
-            tidalResult.confidence,
-            segment.from
-          );
-
-          // Add warning if tidal data confidence is low
-          if (tidalResult.confidence === 'low') {
-            warnings.push({
-              id: uuidv4(),
-              type: 'tidal_data_quality',
-              location: segment.from,
-              description: `Tidal data confidence is low for this location (Station: ${tidalResult.stationName}). ` +
-                          `Using conservative estimate of ${tidalResult.tidalHeight.toFixed(1)}ft. ` +
-                          `Verify local tide conditions independently.`,
-              severity: 'warning',
-              issued: new Date().toISOString(),
-              source: 'NOAATidalService',
-            });
-          }
-
-          if (depthCalc.isGroundingRisk) {
-            hazards.push({
-              id: uuidv4(),
-              type: 'shallow_water',
-              location: segment.from,
-              description: `Shallow water: ${depthCalc.recommendation}`,
-              severity: depthCalc.severity,
-              avoidance: depthCalc.severity === 'critical' 
-                ? 'DO NOT PROCEED - find alternative route' 
-                : 'Monitor depth closely, consider waiting for higher tide',
-            });
-
-            this.auditLogger.logHazardDetected(
-              requestId,
-              undefined,
-              'shallow_water',
-              segment.from,
-              depthCalc.severity,
-              depthCalc.recommendation
-            );
-          }
-        } catch (error) {
-          this.logger.warn({ error, segment }, 'Depth calculation failed for segment');
+        // Always check the destination point of each segment (last waypoint)
+        if (i === route.length - 2) {
+          await checkDepthAtPoint(segment.to);
         }
       }
     }

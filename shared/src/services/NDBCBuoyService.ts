@@ -5,6 +5,7 @@ import pino from 'pino';
 import { CacheManager } from './CacheManager';
 import { CircuitBreakerFactory } from './resilience/circuit-breaker';
 import CircuitBreaker from 'opossum';
+import { BUOY_CACHE_TTL_S } from '../constants/safety-thresholds';
 
 /**
  * NDBC (National Data Buoy Center) Service
@@ -49,7 +50,7 @@ export interface WaveObservation {
 }
 
 export interface WaveHazardLevel {
-  level: 'safe' | 'moderate' | 'elevated' | 'dangerous';
+  level: 'safe' | 'moderate' | 'elevated' | 'dangerous' | 'unknown';
   description: string;
   advisory?: string;
 }
@@ -281,7 +282,11 @@ export class NDBCBuoyService {
           station,
           observations: [],
           currentConditions: null,
-          hazardLevel: { level: 'safe', description: 'No data available' },
+          hazardLevel: {
+            level: 'unknown',
+            description: 'No buoy data available — verify sea state independently',
+            advisory: 'No observations retrieved. Do not assume calm seas.'
+          },
           dataAge: -1,
           quality: 'unavailable'
         };
@@ -299,8 +304,8 @@ export class NDBCBuoyService {
         quality: dataAge <= 60 ? 'good' : dataAge <= 180 ? 'stale' : 'unavailable'
       };
 
-      // Cache the result (30 minutes)
-      await this.cache.setWithTTL(`ndbc:buoy:${stationId}`, buoyData, 1800);
+      // Cache the result (BUOY_CACHE_TTL_S = 30 minutes)
+      await this.cache.setWithTTL(`ndbc:buoy:${stationId}`, buoyData, BUOY_CACHE_TTL_S);
 
       this.logger.debug({
         stationId,
@@ -352,12 +357,15 @@ export class NDBCBuoyService {
         const timestamp = new Date(Date.UTC(fullYear, month, day, hour, minute));
 
         // Parse values - MM means missing data
+        // SAFETY: NDBC reports wind in m/s — convert to knots (× 1.94384) for consistency
+        const windSpeedMs = this.parseNDBCValue(parts[6]);
+        const windGustsMs = this.parseNDBCValue(parts[7]);
         const observation: WaveObservation = {
           timestamp,
           stationId,
           windDirection: this.parseNDBCValue(parts[5]),
-          windSpeed: this.parseNDBCValue(parts[6]),
-          windGusts: this.parseNDBCValue(parts[7]),
+          windSpeed: windSpeedMs !== null ? Math.round(windSpeedMs * 1.94384 * 10) / 10 : null,
+          windGusts: windGustsMs !== null ? Math.round(windGustsMs * 1.94384 * 10) / 10 : null,
           significantWaveHeight: this.parseNDBCValue(parts[8]),
           dominantWavePeriod: this.parseNDBCValue(parts[9]),
           meanWaveDirection: parts.length > 11 ? this.parseNDBCValue(parts[11]) : null,
@@ -397,8 +405,9 @@ export class NDBCBuoyService {
 
     if (waveHeight === null) {
       return {
-        level: 'safe',
-        description: 'Wave data unavailable - check local conditions'
+        level: 'unknown',
+        description: 'Wave data unavailable — verify sea state independently before departure',
+        advisory: 'Wave height data is missing. Do not assume calm seas. Check official NOAA marine forecasts.'
       };
     }
 
