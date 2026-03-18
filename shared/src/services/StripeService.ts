@@ -27,43 +27,68 @@ export class StripeService {
   
   // Create a checkout session for subscription
   async createCheckoutSession(
-    userId: string, 
-    priceId: string, 
-    successUrl: string, 
+    userId: string,
+    priceId: string,
+    successUrl: string,
     cancelUrl: string,
-    email?: string
+    email?: string,
+    couponId?: string
   ) {
     try {
       // Get or create Stripe customer
       const customer = await this.getOrCreateCustomer(userId, email);
-      
-      const session = await this.stripe.checkout.sessions.create({
+
+      const sessionParams: Stripe.Checkout.SessionCreateParams = {
         customer: customer.id,
         payment_method_types: ['card'],
-        line_items: [{
-          price: priceId,
-          quantity: 1,
-        }],
+        line_items: [{ price: priceId, quantity: 1 }],
         mode: 'subscription',
         success_url: successUrl,
         cancel_url: cancelUrl,
-        metadata: {
-          userId,
-        },
+        metadata: { userId },
         subscription_data: {
-          trial_period_days: 14, // Free trial
-          metadata: {
-            userId,
-          },
+          trial_period_days: 14,
+          metadata: { userId },
         },
-        // Enable customer portal for self-service
-        allow_promotion_codes: true,
+        allow_promotion_codes: !couponId, // disable promo codes when founding coupon applied
         billing_address_collection: 'auto',
-      });
-      
+      };
+
+      if (couponId) {
+        sessionParams.discounts = [{ coupon: couponId }];
+      }
+
+      const session = await this.stripe.checkout.sessions.create(sessionParams);
       return session;
     } catch (error) {
       this.logger.error({ error, userId }, 'Failed to create checkout session');
+      throw error;
+    }
+  }
+
+  // Create a one-time checkout session for passage top-up packs
+  async createTopUpCheckoutSession(
+    userId: string,
+    priceId: string,
+    pack: string,
+    successUrl: string,
+    cancelUrl: string,
+    email?: string
+  ) {
+    try {
+      const customer = await this.getOrCreateCustomer(userId, email);
+      const session = await this.stripe.checkout.sessions.create({
+        customer: customer.id,
+        payment_method_types: ['card'],
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode: 'payment',
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        metadata: { userId, type: 'top_up', pack },
+      });
+      return session;
+    } catch (error) {
+      this.logger.error({ error, userId, pack }, 'Failed to create top-up checkout session');
       throw error;
     }
   }
@@ -118,31 +143,61 @@ export class StripeService {
     switch (event.type) {
       case 'checkout.session.completed':
         return this.handleCheckoutComplete(event.data.object as Stripe.Checkout.Session);
-        
+
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
         return this.handleSubscriptionUpdate(event.data.object as Stripe.Subscription);
-        
+
       case 'customer.subscription.deleted':
         return this.handleSubscriptionCanceled(event.data.object as Stripe.Subscription);
-        
+
       case 'invoice.payment_failed':
         return this.handlePaymentFailed(event.data.object as Stripe.Invoice);
-        
+
+      case 'invoice.payment_succeeded':
+        return this.handleInvoicePaid(event.data.object as Stripe.Invoice);
+
       default:
         this.logger.info({ type: event.type }, 'Unhandled webhook event');
+    }
+  }
+
+  /** Expose event ID for idempotency checks in the webhook handler */
+  getEventId(signature: string, payload: Buffer): string | null {
+    try {
+      const event = this.stripe.webhooks.constructEvent(
+        payload,
+        signature,
+        this.webhookSecret
+      );
+      return event.id;
+    } catch {
+      return null;
     }
   }
   
   private async handleCheckoutComplete(session: Stripe.Checkout.Session) {
     const userId = session.metadata?.userId;
     if (!userId) return;
-    
+
+    // One-time payment (e.g., passage top-up pack)
+    if (session.mode === 'payment') {
+      const pack = session.metadata?.pack;
+      return {
+        type: 'top_up' as const,
+        userId,
+        pack,
+      };
+    }
+
+    // Subscription checkout
     return {
+      type: 'subscription' as const,
       userId,
       stripeCustomerId: session.customer as string,
       stripeSubscriptionId: session.subscription as string,
       status: 'active',
+      founding: session.metadata?.founding === 'true',
     };
   }
   
@@ -176,11 +231,26 @@ export class StripeService {
   private async handlePaymentFailed(invoice: Stripe.Invoice) {
     const customerId = invoice.customer as string;
     const subscription = (invoice as any).subscription as string;
-    
+    const userId = (invoice as any).subscription_details?.metadata?.userId;
+
     return {
+      type: 'payment_failed' as const,
       customerId,
       subscriptionId: subscription,
+      userId,
       status: 'past_due',
+    };
+  }
+
+  private async handleInvoicePaid(invoice: Stripe.Invoice) {
+    // Extract userId from subscription metadata
+    const userId = (invoice as any).subscription_details?.metadata?.userId ||
+      (invoice as any).metadata?.userId;
+    if (!userId) return;
+
+    return {
+      type: 'invoice_paid' as const,
+      userId,
     };
   }
   
