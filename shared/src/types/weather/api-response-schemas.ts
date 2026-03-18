@@ -18,7 +18,7 @@ export const NOAAForecastPeriodSchema = z.object({
   startTime: z.string(),
   endTime: z.string(),
   temperature: z.number(),
-  temperatureUnit: z.string(),
+  temperatureUnit: z.enum(['F', 'C']),
   windSpeed: z.string(),
   windDirection: z.string(),
   shortForecast: z.string(),

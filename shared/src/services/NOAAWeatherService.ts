@@ -5,6 +5,7 @@ import { CircuitBreakerFactory } from './resilience/circuit-breaker';
 import CircuitBreaker from 'opossum';
 import { NDBCBuoyService } from './NDBCBuoyService';
 import { NOAAForecastResponseSchema, NOAAAlertsResponseSchema } from '../types/weather/api-response-schemas';
+import { WEATHER_CACHE_TTL_S, FALLBACK_CACHE_TTL_S } from '../constants/safety-thresholds';
 
 export interface MarineWeatherForecast {
   location: {
@@ -18,6 +19,7 @@ export interface MarineWeatherForecast {
   waveHeight: WaveData[];
   windData: WindData[];
   visibility: VisibilityData[];
+  dataWarnings?: string[]; // Non-fatal data quality warnings (e.g., wave data unavailable)
 }
 
 export interface WeatherPeriod {
@@ -29,7 +31,7 @@ export interface WeatherPeriod {
   windDirection: string;
   shortForecast: string;
   detailedForecast: string;
-  precipitationChance: number;
+  precipitationChance: number | null; // null = no data, not 0% chance
   isDaytime: boolean;
 }
 
@@ -56,7 +58,8 @@ export interface WindData {
   time: Date;
   speed: number; // knots
   gusts: number; // knots
-  direction: number; // degrees
+  direction: number; // degrees (NaN = unknown/variable)
+  gustsEstimated?: boolean; // true when gust value is estimated (1.5x rule), false when parsed from forecast text
 }
 
 export interface VisibilityData {
@@ -169,7 +172,10 @@ export class NOAAWeatherService {
       const validatedAlerts = alertsParse.success ? alertsParse.data : [];
 
       // Fetch wave data from NDBC buoys
-      const waveData = await this.getWaveDataForLocation(latitude, longitude);
+      const { waveData, waveDataWarning } = await this.getWaveDataForLocation(latitude, longitude);
+
+      const dataWarnings: string[] = [];
+      if (waveDataWarning) dataWarnings.push(waveDataWarning);
 
       // Transform NOAA format to our internal format
       const marineForecast: MarineWeatherForecast = {
@@ -188,7 +194,7 @@ export class NOAAWeatherService {
           windDirection: period.windDirection,
           shortForecast: period.shortForecast,
           detailedForecast: period.detailedForecast,
-          precipitationChance: period.probabilityOfPrecipitation?.value || 0,
+          precipitationChance: period.probabilityOfPrecipitation?.value ?? null,
           isDaytime: period.isDaytime
         })),
         warnings: validatedAlerts.map(alert => ({
@@ -204,17 +210,19 @@ export class NOAAWeatherService {
         })),
         waveHeight: waveData,
         windData: this.extractWindData(validatedForecast.periods),
-        visibility: this.extractVisibilityData(validatedForecast.periods) // Parse from forecast text
+        visibility: this.extractVisibilityData(validatedForecast.periods), // Parse from forecast text
+        dataWarnings: dataWarnings.length > 0 ? dataWarnings : undefined,
       };
       
-      // Cache the result with proper TTL (3 hours for weather data)
-      await this.cache.setWithTTL(cacheKey, marineForecast, 10800); // 3 hour TTL
-      
+      // Cache the result with 1-hour TTL (matches CLAUDE.md "reject stale data >1hr")
+      await this.cache.setWithTTL(cacheKey, marineForecast, WEATHER_CACHE_TTL_S);
+
       // Also store a fallback cache with longer TTL for circuit breaker scenarios
+      // Store marineForecast (internal format) not validatedForecast (raw NOAA shape)
       await this.cache.setWithTTL(
         `weather:forecast:fallback:${latitude.toFixed(4)},${longitude.toFixed(4)}`,
-        validatedForecast,
-        86400  // 24 hour TTL for fallback
+        marineForecast,
+        FALLBACK_CACHE_TTL_S
       );
       
       return marineForecast;
@@ -225,22 +233,44 @@ export class NOAAWeatherService {
   }
   
   /**
-   * Extract wind data from forecast periods
+   * Parse actual gust speed from NOAA forecast text.
+   * Returns null when no gust text found (caller should use estimated value).
+   * SAFETY: Applies a safety floor of 1.3x sustained speed.
+   */
+  private parseGustFromForecast(detailedForecast: string, sustainedSpeed: number): number | null {
+    const match = detailedForecast.match(/gusts?\s+(?:up\s+)?to\s+(\d+)\s*(mph|kt|knots)/i);
+    if (!match) return null;
+
+    let gustSpeed = parseInt(match[1], 10);
+    if (match[2].toLowerCase() === 'mph') {
+      gustSpeed = Math.round(gustSpeed * 0.868976);
+    }
+    // Apply safety floor: never report gusts below 1.3x sustained speed
+    return Math.max(gustSpeed, Math.round(sustainedSpeed * 1.3));
+  }
+
+  /**
+   * Extract wind data from forecast periods.
+   * Uses parsed gust values when available; falls back to 1.5x estimate.
    */
   private extractWindData(periods: any[]): WindData[] {
     return periods.map(period => {
       const speed = this.noaaClient.parseWindSpeed(period.windSpeed);
+      const parsedGust = this.parseGustFromForecast(period.detailedForecast || '', speed);
+      const gustsEstimated = parsedGust === null;
       return {
         time: new Date(period.startTime),
-        speed: speed,
-        gusts: Math.round(speed * 1.5), // Estimate gusts as 1.5x sustained
-        direction: this.parseWindDirection(period.windDirection)
+        speed,
+        gusts: parsedGust ?? Math.round(speed * 1.5),
+        direction: this.parseWindDirection(period.windDirection),
+        gustsEstimated,
       };
     });
   }
-  
+
   /**
-   * Parse wind direction string to degrees
+   * Parse wind direction string to degrees.
+   * Returns NaN when direction is unknown — consumers should display "Variable/Unknown".
    */
   private parseWindDirection(direction: string): number {
     const directions: { [key: string]: number } = {
@@ -249,13 +279,13 @@ export class NOAAWeatherService {
       'S': 180, 'SSW': 202.5, 'SW': 225, 'WSW': 247.5,
       'W': 270, 'WNW': 292.5, 'NW': 315, 'NNW': 337.5
     };
-    
+
     // Extract direction from strings like "SW 10 mph"
     const match = direction.match(/([NSEW]+)/);
-    if (match && directions[match[1]]) {
+    if (match && directions[match[1]] !== undefined) {
       return directions[match[1]];
     }
-    return 0;
+    return NaN; // Unknown/variable direction — callers show "Variable/Unknown"
   }
   
   /**
@@ -332,17 +362,24 @@ export class NOAAWeatherService {
   }
 
   /**
-   * Fetch wave data from nearby NDBC buoys
-   * CRITICAL SAFETY: Provides real wave height data for maritime safety assessment
+   * Fetch wave data from nearby NDBC buoys.
+   * CRITICAL SAFETY: Returns a warning when wave data is unavailable — empty array
+   * is indistinguishable from calm seas, which is dangerous.
    */
-  private async getWaveDataForLocation(latitude: number, longitude: number): Promise<WaveData[]> {
+  private async getWaveDataForLocation(
+    latitude: number,
+    longitude: number
+  ): Promise<{ waveData: WaveData[]; waveDataWarning: string | null }> {
     try {
       // Find nearest buoy stations
       const nearbyStations = await this.buoyService.findNearestStations(latitude, longitude, 100, 3);
 
       if (nearbyStations.length === 0) {
         this.logger.debug({ latitude, longitude }, 'No NDBC buoys found near location');
-        return [];
+        return {
+          waveData: [],
+          waveDataWarning: 'Wave data unavailable — no NDBC buoys within 100nm. Verify sea state independently.',
+        };
       }
 
       // Fetch data from the nearest buoy
@@ -379,10 +416,20 @@ export class NOAAWeatherService {
         }
       }
 
-      return waveData;
+      if (waveData.length === 0) {
+        return {
+          waveData: [],
+          waveDataWarning: 'Wave data unavailable — verify sea state independently before departure.',
+        };
+      }
+
+      return { waveData, waveDataWarning: null };
     } catch (error) {
       this.logger.warn({ error, latitude, longitude }, 'Failed to fetch wave data from NDBC');
-      return [];
+      return {
+        waveData: [],
+        waveDataWarning: 'Wave data unavailable — verify sea state independently before departure.',
+      };
     }
   }
 
@@ -397,12 +444,15 @@ export class NOAAWeatherService {
       const forecast = (period.shortForecast + ' ' + period.detailedForecast).toLowerCase();
       const time = new Date(period.startTime);
 
-      // Default to good visibility
-      let distance = 10; // nautical miles (good visibility)
+      // Default to conservative visibility (lower than good-visibility default)
+      let distance = 7; // nautical miles (conservative default per safety policy)
       let conditions = 'clear';
 
-      // Check for fog conditions
-      if (forecast.includes('dense fog')) {
+      // Check for fog/precipitation conditions — ordered from most to least severe
+      if (forecast.includes('freezing fog')) {
+        distance = 0.25;
+        conditions = 'Freezing Fog';
+      } else if (forecast.includes('dense fog')) {
         distance = 0.25; // Less than 1/4 mile
         conditions = 'Dense Fog';
       } else if (forecast.includes('patchy fog') || forecast.includes('areas of fog')) {
@@ -411,6 +461,12 @@ export class NOAAWeatherService {
       } else if (forecast.includes('fog')) {
         distance = 0.5; // 1/2 mile
         conditions = 'Fog';
+      } else if (forecast.includes('freezing drizzle')) {
+        distance = 1;
+        conditions = 'Freezing Drizzle';
+      } else if (forecast.includes('blowing snow')) {
+        distance = 0.5;
+        conditions = 'Blowing Snow';
       } else if (forecast.includes('mist') || forecast.includes('haze')) {
         distance = 3; // 3-5 miles
         conditions = 'Mist/Haze';
@@ -429,8 +485,8 @@ export class NOAAWeatherService {
       }
 
       // Parse explicit visibility values from detailed forecast
-      // Examples: "visibility 1 mile", "visibility one quarter mile"
-      const visMatch = forecast.match(/visibility[:\s]+(\d+(?:\.\d+)?)\s*(mile|nm|nautical)/i);
+      // Examples: "visibility 1 mile", "visibility 1 mi", "visibility one quarter mile"
+      const visMatch = forecast.match(/visibility[:\s]+(\d+(?:\.\d+)?)\s*(mile|mi\b|nm|nautical)/i);
       if (visMatch) {
         distance = parseFloat(visMatch[1]);
       }

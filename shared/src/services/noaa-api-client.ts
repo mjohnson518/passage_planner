@@ -355,19 +355,21 @@ export class NOAAAPIClient {
   /**
    * Parse wind speed string to knots
    * NOAA returns strings like "15 mph" or "10 to 15 mph"
+   * SAFETY: Always returns the HIGHEST value from a range (worst-case per CLAUDE.md)
    */
   parseWindSpeed(windSpeed: string): number {
-    const match = windSpeed.match(/(\d+)/);
-    if (!match) return 0;
-    
-    const speed = parseInt(match[1]);
-    
+    const matches = windSpeed.match(/(\d+)/g);
+    if (!matches) return 0;
+
+    // Take the highest value from any range (e.g. "10 to 15 mph" → 15)
+    const maxSpeed = Math.max(...matches.map(m => parseInt(m, 10)));
+
     // Convert to knots if in mph
     if (windSpeed.toLowerCase().includes('mph')) {
-      return Math.round(speed * 0.868976);
+      return Math.round(maxSpeed * 0.868976);
     }
-    
-    return speed;
+
+    return maxSpeed;
   }
 }
 
