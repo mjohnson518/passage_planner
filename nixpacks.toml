@@ -1,0 +1,21 @@
+[phases.setup]
+nixPkgs = ["nodejs-20_x"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = [
+  # Build shared types first (required by orchestrator; frontend uses local copies)
+  "npm run build:shared",
+  # Build Next.js frontend with standalone output
+  "npm run build --workspace=passage-planner-frontend",
+  # Copy static assets alongside the standalone server (required for Next.js standalone)
+  "cp -r frontend/.next/static frontend/.next/standalone/frontend/.next/",
+  "cp -r frontend/public frontend/.next/standalone/frontend/"
+]
+
+[start]
+# Run the standalone server directly — avoids needing 'next' binary at runtime
+# HOSTNAME=0.0.0.0 required so Railway can route external traffic into the container
+cmd = "HOSTNAME=0.0.0.0 node frontend/.next/standalone/frontend/server.js"
