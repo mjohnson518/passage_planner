@@ -64,26 +64,48 @@ export function Header() {
     setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
   }
 
+  const isLandingPage = pathname === '/'
+
   return (
     <header className={cn(
       'sticky top-0 z-50 w-full transition-all duration-300',
-      scrolled
-        ? 'glass-heavy shadow-maritime'
-        : 'bg-background/80 backdrop-blur-sm'
-    )}>
+      isLandingPage
+        ? scrolled
+          ? 'border-b border-white/[0.06]'
+          : ''
+        : scrolled
+          ? 'glass-heavy shadow-maritime'
+          : 'bg-background/80 backdrop-blur-sm'
+    )}
+    style={isLandingPage ? {
+      background: scrolled
+        ? 'rgba(5, 8, 15, 0.92)'
+        : 'rgba(5, 8, 15, 0.0)',
+      backdropFilter: scrolled ? 'blur(20px)' : 'none',
+      WebkitBackdropFilter: scrolled ? 'blur(20px)' : 'none',
+    } : undefined}
+    >
       <nav data-testid="header-nav" className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-8">
         {/* Logo */}
         <div className="flex items-center gap-8">
           <Link href="/" data-testid="header-logo" className="flex items-center gap-2.5 group">
             <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-ocean-deep flex items-center justify-center shadow-maritime group-hover:shadow-maritime-lg transition-shadow">
-                <Anchor className="h-5 w-5 text-primary-foreground" />
+              <div className={cn(
+                'w-10 h-10 rounded-xl flex items-center justify-center transition-shadow',
+                isLandingPage
+                  ? 'bg-white/[0.08] border border-white/[0.12]'
+                  : 'bg-gradient-to-br from-primary to-ocean-deep shadow-maritime group-hover:shadow-maritime-lg'
+              )}>
+                <Anchor className={cn('h-5 w-5', isLandingPage ? 'text-seafoam' : 'text-primary-foreground')} />
               </div>
               {isAuthenticated && connected && (
                 <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-success rounded-full border-2 border-background" />
               )}
             </div>
-            <span className="font-display text-xl font-bold tracking-tight">Helmwise</span>
+            <span className={cn(
+              'font-display text-xl font-bold tracking-tight',
+              isLandingPage ? 'text-white' : ''
+            )}>Helmwise</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -96,9 +118,13 @@ export function Header() {
                   href={item.href}
                   className={cn(
                     'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
-                    pathname === item.href
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    isLandingPage
+                      ? pathname === item.href
+                        ? 'text-seafoam bg-white/[0.06]'
+                        : 'text-white/60 hover:text-white/90 hover:bg-white/[0.05]'
+                      : pathname === item.href
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
                 >
                   {item.name}
@@ -125,8 +151,8 @@ export function Header() {
             </div>
           )}
 
-          {/* Theme Toggle */}
-          {mounted && (
+          {/* Theme Toggle - hidden on landing page */}
+          {mounted && !isLandingPage && (
             <Button
               variant="ghost"
               size="icon"
@@ -140,7 +166,6 @@ export function Header() {
             </Button>
           )}
 
-          {/* User Menu */}
           {isAuthenticated ? (
             <div data-testid="header-user-menu" className="relative group hidden lg:block">
               <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors">
@@ -200,14 +225,23 @@ export function Header() {
           ) : (
             <div className="hidden lg:flex items-center gap-2">
               <Link href="/login">
-                <Button variant="ghost" className="h-9 px-4 text-sm">
+                <Button
+                  variant="ghost"
+                  className={cn('h-9 px-4 text-sm', isLandingPage && 'text-white/70 hover:text-white hover:bg-white/[0.06]')}
+                >
                   Log In
                 </Button>
               </Link>
               <Link href="/signup">
-                <Button className="btn-primary h-9 px-4 text-sm">
-                  Start Free Trial
-                </Button>
+                {isLandingPage ? (
+                  <span className="btn-seafoam h-9 px-5 text-xs">
+                    Start Free Trial
+                  </span>
+                ) : (
+                  <Button className="btn-primary h-9 px-4 text-sm">
+                    Start Free Trial
+                  </Button>
+                )}
               </Link>
             </div>
           )}

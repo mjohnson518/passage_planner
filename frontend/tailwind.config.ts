@@ -18,9 +18,10 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        display: ['var(--font-heading)', 'Libre Baskerville', 'Georgia', 'serif'],
+        display: ['var(--font-heading)', 'Playfair Display', 'Georgia', 'serif'],
         body: ['var(--font-body)', 'Source Sans 3', 'system-ui', 'sans-serif'],
-        heading: ['var(--font-heading)', 'Libre Baskerville', 'Georgia', 'serif'],
+        heading: ['var(--font-heading)', 'Playfair Display', 'Georgia', 'serif'],
+        mono: ['var(--font-mono)', 'Roboto Mono', 'Courier New', 'monospace'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -194,10 +195,10 @@ const config: Config = {
         DEFAULT: {
           css: {
             fontFamily: 'Source Sans 3, system-ui, sans-serif',
-            h1: { fontFamily: 'Libre Baskerville, Georgia, serif' },
-            h2: { fontFamily: 'Libre Baskerville, Georgia, serif' },
-            h3: { fontFamily: 'Libre Baskerville, Georgia, serif' },
-            h4: { fontFamily: 'Libre Baskerville, Georgia, serif' },
+            h1: { fontFamily: 'Playfair Display, Georgia, serif' },
+            h2: { fontFamily: 'Playfair Display, Georgia, serif' },
+            h3: { fontFamily: 'Playfair Display, Georgia, serif' },
+            h4: { fontFamily: 'Playfair Display, Georgia, serif' },
           },
         },
       },

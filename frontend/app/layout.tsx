@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Libre_Baskerville, Source_Sans_3 } from 'next/font/google'
+import { Playfair_Display, Source_Sans_3, Roboto_Mono } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { Providers } from './providers'
 import { MobileNav } from './components/navigation/MobileNav'
@@ -9,11 +9,18 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { CookieConsent } from './components/legal/CookieConsent'
 import './globals.css'
 
-const libreBaskerville = Libre_Baskerville({
+const playfairDisplay = Playfair_Display({
   subsets: ['latin'],
-  weight: ['400', '700'],
+  weight: ['400', '700', '900'],
   style: ['normal', 'italic'],
   variable: '--font-heading',
+  display: 'swap',
+})
+
+const robotoMono = Roboto_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-mono',
   display: 'swap',
 })
 
@@ -81,7 +88,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${libreBaskerville.variable} ${sourceSans.variable} scroll-smooth`}>
+    <html lang="en" suppressHydrationWarning className={`${playfairDisplay.variable} ${sourceSans.variable} ${robotoMono.variable} scroll-smooth`}>
       <body className="font-body antialiased">
         <Providers>
           <ErrorBoundary>

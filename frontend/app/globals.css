@@ -113,7 +113,7 @@
 
   /* Maritime Typography */
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-heading), 'Libre Baskerville', Georgia, serif;
+    font-family: var(--font-heading), 'Playfair Display', Georgia, serif;
     font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.2;
@@ -516,6 +516,29 @@
     color: hsl(var(--seafoam));
     font-family: var(--font-body), 'Source Sans 3', sans-serif;
   }
+
+  /* Night section with more depth */
+  .section-night {
+    background: linear-gradient(180deg, hsl(222 47% 6%) 0%, hsl(var(--night)) 100%);
+  }
+
+  /* Card glow hover for dark glass cards */
+  .card-glow-hover {
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  }
+
+  .card-glow-hover:hover {
+    border-color: hsl(var(--seafoam) / 0.35) !important;
+    box-shadow: 0 0 32px hsl(var(--seafoam) / 0.08), 0 20px 40px rgba(0,0,0,0.3) !important;
+    transform: translateY(-3px);
+  }
+
+  /* Amber glow for captain/pro tier */
+  .card-glow-hover-amber:hover {
+    border-color: hsl(var(--amber-sail) / 0.35) !important;
+    box-shadow: 0 0 32px hsl(var(--amber-sail) / 0.08), 0 20px 40px rgba(0,0,0,0.3) !important;
+    transform: translateY(-3px);
+  }
 }
 
 @layer utilities {
@@ -552,11 +575,26 @@
 
   /* Font utilities */
   .font-display {
-    font-family: var(--font-heading), 'Libre Baskerville', Georgia, serif;
+    font-family: var(--font-heading), 'Playfair Display', Georgia, serif;
   }
 
   .font-body {
     font-family: var(--font-body), 'Source Sans 3', system-ui, sans-serif;
+  }
+
+  .font-mono-data {
+    font-family: var(--font-mono), 'Roboto Mono', 'Courier New', monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+
+  .overline-night {
+    font-family: var(--font-mono), 'Roboto Mono', monospace;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: hsl(var(--seafoam));
   }
 
   /* Smooth scrolling */
@@ -656,6 +694,36 @@
   .animate-in {
     animation: fade-in-up 0.6s ease-out;
   }
+
+  /* Scroll-reveal: elements start hidden, JS adds .revealed class */
+  @keyframes reveal-up {
+    from {
+      opacity: 0;
+      transform: translateY(32px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .reveal-up {
+    opacity: 0;
+    animation: reveal-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .reveal-up.visible {
+    animation-play-state: running;
+  }
+
+  .reveal-up:not(.visible) {
+    animation-play-state: paused;
+  }
+
+  .reveal-delay-1 { animation-delay: 0.1s; }
+  .reveal-delay-2 { animation-delay: 0.2s; }
+  .reveal-delay-3 { animation-delay: 0.3s; }
+  .reveal-delay-4 { animation-delay: 0.4s; }
 
   /* Pulse glow effect */
   .pulse-glow {
