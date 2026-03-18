@@ -252,14 +252,22 @@ export class HttpServer {
 
   private setupRoutes() {
     // Health check
-    this.app.get('/health', (req, res) => {
-      res.json({
-        status: 'healthy',
+    this.app.get('/health', async (req, res) => {
+      let postgresOk = false;
+      try {
+        await this.postgres.query('SELECT 1');
+        postgresOk = true;
+      } catch {
+        postgresOk = false;
+      }
+      const status = postgresOk ? 'healthy' : 'degraded';
+      res.status(postgresOk ? 200 : 503).json({
+        status,
         timestamp: new Date(),
         services: {
           orchestrator: 'active',
-          redis: this.redis.isReady,
-          postgres: true,
+          redis: this.redis?.isReady ?? false,
+          postgres: postgresOk,
         },
       });
     });
@@ -311,7 +319,15 @@ export class HttpServer {
           // Generate token
           const token = await this.authService.generateToken(user);
 
-          res.json({ token, user });
+          // Set httpOnly cookie (XSS-safe); also include token in body for API clients
+          res.cookie('auth_token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            path: '/',
+          });
+          res.json({ token, user: this.sanitizeUser(user) });
         } catch (error) {
           this.logger.error({ error }, 'Signup failed');
           res.status(500).json({ error: 'Signup failed' });
@@ -341,13 +357,33 @@ export class HttpServer {
           }
 
           const token = await this.authService.generateToken(user);
-          res.json({ token, user });
+
+          // Set httpOnly cookie (XSS-safe); also include token in body for API clients
+          res.cookie('auth_token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            path: '/',
+          });
+          res.json({ token, user: this.sanitizeUser(user) });
         } catch (error) {
           this.logger.error({ error }, 'Login failed');
           res.status(500).json({ error: 'Login failed' });
         }
       }
     );
+
+    // Logout endpoint — clears the httpOnly auth cookie
+    this.app.post('/api/auth/logout', (req, res) => {
+      res.clearCookie('auth_token', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+      });
+      res.json({ success: true });
+    });
 
     // Dashboard stats endpoint
     this.app.get('/api/dashboard/stats',
@@ -454,6 +490,15 @@ export class HttpServer {
       ...this.authChain(),
       async (req, res) => {
         try {
+          const profileSchema = z.object({
+            full_name: z.string().max(100).optional(),
+            company_name: z.string().max(100).optional(),
+            phone: z.string().max(20).optional(),
+          });
+          const profileParsed = profileSchema.safeParse(req.body);
+          if (!profileParsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: profileParsed.error.issues });
+          }
           const userId = req.user!.id;
           const { full_name, company_name, phone, metadata } = req.body;
 
@@ -540,6 +585,16 @@ export class HttpServer {
       ...this.authChain(),
       async (req, res) => {
         try {
+          const passagesSchema = z.object({
+            departure: z.string().min(1),
+            destination: z.string().min(1),
+            departureDate: z.string().optional(),
+            vesselDraft: z.number().optional(),
+          });
+          const passagesParsed = passagesSchema.safeParse(req.body);
+          if (!passagesParsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: passagesParsed.error.issues });
+          }
           const userId = req.user.id;
           const passageData = req.body;
           
@@ -653,6 +708,15 @@ export class HttpServer {
       ...this.authChain(),
       async (req, res) => {
         try {
+          const weatherCurrentSchema = z.object({
+            location: z.string().min(1).optional(),
+            lat: z.number().min(-90).max(90).optional(),
+            lon: z.number().min(-180).max(180).optional(),
+          });
+          const weatherCurrentParsed = weatherCurrentSchema.safeParse(req.body);
+          if (!weatherCurrentParsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: weatherCurrentParsed.error.issues });
+          }
           const { location, coordinates } = req.body;
           
           // Use coordinates if provided, otherwise geocode the location
@@ -759,13 +823,28 @@ export class HttpServer {
     );
 
     // MCP tool proxy
-    this.app.post('/api/mcp/tools/call', 
+    // SECURITY: Whitelist of allowed tool names — reject anything not in this set
+    const ALLOWED_PUBLIC_TOOLS = new Set([
+      'plan_passage',
+      'check_route_safety',
+      'get_weather',
+      'get_tidal_data',
+      'find_ports',
+      'find_emergency_harbors',
+    ]);
+
+    this.app.post('/api/mcp/tools/call',
       ...this.authChain(),
       this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
           const { tool, arguments: args } = req.body;
-          
+
+          // Validate tool name against whitelist before any processing
+          if (!tool || !ALLOWED_PUBLIC_TOOLS.has(tool)) {
+            return res.status(403).json({ error: 'Tool not permitted' });
+          }
+
           // Check feature access
           if (tool === 'plan_passage') {
             const canUse = await FeatureGate.canUseFeature(
@@ -800,7 +879,7 @@ export class HttpServer {
             this.logger.error({ error, tool, args }, 'Orchestration failed');
             res.json({
               success: false,
-              error: error.message || 'Failed to process request'
+              error: 'Failed to process request'
             });
           }
         } catch (error) {
@@ -816,6 +895,14 @@ export class HttpServer {
       this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
+          const checkoutSchema = z.object({
+            tier: z.enum(['free', 'pro', 'enterprise']),
+            period: z.enum(['monthly', 'annual']).optional(),
+          });
+          const checkoutParsed = checkoutSchema.safeParse(req.body);
+          if (!checkoutParsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: checkoutParsed.error.issues });
+          }
           const { tier, period = 'monthly' } = req.body;
           const priceId = this.getPriceId(tier, period);
           
@@ -839,10 +926,18 @@ export class HttpServer {
 
     // Fleet Management Routes (Pro tier only) - Rate limited
     this.app.post('/api/fleet/create',
-      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
+          const fleetCreateSchema = z.object({
+            name: z.string().min(1).max(100),
+            description: z.string().max(500).optional(),
+          });
+          const fleetCreateParsed = fleetCreateSchema.safeParse(req.body);
+          if (!fleetCreateParsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: fleetCreateParsed.error.issues });
+          }
           const { name, description } = req.body;
           const userId = req.user!.id;
           
@@ -885,8 +980,8 @@ export class HttpServer {
     );
 
     this.app.get('/api/fleet',
-      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
           const userId = req.user!.id;
@@ -912,10 +1007,19 @@ export class HttpServer {
     );
 
     this.app.post('/api/fleet/:fleetId/vessels',
-      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
+          const fleetVesselsSchema = z.object({
+            name: z.string().min(1).max(100),
+            vessel_type: z.string().optional(),
+            draft: z.number().optional(),
+          });
+          const fleetVesselsParsed = fleetVesselsSchema.safeParse(req.body);
+          if (!fleetVesselsParsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: fleetVesselsParsed.error.issues });
+          }
           const { fleetId } = req.params;
           const userId = req.user!.id;
           const vesselData = req.body;
@@ -948,8 +1052,8 @@ export class HttpServer {
     );
 
     this.app.get('/api/fleet/:fleetId/analytics',
-      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
           const { fleetId } = req.params;
@@ -1075,7 +1179,7 @@ export class HttpServer {
           await this.agentManager.restartAgent(agentId);
           res.json({ message: `Agent ${agentId} restart initiated` });
         } catch (error: any) {
-          res.status(500).json({ error: error.message || 'Failed to restart agent' });
+          res.status(500).json({ error: 'Failed to restart agent' });
         }
       }
     );
@@ -1248,6 +1352,15 @@ export class HttpServer {
       this.authMiddleware.authenticate.bind(this.authMiddleware),
       async (req, res) => {
         try {
+          const agentRegisterSchema = z.object({
+            agentId: z.string().min(1),
+            agentType: z.string().min(1),
+            endpoint: z.string().url(),
+          });
+          const agentRegisterParsed = agentRegisterSchema.safeParse(req.body);
+          if (!agentRegisterParsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: agentRegisterParsed.error.issues });
+          }
           // Check if user is admin
           const userResult = await this.postgres.query(
             'SELECT role FROM users WHERE id = $1',
@@ -1273,8 +1386,8 @@ export class HttpServer {
 
     // Stripe Customer Portal - allows users to manage subscriptions
     this.app.post('/api/subscription/customer-portal',
-      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
           const userId = req.user!.id;
@@ -1311,8 +1424,8 @@ export class HttpServer {
 
     // Passage Export - export a single passage in various formats
     this.app.post('/api/passages/:passageId/export',
-      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
           const userId = req.user!.id;
@@ -1368,8 +1481,8 @@ export class HttpServer {
 
     // Bulk Passage Export
     this.app.post('/api/passages/export/bulk',
-      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
           const userId = req.user!.id;
@@ -1462,10 +1575,20 @@ export class HttpServer {
 
     // Fleet Crew Invitations
     this.app.post('/api/fleet/:fleetId/invite',
-      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
+          const fleetInviteSchema = z.object({
+            invites: z.array(z.object({
+              email: z.string().email(),
+              role: z.string().optional(),
+            })).min(1).max(50),
+          });
+          const fleetInviteParsed = fleetInviteSchema.safeParse(req.body);
+          if (!fleetInviteParsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: fleetInviteParsed.error.issues });
+          }
           const userId = req.user!.id;
           const { fleetId } = req.params;
           const { invites } = req.body; // Array of { email, name, role, permissions }
@@ -1739,7 +1862,7 @@ export class HttpServer {
             agentId
           });
         } catch (error: any) {
-          res.status(500).json({ error: error.message || 'Failed to start agent' });
+          res.status(500).json({ error: 'Failed to start agent' });
         }
       }
     );
@@ -1768,17 +1891,26 @@ export class HttpServer {
             agentId
           });
         } catch (error: any) {
-          res.status(500).json({ error: error.message || 'Failed to stop agent' });
+          res.status(500).json({ error: 'Failed to stop agent' });
         }
       }
     );
 
     // Weather Export - export weather data for a region
     this.app.post('/api/weather/export',
-      this.rateLimiter!.limit.bind(this.rateLimiter!),
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
       async (req, res) => {
         try {
+          const weatherExportSchema = z.object({
+            region: z.string().min(1),
+            format: z.enum(['json', 'csv', 'grib']).optional(),
+            layer: z.string().optional(),
+          });
+          const weatherExportParsed = weatherExportSchema.safeParse(req.body);
+          if (!weatherExportParsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: weatherExportParsed.error.issues });
+          }
           const { region, format, layer } = req.body;
 
           if (!region || !region.bounds) {
@@ -1921,6 +2053,7 @@ export class HttpServer {
           const payload = await this.authService.verifyToken(token);
           socket.data.userId = payload.userId;
           socket.join(`user:${payload.userId}`);
+          socket.join('authenticated'); // room used for broadcast scoping
           clearTimeout(authTimeout);
           socket.emit('authenticated');
         } catch (error) {
@@ -1936,8 +2069,9 @@ export class HttpServer {
     });
     
     // Forward orchestrator events to WebSocket
+    // SECURITY: Only broadcast to authenticated sockets (in 'authenticated' room)
     this.orchestrator.on('agent:status', (data) => {
-      this.io.emit('agent_status', data);
+      this.io.to('authenticated').emit('agent_status', data);
     });
     
     this.orchestrator.on('request:progress', (data) => {
@@ -1947,15 +2081,23 @@ export class HttpServer {
     });
   }
 
+  // SECURITY: Strip password_hash before sending any user object to clients
+  private sanitizeUser(user: any): any {
+    if (!user) return user;
+    const { password_hash, ...safe } = user;
+    return safe;
+  }
+
   // Database helpers
   private async getUserById(userId: string) {
     const result = await this.postgres.query(
-      'SELECT * FROM users WHERE id = $1',
+      'SELECT id, email, display_name, subscription_tier, role, created_at FROM users WHERE id = $1',
       [userId]
     );
     return result.rows[0];
   }
 
+  // getUserByEmail returns full row including password_hash — only use for auth verification
   private async getUserByEmail(email: string) {
     const result = await this.postgres.query(
       'SELECT * FROM users WHERE email = $1',
@@ -1966,10 +2108,10 @@ export class HttpServer {
 
   private async createUser(email: string, passwordHash: string, displayName?: string) {
     const userResult = await this.postgres.query(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING *',
+      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, display_name, subscription_tier, role, created_at',
       [email, passwordHash]
     );
-    
+
     const user = userResult.rows[0];
     
     // Create profile

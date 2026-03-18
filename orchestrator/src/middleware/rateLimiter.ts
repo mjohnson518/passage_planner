@@ -123,11 +123,9 @@ export class RateLimiter {
       return next();
     }
 
-    // Get client IP - prefer X-Forwarded-For for proxied requests
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const clientIp = typeof forwardedFor === 'string'
-      ? forwardedFor.split(',')[0].trim()
-      : req.ip || req.socket.remoteAddress || 'unknown';
+    // Get client IP via req.ip which respects Express trust proxy setting,
+    // preventing X-Forwarded-For spoofing attacks
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
 
     const windowKey = Math.floor(Date.now() / this.AUTH_LIMITS.windowMs);
     const attemptKey = `auth_rate:${clientIp}:${windowKey}`;
