@@ -84,3 +84,6 @@ export * from './utils/validateEnv';
 
 // Export safety constants (single source of truth)
 export * from './constants/safety-thresholds';
+
+// Export plans config (single source of truth for subscription plans)
+export * from './plans';
