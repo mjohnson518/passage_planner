@@ -1,166 +1,165 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, X, Zap, Ship, Anchor, Info } from 'lucide-react'
+import { Check, X, Zap, Ship, Anchor, Info, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
-import { config } from '@/config'
+import { PLANS, TOP_UP_PACKS, FOUNDING_MEMBER } from '@/lib/plans'
 
-interface PricingTier {
-  name: string
-  monthlyPrice: number
-  yearlyPrice: number
-  description: string
-  features: string[]
-  notIncluded?: string[]
-  cta: string
-  popular?: boolean
-  priceId: {
-    monthly: string
-    yearly: string
-  }
+// Annual savings percentage derived from PLANS (not hardcoded)
+const ANNUAL_SAVE_PERCENT = Math.round(
+  ((PLANS.premium.price.monthly * 12 - PLANS.premium.price.annual!) /
+    (PLANS.premium.price.monthly * 12)) *
+    100
+)
+
+const TIER_DESCRIPTIONS: Record<string, string> = {
+  free: 'Perfect for casual sailors planning occasional trips',
+  premium: 'For serious cruisers who need advanced planning tools',
+  pro: 'For professionals managing multiple vessels',
+  enterprise: 'Custom solutions for marinas and large fleets',
 }
 
-const tiers: PricingTier[] = [
-  {
-    name: 'Free',
-    monthlyPrice: 0,
-    yearlyPrice: 0,
-    description: 'Perfect for casual sailors planning occasional trips',
-    features: [
-      '2 passages per month',
-      '3-day weather forecast',
-      'Basic route planning',
-      'Tide predictions',
-      'Community support',
-      'Mobile web access',
-    ],
-    notIncluded: [
-      'GPX/KML export',
-      'Advanced weather routing',
-      'API access',
-      'Priority support',
-    ],
-    cta: 'Get Started',
-    priceId: {
-      monthly: '',
-      yearly: '',
-    },
-  },
-  {
-    name: 'Premium',
-    monthlyPrice: 19,
-    yearlyPrice: 190,
-    description: 'For serious cruisers who need advanced planning tools',
-    features: [
-      'Unlimited passages',
-      '7-day weather forecast',
-      'All AI agents access',
-      'GPX/KML export',
-      'Weather routing',
-      'Offline charts',
-      'Email support',
-      'Mobile app (coming soon)',
-    ],
-    notIncluded: [
-      'API access',
-      'Fleet management',
-      'Custom agents',
-    ],
-    cta: 'Start Free Trial',
-    popular: true,
-    priceId: {
-      monthly: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY!,
-      yearly: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY!,
-    },
-  },
-  {
-    name: 'Pro',
-    monthlyPrice: 49,
-    yearlyPrice: 490,
-    description: 'For professionals managing multiple vessels',
-    features: [
-      'Everything in Premium',
-      'API access (1000 calls/day)',
-      'Fleet management',
-      'Custom AI agents',
-      '10-day weather forecast',
-      'Priority support',
-      'Advanced analytics',
-      'White-label options',
-      'Dedicated account manager',
-    ],
-    cta: 'Start Free Trial',
-    priceId: {
-      monthly: process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY!,
-      yearly: process.env.NEXT_PUBLIC_STRIPE_PRO_YEARLY!,
-    },
-  },
-]
+const TIER_FEATURE_LABELS: Record<string, string[]> = {
+  free: [
+    `${PLANS.free.limits.passagesPerMonth} passages per month`,
+    `${PLANS.free.limits.forecastDays}-day weather forecast`,
+    'Basic route planning',
+    'Tide predictions',
+    `${PLANS.free.features.support} support`,
+    'Mobile web access',
+  ],
+  premium: [
+    'Unlimited passages',
+    `${PLANS.premium.limits.forecastDays}-day weather forecast`,
+    'All AI agents access',
+    'GPX/KML/PDF export',
+    'Weather routing',
+    'Offline charts',
+    `${PLANS.premium.features.support} support`,
+    'Mobile app (coming soon)',
+  ],
+  pro: [
+    'Everything in Premium',
+    `API access (${PLANS.pro.limits.apiCallsPerDay} calls/day)`,
+    'Fleet management',
+    'Custom AI agents',
+    `${PLANS.pro.limits.forecastDays}-day weather forecast`,
+    `${PLANS.pro.features.support} support`,
+    'Advanced analytics',
+    'Dedicated account manager',
+  ],
+}
+
+const TIER_NOT_INCLUDED: Record<string, string[]> = {
+  free: ['GPX/KML export', 'Advanced weather routing', 'API access', 'Priority support'],
+  premium: ['API access', 'Fleet management', 'Custom agents'],
+  pro: [],
+}
 
 export default function PricingPage() {
   const [isYearly, setIsYearly] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
+  const [foundingSpots, setFoundingSpots] = useState<number | null>(null)
   const { user } = useAuth()
   const router = useRouter()
 
-  const handleSubscribe = async (tier: PricingTier, period: 'monthly' | 'yearly') => {
+  useEffect(() => {
+    fetch('/api/founding-member/spots-remaining')
+      .then(r => r.json())
+      .then(d => setFoundingSpots(d.remaining ?? 0))
+      .catch(() => setFoundingSpots(0))
+  }, [])
+
+  const handleSubscribe = async (
+    tier: string,
+    period: 'monthly' | 'annual',
+    founding = false
+  ) => {
     if (!user) {
       router.push('/signup')
       return
     }
-
-    if (tier.name === 'Free') {
+    if (tier === 'free') {
       router.push('/dashboard')
       return
     }
 
-    setLoading(tier.name)
-
+    setLoading(tier)
     try {
-      const response = await fetch('/api/stripe/create-checkout-session', {
+      const response = await fetch('/api/subscription/create-checkout-session', {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tier: tier.name.toLowerCase(),
-          period,
-          successUrl: `${window.location.origin}/dashboard?payment=success`,
-          cancelUrl: `${window.location.origin}/pricing?payment=cancelled`
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier, period, founding }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        console.error('Checkout session creation failed:', errorData)
         throw new Error(errorData.error || 'Failed to create checkout session')
       }
 
-      const { url } = await response.json()
-      
-      if (!url) {
-        throw new Error('No checkout URL received')
-      }
-      
-      // Redirect to Stripe checkout
-      window.location.href = url
+      const { sessionUrl } = await response.json()
+      if (!sessionUrl) throw new Error('No checkout URL received')
+      window.location.href = sessionUrl
     } catch (error) {
       console.error('Subscription error:', error)
-      // Show error to user (could use toast here)
       alert(error instanceof Error ? error.message : 'Failed to start checkout process')
     } finally {
       setLoading(null)
     }
   }
 
+  const handleTopUp = async (pack: 'small' | 'large') => {
+    if (!user) { router.push('/signup'); return }
+    setLoading(`topup_${pack}`)
+    try {
+      const response = await fetch('/api/subscription/purchase-top-up', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pack }),
+      })
+      if (!response.ok) {
+        const err = await response.json()
+        throw new Error(err.error || 'Failed to start top-up checkout')
+      }
+      const { sessionUrl } = await response.json()
+      window.location.href = sessionUrl
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to start checkout process')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  const displayTiers = ['free', 'premium', 'pro'] as const
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
+      {/* Founding Member Banner */}
+      {foundingSpots !== null && foundingSpots > 0 && (
+        <div className="bg-amber-500 text-white text-center py-3 px-4">
+          <span className="font-bold">
+            <Star className="inline h-4 w-4 mr-1" />
+            Founding Member Special — Only {foundingSpots} of {FOUNDING_MEMBER.totalSpots} spots left!
+          </span>{' '}
+          Premium annual at{' '}
+          <span className="line-through opacity-75">${PLANS.premium.price.annual}/yr</span>{' '}
+          <span className="font-bold">${FOUNDING_MEMBER.discountedPrice}/yr</span> — first year.{' '}
+          <button
+            onClick={() => handleSubscribe('premium', 'annual', true)}
+            className="underline font-bold hover:no-underline"
+          >
+            Claim your spot →
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="container mx-auto px-4 pt-16 pb-8">
         <div className="text-center max-w-3xl mx-auto">
@@ -168,16 +167,13 @@ export default function PricingPage() {
             Simple, Transparent Pricing
           </h1>
           <p className="text-xl text-muted-foreground mb-8">
-            Choose the perfect plan for your sailing adventures. 
+            Choose the perfect plan for your sailing adventures.
             Start with our free tier and upgrade as you grow.
           </p>
 
           {/* Billing Toggle */}
           <div className="flex items-center justify-center gap-4 mb-12">
-            <span className={cn(
-              'font-medium transition-colors',
-              !isYearly ? 'text-primary' : 'text-muted-foreground'
-            )}>
+            <span className={cn('font-medium transition-colors', !isYearly ? 'text-primary' : 'text-muted-foreground')}>
               Monthly
             </span>
             <Switch
@@ -185,13 +181,10 @@ export default function PricingPage() {
               onCheckedChange={setIsYearly}
               className="data-[state=checked]:bg-primary"
             />
-            <span className={cn(
-              'font-medium transition-colors',
-              isYearly ? 'text-primary' : 'text-muted-foreground'
-            )}>
+            <span className={cn('font-medium transition-colors', isYearly ? 'text-primary' : 'text-muted-foreground')}>
               Yearly
               <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                Save 20%
+                Save {ANNUAL_SAVE_PERCENT}%
               </span>
             </span>
           </div>
@@ -201,20 +194,35 @@ export default function PricingPage() {
       {/* Pricing Cards */}
       <div className="container mx-auto px-4 pb-20">
         <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {tiers.map((tier) => {
-            const price = isYearly ? tier.yearlyPrice : tier.monthlyPrice
-            const period = isYearly ? 'yearly' : 'monthly'
-            const displayPrice = tier.name === 'Free' ? 0 : price
+          {displayTiers.map((key) => {
+            const plan = PLANS[key]
+            const isPopular = key === 'premium'
+            const monthlyPrice = plan.price.monthly ?? 0
+            const annualPrice = plan.price.annual
+
+            const displayPrice = isYearly
+              ? (annualPrice ?? 0)
+              : monthlyPrice
+
+            const isFree = key === 'free'
+            const cta = isFree ? 'Get Started' : 'Start Free Trial'
+
+            // Show founding member annual price if applicable
+            const showFoundingAnnual =
+              isYearly &&
+              key === FOUNDING_MEMBER.appliesToTier &&
+              foundingSpots !== null &&
+              foundingSpots > 0
 
             return (
               <div
-                key={tier.name}
+                key={key}
                 className={cn(
                   'relative rounded-lg border bg-card p-8 shadow-sm transition-all hover:shadow-lg',
-                  tier.popular && 'border-primary shadow-lg scale-105 mt-4'
+                  isPopular && 'border-primary shadow-lg scale-105 mt-4'
                 )}
               >
-                {tier.popular && (
+                {isPopular && (
                   <div className="absolute -top-4 left-0 right-0 flex justify-center">
                     <span className="bg-primary text-primary-foreground text-sm font-medium px-3 py-1 rounded-full">
                       Most Popular
@@ -223,50 +231,62 @@ export default function PricingPage() {
                 )}
 
                 <div className="mb-6">
-                  <h3 className="text-2xl font-bold mb-2">{tier.name}</h3>
+                  <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
                   <p className="text-muted-foreground text-sm mb-4">
-                    {tier.description}
+                    {TIER_DESCRIPTIONS[key]}
                   </p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-bold">${displayPrice}</span>
-                    {tier.name !== 'Free' && (
+                    {!isFree && (
                       <span className="text-muted-foreground">
                         /{isYearly ? 'year' : 'month'}
                       </span>
                     )}
                   </div>
-                  {isYearly && tier.name !== 'Free' && (
+                  {isYearly && !isFree && annualPrice !== null && (
                     <p className="text-sm text-green-600 mt-1">
-                      ${tier.monthlyPrice * 12 - tier.yearlyPrice} saved annually
+                      ${monthlyPrice * 12 - annualPrice} saved annually
+                    </p>
+                  )}
+                  {showFoundingAnnual && (
+                    <p className="text-sm text-amber-600 mt-1 font-medium">
+                      Founding member: <span className="line-through">${annualPrice}/yr</span>{' '}
+                      <span className="font-bold">${FOUNDING_MEMBER.discountedPrice}/yr</span> first year
                     </p>
                   )}
                 </div>
 
                 <Button
                   fullWidth
-                  variant={tier.popular ? 'default' : 'outline'}
-                  onClick={() => handleSubscribe(tier, period)}
-                  disabled={loading === tier.name}
-                  className={tier.popular ? 'btn-primary' : ''}
+                  variant={isPopular ? 'default' : 'outline'}
+                  onClick={() =>
+                    handleSubscribe(
+                      key,
+                      isYearly ? 'annual' : 'monthly',
+                      showFoundingAnnual
+                    )
+                  }
+                  disabled={loading === key}
+                  className={isPopular ? 'btn-primary' : ''}
                 >
-                  {loading === tier.name ? (
+                  {loading === key ? (
                     <span className="flex items-center">
                       <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full mr-2" />
                       Processing...
                     </span>
                   ) : (
-                    tier.cta
+                    cta
                   )}
                 </Button>
 
                 <div className="mt-6 space-y-3">
-                  {tier.features.map((feature) => (
+                  {(TIER_FEATURE_LABELS[key] ?? []).map((feature) => (
                     <div key={feature} className="flex items-start gap-3">
                       <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
                       <span className="text-sm">{feature}</span>
                     </div>
                   ))}
-                  {tier.notIncluded?.map((feature) => (
+                  {(TIER_NOT_INCLUDED[key] ?? []).map((feature) => (
                     <div key={feature} className="flex items-start gap-3 opacity-50">
                       <X className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
                       <span className="text-sm line-through">{feature}</span>
@@ -279,11 +299,41 @@ export default function PricingPage() {
         </div>
       </div>
 
+      {/* Top-Up Passage Packs (authenticated paid users) */}
+      {user && (
+        <div className="container mx-auto px-4 pb-20">
+          <div className="max-w-6xl mx-auto">
+            <h2 className="text-2xl font-bold text-center mb-4">Need More Passages?</h2>
+            <p className="text-center text-muted-foreground mb-8">
+              One-time passage packs for Premium and Pro subscribers. No subscription change required.
+            </p>
+            <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+              {(Object.entries(TOP_UP_PACKS) as [string, { passages: number; price: number }][]).map(
+                ([key, pack]) => (
+                  <div key={key} className="rounded-lg border bg-card p-6 text-center shadow-sm">
+                    <div className="text-3xl font-bold mb-1">{pack.passages} Passages</div>
+                    <div className="text-2xl font-semibold text-primary mb-4">${pack.price}</div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      ${(pack.price / pack.passages).toFixed(2)} per passage — never expires
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleTopUp(key as 'small' | 'large')}
+                      disabled={loading === `topup_${key}`}
+                    >
+                      {loading === `topup_${key}` ? 'Processing...' : 'Buy Now'}
+                    </Button>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* FAQ Section */}
       <div className="container mx-auto px-4 py-20 border-t">
-        <h2 className="text-3xl font-bold text-center mb-12">
-          Frequently Asked Questions
-        </h2>
+        <h2 className="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
         <div className="max-w-3xl mx-auto space-y-8">
           <FAQItem
             question="Can I change plans anytime?"
@@ -304,6 +354,10 @@ export default function PricingPage() {
           <FAQItem
             question="Do you offer discounts for sailing clubs?"
             answer="Yes! We offer special pricing for sailing clubs, marinas, and educational institutions. Contact us for details."
+          />
+          <FAQItem
+            question="What are passage packs?"
+            answer="Passage packs are one-time top-ups that give you extra passages beyond your plan's monthly limit. They never expire and are available to Premium and Pro subscribers."
           />
         </div>
       </div>
@@ -336,14 +390,9 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
         onClick={() => setIsOpen(!isOpen)}
       >
         <span className="font-medium">{question}</span>
-        <Info className={cn(
-          'h-5 w-5 transition-transform',
-          isOpen && 'rotate-180'
-        )} />
+        <Info className={cn('h-5 w-5 transition-transform', isOpen && 'rotate-180')} />
       </button>
-      {isOpen && (
-        <p className="mt-4 text-muted-foreground">{answer}</p>
-      )}
+      {isOpen && <p className="mt-4 text-muted-foreground">{answer}</p>}
     </div>
   )
-} 
+}

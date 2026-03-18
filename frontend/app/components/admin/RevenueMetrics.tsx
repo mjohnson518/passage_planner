@@ -17,9 +17,12 @@ interface RevenueData {
   arpu: number
   subscriptions: {
     free: number
+    premium: number
     pro: number
     enterprise: number
   }
+  foundingMembers?: number
+  topUpRevenue?: number
   revenueByMonth: Array<{
     month: string
     revenue: number
@@ -220,67 +223,48 @@ export function RevenueMetrics() {
           <CardDescription>Active subscriptions by tier</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">Free</Badge>
-                  <span className="text-sm font-medium">{data.subscriptions.free} users</span>
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  {((data.subscriptions.free / (data.subscriptions.free + data.subscriptions.pro + data.subscriptions.enterprise)) * 100).toFixed(1)}%
-                </span>
+          {(() => {
+            const total = data.subscriptions.free + data.subscriptions.premium + data.subscriptions.pro + data.subscriptions.enterprise
+            const tiers = [
+              { key: 'free', label: 'Free', count: data.subscriptions.free, color: 'bg-gray-500', variant: 'secondary' as const },
+              { key: 'premium', label: 'Premium', count: data.subscriptions.premium, color: 'bg-amber-500', variant: 'default' as const },
+              { key: 'pro', label: 'Pro', count: data.subscriptions.pro, color: 'bg-blue-500', variant: 'default' as const },
+              { key: 'enterprise', label: 'Enterprise', count: data.subscriptions.enterprise, color: 'bg-red-500', variant: 'destructive' as const },
+            ]
+            return (
+              <div className="space-y-4">
+                {tiers.map(t => (
+                  <div key={t.key}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={t.variant}>{t.label}</Badge>
+                        <span className="text-sm font-medium">{t.count} users</span>
+                        {t.key === 'premium' && data.foundingMembers !== undefined && data.foundingMembers > 0 && (
+                          <span className="text-xs text-amber-600">({data.foundingMembers} founding)</span>
+                        )}
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {total > 0 ? ((t.count / total) * 100).toFixed(1) : '0.0'}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`${t.color} h-2 rounded-full`}
+                        style={{ width: total > 0 ? `${(t.count / total) * 100}%` : '0%' }}
+                      />
+                    </div>
+                  </div>
+                ))}
+                {data.topUpRevenue !== undefined && data.topUpRevenue > 0 && (
+                  <div className="pt-2 border-t">
+                    <span className="text-sm text-muted-foreground">
+                      Top-up pack revenue (one-time): <strong>{formatCurrency(data.topUpRevenue)}</strong>
+                    </span>
+                  </div>
+                )}
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-gray-500 h-2 rounded-full"
-                  style={{
-                    width: `${(data.subscriptions.free / (data.subscriptions.free + data.subscriptions.pro + data.subscriptions.enterprise)) * 100}%`
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Badge>Pro</Badge>
-                  <span className="text-sm font-medium">{data.subscriptions.pro} users</span>
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  {((data.subscriptions.pro / (data.subscriptions.free + data.subscriptions.pro + data.subscriptions.enterprise)) * 100).toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-blue-500 h-2 rounded-full"
-                  style={{
-                    width: `${(data.subscriptions.pro / (data.subscriptions.free + data.subscriptions.pro + data.subscriptions.enterprise)) * 100}%`
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant="destructive">Enterprise</Badge>
-                  <span className="text-sm font-medium">{data.subscriptions.enterprise} users</span>
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  {((data.subscriptions.enterprise / (data.subscriptions.free + data.subscriptions.pro + data.subscriptions.enterprise)) * 100).toFixed(1)}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-red-500 h-2 rounded-full"
-                  style={{
-                    width: `${(data.subscriptions.enterprise / (data.subscriptions.free + data.subscriptions.pro + data.subscriptions.enterprise)) * 100}%`
-                  }}
-                />
-              </div>
-            </div>
-          </div>
+            )
+          })()}
         </CardContent>
       </Card>
 
