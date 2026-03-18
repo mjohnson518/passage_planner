@@ -714,11 +714,11 @@
     animation: fade-in-up 0.6s ease-out;
   }
 
-  /* Scroll-reveal: elements start hidden, JS adds .revealed class */
+  /* Scroll-reveal: CSS scroll-driven (Chrome/Edge progressive enhancement) */
   @keyframes reveal-up {
     from {
       opacity: 0;
-      transform: translateY(32px);
+      transform: translateY(28px);
     }
     to {
       opacity: 1;
@@ -726,23 +726,54 @@
     }
   }
 
+  /* JS-triggered fallback (kept for compatibility) */
   .reveal-up {
     opacity: 0;
     animation: reveal-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-play-state: paused;
   }
 
   .reveal-up.visible {
     animation-play-state: running;
   }
 
-  .reveal-up:not(.visible) {
-    animation-play-state: paused;
-  }
-
   .reveal-delay-1 { animation-delay: 0.1s; }
   .reveal-delay-2 { animation-delay: 0.2s; }
   .reveal-delay-3 { animation-delay: 0.3s; }
   .reveal-delay-4 { animation-delay: 0.4s; }
+
+  /* CSS scroll-driven reveal — no JS required, progressive enhancement */
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .reveal-on-scroll {
+        opacity: 0;
+        animation: reveal-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 28%;
+      }
+
+      .reveal-on-scroll-delay-1 {
+        opacity: 0;
+        animation: reveal-up 0.8s 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 28%;
+      }
+
+      .reveal-on-scroll-delay-2 {
+        opacity: 0;
+        animation: reveal-up 0.8s 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 28%;
+      }
+
+      .reveal-on-scroll-delay-3 {
+        opacity: 0;
+        animation: reveal-up 0.8s 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 28%;
+      }
+    }
+  }
 
   /* Pulse glow effect */
   .pulse-glow {

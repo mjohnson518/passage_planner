@@ -89,6 +89,21 @@ export default function HomePage() {
         <div className="absolute inset-0 chart-grid opacity-[0.08]" />
         {/* Faint compass rose */}
         <CompassRose className="absolute right-0 top-1/2 -translate-y-1/2 w-[700px] h-[700px] text-white opacity-[0.03] -mr-52 hidden lg:block" />
+        {/* Ghost typography depth layer — editorial overlap behind right column */}
+        <div className="absolute inset-0 flex items-center justify-end pointer-events-none select-none overflow-hidden" aria-hidden>
+          <span
+            className="font-display font-black text-white hidden lg:block"
+            style={{
+              fontSize: 'clamp(9rem, 22vw, 18rem)',
+              opacity: 0.025,
+              letterSpacing: '-0.06em',
+              lineHeight: 1,
+              transform: 'translateX(8%) translateY(4%)',
+            }}
+          >
+            NAVIGATE
+          </span>
+        </div>
 
         <div className="relative mx-auto max-w-7xl w-full">
           <div className="grid lg:grid-cols-[1fr_420px] gap-16 lg:gap-24 items-center">
@@ -170,7 +185,7 @@ export default function HomePage() {
                       <Navigation className="h-5 w-5 flex-shrink-0" style={{ color: 'hsl(var(--seafoam))' }} />
                       <div>
                         <p className="text-sm font-medium text-white">Miami, FL → Nassau, Bahamas</p>
-                        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>184nm · Est. 28h</p>
+                        <p className="font-mono-data text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>184nm · Est. 28h</p>
                       </div>
                     </div>
 
@@ -187,8 +202,8 @@ export default function HomePage() {
                           style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
                         >
                           <Icon className="h-4 w-4 mx-auto mb-1" style={{ color: 'rgba(255,255,255,0.35)' }} />
-                          <p className="text-[9px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</p>
-                          <p className="text-sm font-semibold text-white mt-0.5">{value}</p>
+                          <p className="font-mono-data text-[9px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</p>
+                          <p className="font-mono-data text-sm font-medium text-white mt-0.5">{value}</p>
                         </div>
                       ))}
                     </div>
@@ -284,7 +299,7 @@ export default function HomePage() {
 
       {/* Features Section — 3-col dark glass */}
       <section
-        className="relative px-4 py-24 sm:px-6 lg:px-8 lg:py-32 overflow-hidden"
+        className="relative px-4 py-24 sm:px-6 lg:px-8 lg:py-40 overflow-hidden"
         style={{ background: 'linear-gradient(180deg, hsl(222 47% 6%) 0%, hsl(var(--night)) 100%)' }}
       >
         {/* Subtle chart grid */}
@@ -296,7 +311,7 @@ export default function HomePage() {
         />
 
         <div className="relative mx-auto max-w-7xl">
-          <div className="text-center mb-20">
+          <div className="text-center mb-20 reveal-on-scroll">
             <span className="eyebrow-night mb-5 block">Capabilities</span>
             <h2 className="font-display text-white">
               Everything for Safe Passage Planning
@@ -319,7 +334,7 @@ export default function HomePage() {
 
       {/* How it Works — dark glass with serif step numbers */}
       <section
-        className="relative px-4 py-24 sm:px-6 lg:px-8 lg:py-32 overflow-hidden"
+        className="relative px-4 py-24 sm:px-6 lg:px-8 lg:py-40 overflow-hidden"
         style={{ background: 'hsl(var(--night))' }}
       >
         <div className="absolute inset-0 chart-grid opacity-[0.06]" />
@@ -330,7 +345,7 @@ export default function HomePage() {
         />
 
         <div className="relative mx-auto max-w-7xl">
-          <div className="text-center mb-20">
+          <div className="text-center mb-20 reveal-on-scroll">
             <span className="eyebrow-night mb-5 block">Process</span>
             <h2 className="font-display text-white">
               Plan Your Passage in Minutes
@@ -344,6 +359,7 @@ export default function HomePage() {
             {[
               {
                 step: '01',
+
                 title: 'Enter Your Route',
                 description: 'Select departure and destination ports, add waypoints, and set your departure time.',
                 icon: Map,
@@ -363,7 +379,7 @@ export default function HomePage() {
             ].map((item, i) => (
               <div
                 key={i}
-                className="group relative card-night card-glow-hover p-8"
+                className={`group relative card-night card-glow-hover p-8 ${i === 0 ? 'reveal-on-scroll' : i === 1 ? 'reveal-on-scroll-delay-1' : 'reveal-on-scroll-delay-2'}`}
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
               >
                 {/* Step number — large serif ghost */}
@@ -414,7 +430,7 @@ export default function HomePage() {
 
       {/* CTA Section — deep dark navy */}
       <section
-        className="relative px-4 py-24 sm:px-6 lg:px-8 lg:py-32 overflow-hidden"
+        className="relative px-4 py-24 sm:px-6 lg:px-8 lg:py-40 overflow-hidden"
         style={{ background: 'linear-gradient(180deg, hsl(222 47% 6%) 0%, hsl(222 47% 5%) 100%)' }}
       >
         {/* Chart grid */}
@@ -424,7 +440,7 @@ export default function HomePage() {
           className="absolute inset-0 pointer-events-none"
           style={{ background: 'radial-gradient(ellipse 60% 40% at 50% 50%, rgba(0,242,195,0.04) 0%, transparent 65%)' }}
         />
-        <div className="relative mx-auto max-w-3xl text-center">
+        <div className="relative mx-auto max-w-3xl text-center reveal-on-scroll">
           <span className="eyebrow-night mb-6 block">Get Started</span>
           <h2 className="font-display text-white text-balance">
             Ready to Navigate Smarter?
