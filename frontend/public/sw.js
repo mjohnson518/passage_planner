@@ -139,6 +139,26 @@ async function handleAPIRequest(request) {
     if (request.method === 'GET') {
       const cachedResponse = await caches.match(request);
       if (cachedResponse) {
+        // SAFETY: Check staleness of cached weather/tidal API responses
+        const isWeatherOrTidal = /\/(weather|tidal|forecast)/.test(request.url);
+        if (isWeatherOrTidal) {
+          const cachedDate = cachedResponse.headers.get('date');
+          if (cachedDate) {
+            const cacheAgeMs = Date.now() - new Date(cachedDate).getTime();
+            const ONE_HOUR_MS = 60 * 60 * 1000;
+            if (cacheAgeMs > ONE_HOUR_MS) {
+              // Clone and add staleness header so the frontend can warn the user
+              const headers = new Headers(cachedResponse.headers);
+              headers.set('X-Stale-Data', 'true');
+              headers.set('X-Cache-Age-Minutes', String(Math.round(cacheAgeMs / 60000)));
+              return new Response(cachedResponse.body, {
+                status: cachedResponse.status,
+                statusText: cachedResponse.statusText,
+                headers,
+              });
+            }
+          }
+        }
         return cachedResponse;
       }
     }

@@ -173,10 +173,8 @@ export default function PlannerPage() {
         }
       };
 
-      console.log('Calling production backend API...');
       const result = await planPassage(planRequest);
-      
-      console.log('Passage plan received:', result);
+
       setPassagePlan(result);
       setLoading(false);
       
@@ -245,6 +243,14 @@ export default function PlannerPage() {
         </Card>
       )}
 
+      {/* Persistent WebSocket connection status — always visible when a plan is displayed */}
+      {passagePlan && (
+        <div className={`text-xs px-3 py-1.5 rounded mb-2 flex items-center gap-2 ${connected ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          <span className={`h-2 w-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+          {connected ? 'Live updates connected' : 'Disconnected — data may be stale'}
+        </div>
+      )}
+
       {/* Passage Plan Results - All 6 Data Sources */}
       {passagePlan && (
         <div className="space-y-6 mb-6">
@@ -259,6 +265,19 @@ export default function PlannerPage() {
                 required before departure.</strong> Do not rely on this plan without independently
                 checking all safety conditions against official nautical charts, NOAA marine forecasts,
                 active NOTAMs, and current tidal information.
+              </p>
+            </div>
+          )}
+
+          {/* SAFETY_WARNING amber banner — shown when critical hazards detected */}
+          {(passagePlan as any).status === 'SAFETY_WARNING' && (
+            <div className="rounded-md border-2 border-amber-600 bg-amber-50 px-5 py-4" role="alert">
+              <p className="font-bold text-amber-800 text-base uppercase tracking-wide mb-1">
+                ⚠ Safety Warnings Detected
+              </p>
+              <p className="text-amber-700 text-sm">
+                Critical hazards were identified along this route. Review all safety warnings carefully.
+                <strong> Do not depart without addressing every critical warning below.</strong>
               </p>
             </div>
           )}
@@ -338,6 +357,19 @@ export default function PlannerPage() {
                 <Ship className="h-5 w-5" />
                 2. Weather Conditions
             </CardTitle>
+            {/* 3.1 — Weather data timestamp with staleness color coding */}
+            {(passagePlan.weather?.departure as any)?.issuedAt && (() => {
+              const issuedAt = new Date((passagePlan.weather.departure as any).issuedAt);
+              const ageMs = Date.now() - issuedAt.getTime();
+              const ageMin = Math.round(ageMs / 60000);
+              const color = ageMs < 30 * 60 * 1000 ? 'text-green-700' : ageMs < 60 * 60 * 1000 ? 'text-amber-700' : 'text-red-700';
+              const staleLabel = ageMs >= 60 * 60 * 1000 ? ' ⚠ STALE — verify independently' : '';
+              return (
+                <p className={`text-xs mt-1 ${color}`}>
+                  Data from: {issuedAt.toLocaleTimeString()} ({ageMin} min ago){staleLabel}
+                </p>
+              );
+            })()}
           </CardHeader>
           <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
@@ -345,8 +377,8 @@ export default function PlannerPage() {
                   <p className="font-semibold mb-2">Departure: {formData.departure}</p>
                   <div className="space-y-1 text-sm">
                     <p><strong>Conditions:</strong> {passagePlan.weather.departure.conditions}</p>
-                    <p><strong>Wind:</strong> {passagePlan.weather.departure.windDescription}</p>
-                    <p><strong>Waves:</strong> {passagePlan.weather.departure.waveHeight}ft</p>
+                    <p><strong>Wind:</strong> {passagePlan.weather.departure.windDescription} kt</p>
+                    <p><strong>Waves:</strong> {passagePlan.weather.departure.waveHeight} ft</p>
                     <p><strong>Temp:</strong> {passagePlan.weather.departure.temperature}°F</p>
                     {passagePlan.weather.departure.warnings.length > 0 && (
                       <p className="text-orange-600"><strong>⚠️ Warnings:</strong> {passagePlan.weather.departure.warnings.join(', ')}</p>
@@ -357,8 +389,8 @@ export default function PlannerPage() {
                   <p className="font-semibold mb-2">Destination: {formData.destination}</p>
                   <div className="space-y-1 text-sm">
                     <p><strong>Conditions:</strong> {passagePlan.weather.destination.conditions}</p>
-                    <p><strong>Wind:</strong> {passagePlan.weather.destination.windDescription}</p>
-                    <p><strong>Waves:</strong> {passagePlan.weather.destination.waveHeight}ft</p>
+                    <p><strong>Wind:</strong> {passagePlan.weather.destination.windDescription} kt</p>
+                    <p><strong>Waves:</strong> {passagePlan.weather.destination.waveHeight} ft</p>
                     <p><strong>Temp:</strong> {passagePlan.weather.destination.temperature}°F</p>
                     {passagePlan.weather.destination.warnings.length > 0 && (
                       <p className="text-orange-600"><strong>⚠️ Warnings:</strong> {passagePlan.weather.destination.warnings.join(', ')}</p>
@@ -368,7 +400,7 @@ export default function PlannerPage() {
               </div>
               <div className="pt-2 border-t">
                 <p className="text-sm"><strong>Overall:</strong> {passagePlan.weather.summary.overall}</p>
-                <p className="text-sm text-muted-foreground">Source: {passagePlan.weather.departure.source}</p>
+                <p className="text-sm text-muted-foreground">Source: {passagePlan.weather.departure.source} | Units: kt / ft / °F</p>
               </div>
             </CardContent>
           </Card>
@@ -641,7 +673,7 @@ export default function PlannerPage() {
             
               <div className="pt-3 border-t text-xs text-muted-foreground">
                 <p><strong>Data Sources:</strong> Route (geolib), Weather (NOAA), Tidal (NOAA), Navigation Warnings, Safety Analysis, Port Information</p>
-                <p><strong>Generated:</strong> {new Date().toLocaleString()}</p>
+                <p><strong>Generated:</strong> {(passagePlan as any).timestamp ? new Date((passagePlan as any).timestamp).toLocaleString() + ' (plan time)' : 'Unknown'}</p>
               </div>
           </CardContent>
         </Card>
