@@ -6,7 +6,7 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 import { OrchestratorService } from './index';
-import { AuthService, FeatureGate, StripeService, SecurityHeaders } from '@passage-planner/shared';
+import { AuthService, FeatureGate, StripeService, SecurityHeaders, PLANS, TOP_UP_PACKS, FOUNDING_MEMBER, getFleetSeatLimit } from '@passage-planner/shared';
 import { AuthMiddleware } from './middleware/auth';
 import { AgentManager } from './services/AgentManager';
 import { RateLimiter } from './middleware/rateLimiter';
@@ -82,7 +82,10 @@ export class HttpServer {
     this.postgres = new Pool({
       connectionString: process.env.DATABASE_URL,
     });
-    
+
+    // Initialize FeatureGate with database pool for usage limit enforcement
+    FeatureGate.initialize(this.postgres);
+
     const redisUrl = process.env.REDIS_URL;
     if (redisUrl) {
       this.redis = createClient({ url: redisUrl });
@@ -135,13 +138,90 @@ export class HttpServer {
       async (req, res) => {
         const signature = req.headers['stripe-signature'] as string;
         try {
+          // Extract event ID for idempotency before full signature verification
+          let stripeEventId: string | undefined;
+          try {
+            stripeEventId = JSON.parse((req.body as Buffer).toString()).id;
+          } catch { /* non-fatal */ }
+
+          // Idempotency: skip if already processed
+          if (stripeEventId) {
+            const existing = await this.postgres.query(
+              'SELECT id FROM subscription_events WHERE stripe_event_id = $1',
+              [stripeEventId]
+            );
+            if (existing.rows.length > 0) {
+              return res.json({ received: true }); // already processed
+            }
+          }
+
+          // Full signature verification + event dispatch
           const result = await this.stripeService.handleWebhook(
             signature,
             req.body as Buffer
           );
-          if (result) {
+
+          if (!result) {
+            return res.json({ received: true });
+          }
+
+          const eventId = stripeEventId;
+
+          // Dispatch by result type
+          const r = result as any;
+          if (r.type === 'top_up') {
+            // Credit bonus passages to the user
+            const pack = r.pack as 'small' | 'large';
+            const passages = TOP_UP_PACKS[pack]?.passages || 0;
+            if (passages > 0) {
+              await this.postgres.query(
+                'UPDATE profiles SET bonus_passages = bonus_passages + $1 WHERE id = $2',
+                [passages, r.userId]
+              );
+            }
+          } else if (r.type === 'invoice_paid') {
+            // Reset monthly passage usage at billing cycle renewal
+            await this.postgres.query(
+              `DELETE FROM usage_events
+               WHERE user_id = $1 AND action = 'passage_planned'
+               AND created_at < date_trunc('month', CURRENT_DATE)`,
+              [r.userId]
+            );
+          } else if (r.type === 'payment_failed') {
+            await this.postgres.query(
+              'UPDATE subscriptions SET status = $1 WHERE user_id = $2',
+              ['past_due', r.userId]
+            );
+            if (r.userId) {
+              await this.postgres.query(
+                'UPDATE profiles SET subscription_status = $1 WHERE id = $2',
+                ['past_due', r.userId]
+              );
+            }
+          } else if (r.type === 'subscription') {
+            await this.updateSubscription(r);
+            // Mark as founding member if applicable
+            if (r.founding && r.userId) {
+              await this.postgres.query(
+                `UPDATE profiles
+                 SET is_founding_member = TRUE, founding_member_at = NOW()
+                 WHERE id = $1 AND is_founding_member = FALSE`,
+                [r.userId]
+              );
+            }
+          } else {
+            // Legacy path (subscription update/cancel without type field)
             await this.updateSubscription(result);
           }
+
+          // Record event for idempotency
+          if (eventId) {
+            await this.postgres.query(
+              'INSERT INTO subscription_events (stripe_event_id, event_type, processed_at) VALUES ($1, $2, NOW()) ON CONFLICT (stripe_event_id) DO NOTHING',
+              [eventId, (result as any).type || 'unknown']
+            );
+          }
+
           res.json({ received: true });
         } catch (error) {
           this.logger.error({ error }, 'Webhook processing failed');
@@ -896,28 +976,148 @@ export class HttpServer {
       async (req, res) => {
         try {
           const checkoutSchema = z.object({
-            tier: z.enum(['free', 'pro', 'enterprise']),
+            tier: z.enum(['premium', 'pro']),
             period: z.enum(['monthly', 'annual']).optional(),
+            founding: z.boolean().optional(),
           });
           const checkoutParsed = checkoutSchema.safeParse(req.body);
           if (!checkoutParsed.success) {
             return res.status(400).json({ error: 'Validation failed', details: checkoutParsed.error.issues });
           }
-          const { tier, period = 'monthly' } = req.body;
+          const { tier, period = 'monthly', founding = false } = checkoutParsed.data;
           const priceId = this.getPriceId(tier, period);
-          
+
+          // Check founding member eligibility
+          let foundingDiscount: string | undefined;
+          if (
+            founding &&
+            tier === FOUNDING_MEMBER.appliesToTier &&
+            period === FOUNDING_MEMBER.billingPeriod
+          ) {
+            const spotsResult = await this.postgres.query(
+              'SELECT COUNT(*) FROM profiles WHERE is_founding_member = TRUE'
+            );
+            const claimed = parseInt(spotsResult.rows[0].count, 10);
+            if (claimed < FOUNDING_MEMBER.totalSpots) {
+              foundingDiscount = FOUNDING_MEMBER.stripeCouponId;
+            }
+          }
+
           const session = await this.stripeService.createCheckoutSession(
             req.user.id,
             priceId,
             `${process.env.NEXT_PUBLIC_APP_URL}/profile?success=true`,
             `${process.env.NEXT_PUBLIC_APP_URL}/profile?canceled=true`,
-            req.user.email
+            req.user.email,
+            foundingDiscount
           );
-          
-          res.json({ sessionUrl: session.url });
+
+          res.json({ sessionUrl: session.url, foundingApplied: !!foundingDiscount });
         } catch (error) {
           this.logger.error({ error }, 'Checkout session creation failed');
           res.status(500).json({ error: 'Failed to create checkout session' });
+        }
+      }
+    );
+
+    // Top-up passage pack purchase (paid tiers only)
+    this.app.post('/api/subscription/purchase-top-up',
+      ...this.authChain(),
+      this.rateLimiter!.limit.bind(this.rateLimiter!),
+      async (req, res) => {
+        try {
+          const schema = z.object({ pack: z.enum(['small', 'large']) });
+          const parsed = schema.safeParse(req.body);
+          if (!parsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
+          }
+          const { pack } = parsed.data;
+          const userId = req.user.id;
+
+          // Only paid tiers can purchase top-ups
+          const subscription = await this.getSubscription(userId);
+          const tier = subscription?.tier || 'free';
+          if (tier === 'free') {
+            return res.status(403).json({
+              error: 'Passage packs require a Premium or Pro subscription',
+              upgradeUrl: '/pricing',
+            });
+          }
+
+          const packConfig = TOP_UP_PACKS[pack];
+          const session = await this.stripeService.createTopUpCheckoutSession(
+            userId,
+            packConfig.stripePriceId,
+            pack,
+            `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?topup=success`,
+            `${process.env.NEXT_PUBLIC_APP_URL}/pricing?topup=canceled`,
+            req.user.email
+          );
+
+          res.json({ sessionUrl: session.url });
+        } catch (error) {
+          this.logger.error({ error }, 'Top-up checkout creation failed');
+          res.status(500).json({ error: 'Failed to create top-up checkout session' });
+        }
+      }
+    );
+
+    // Founding member spots remaining (public)
+    this.app.get('/api/founding-member/spots-remaining', async (req, res) => {
+      try {
+        const result = await this.postgres.query(
+          'SELECT COUNT(*) FROM profiles WHERE is_founding_member = TRUE'
+        );
+        const claimed = parseInt(result.rows[0].count, 10);
+        res.json({
+          remaining: Math.max(0, FOUNDING_MEMBER.totalSpots - claimed),
+          total: FOUNDING_MEMBER.totalSpots,
+        });
+      } catch (error) {
+        this.logger.error({ error }, 'Failed to get founding member spots');
+        res.status(500).json({ error: 'Failed to get founding member spots' });
+      }
+    });
+
+    // Usage summary (auth required)
+    this.app.get('/api/usage/summary',
+      ...this.authChain(),
+      async (req, res) => {
+        try {
+          const userId = req.user.id;
+          const subscription = await this.getSubscription(userId);
+          const summary = await FeatureGate.getUsageSummary(userId, subscription);
+          res.json(summary);
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to get usage summary');
+          res.status(500).json({ error: 'Failed to get usage summary' });
+        }
+      }
+    );
+
+    // Admin: set whitelist status
+    this.app.post('/api/admin/whitelist',
+      this.authMiddleware.authenticate.bind(this.authMiddleware),
+      createAdminGuard(this.postgres),
+      async (req, res) => {
+        try {
+          const schema = z.object({
+            userId: z.string().uuid(),
+            whitelisted: z.boolean(),
+          });
+          const parsed = schema.safeParse(req.body);
+          if (!parsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
+          }
+          const { userId, whitelisted } = parsed.data;
+          await this.postgres.query(
+            'UPDATE profiles SET is_whitelisted = $1 WHERE id = $2',
+            [whitelisted, userId]
+          );
+          res.json({ success: true });
+        } catch (error) {
+          this.logger.error({ error }, 'Failed to set whitelist status');
+          res.status(500).json({ error: 'Failed to update whitelist' });
         }
       }
     );
@@ -1612,6 +1812,23 @@ export class HttpServer {
             return res.status(400).json({ error: 'Maximum 10 invitations at once' });
           }
 
+          // Enforce fleet seat limits based on owner's subscription tier
+          const ownerSub = await this.getSubscription(userId);
+          const seatLimit = getFleetSeatLimit(ownerSub?.tier || 'free');
+          if (seatLimit !== -1) {
+            const memberCountResult = await this.postgres.query(
+              'SELECT COUNT(*) FROM fleet_members WHERE fleet_id = $1',
+              [fleetId]
+            );
+            const currentMembers = parseInt(memberCountResult.rows[0].count, 10);
+            if (currentMembers + invites.length > seatLimit) {
+              return res.status(403).json({
+                error: `Fleet member limit reached (${seatLimit} seats on ${ownerSub?.tier || 'free'} plan)`,
+                upgradeUrl: '/pricing',
+              });
+            }
+          }
+
           // Get fleet name and inviter info for emails
           const fleetResult = await this.postgres.query(
             'SELECT name FROM fleets WHERE id = $1',
@@ -2139,9 +2356,9 @@ export class HttpServer {
 
   private async updateSubscription(data: any) {
     await this.postgres.query(
-      `UPDATE subscriptions 
-       SET tier = $2, status = $3, current_period_start = $4, 
-           current_period_end = $5, stripe_customer_id = $6, 
+      `UPDATE subscriptions
+       SET tier = $2, status = $3, current_period_start = $4,
+           current_period_end = $5, stripe_customer_id = $6,
            stripe_subscription_id = $7, updated_at = NOW()
        WHERE user_id = $1`,
       [
@@ -2154,13 +2371,21 @@ export class HttpServer {
         data.stripeSubscriptionId,
       ]
     );
+
+    // Keep profiles.subscription_tier and profiles.subscription_status in sync
+    if (data.tier || data.status) {
+      await this.postgres.query(
+        `UPDATE profiles
+         SET subscription_tier = COALESCE($2, subscription_tier),
+             subscription_status = COALESCE($3, subscription_status)
+         WHERE id = $1`,
+        [data.userId, data.tier || null, data.status || null]
+      );
+    }
   }
 
   private async trackUsage(userId: string, action: string, metadata?: any) {
-    await this.postgres.query(
-      'INSERT INTO usage_metrics (user_id, action, metadata) VALUES ($1, $2, $3)',
-      [userId, action, JSON.stringify(metadata || {})]
-    );
+    await FeatureGate.incrementUsage(userId, action, metadata);
   }
 
   private getPriceId(tier: string, period: string): string {
