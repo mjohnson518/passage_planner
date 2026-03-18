@@ -1,6 +1,8 @@
 import { CronJob } from 'cron';
 import { Logger } from 'pino';
 import { emailService } from './EmailService';
+import https from 'https';
+import http from 'http';
 
 export class CronService {
   private jobs: Map<string, CronJob> = new Map();
@@ -41,6 +43,16 @@ export class CronService {
       }
     });
 
+    // Monitor external weather APIs hourly
+    this.scheduleJob('external-api-health', '0 * * * *', async () => {
+      this.logger.info('Running external API health checks');
+      try {
+        await this.checkExternalApiHealth();
+      } catch (error) {
+        this.logger.error({ error }, 'External API health check failed');
+      }
+    });
+
     this.logger.info('Cron jobs scheduled');
   }
 
@@ -62,5 +74,54 @@ export class CronService {
     // This would connect to the database and clean up logs older than 90 days
     // Implementation depends on your database schema
     this.logger.info('Email logs cleanup completed');
+  }
+
+  private async checkExternalApiHealth(): Promise<void> {
+    const endpoints: Array<{ name: string; url: string; timeoutMs: number }> = [
+      {
+        name: 'NOAA-weather',
+        url: 'https://api.weather.gov/points/38.8894,-77.0352',
+        timeoutMs: 10000,
+      },
+      {
+        name: 'NDBC-buoy',
+        url: 'https://www.ndbc.noaa.gov/data/realtime2/44013.txt',
+        timeoutMs: 10000,
+      },
+    ];
+
+    for (const ep of endpoints) {
+      try {
+        const statusCode = await this.httpGet(ep.url, ep.timeoutMs);
+        if (statusCode >= 200 && statusCode < 300) {
+          this.logger.info({ service: ep.name, statusCode }, 'External API healthy');
+        } else {
+          this.logger.warn(
+            { service: ep.name, statusCode },
+            'External API returned non-2xx status — weather data may be degraded'
+          );
+        }
+      } catch (error) {
+        this.logger.error(
+          { service: ep.name, error },
+          'External API unreachable — weather data may be unavailable'
+        );
+      }
+    }
+  }
+
+  private httpGet(url: string, timeoutMs: number): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const lib = url.startsWith('https') ? https : http;
+      const req = lib.get(url, { headers: { 'User-Agent': 'Helmwise-HealthCheck/1.0' } }, (res) => {
+        res.resume(); // drain body
+        resolve(res.statusCode ?? 0);
+      });
+      req.setTimeout(timeoutMs, () => {
+        req.destroy();
+        reject(new Error(`Timeout after ${timeoutMs}ms`));
+      });
+      req.on('error', reject);
+    });
   }
 } 

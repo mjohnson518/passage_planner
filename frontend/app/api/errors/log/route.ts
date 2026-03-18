@@ -65,10 +65,7 @@ export async function POST(request: NextRequest) {
       Sentry.captureException(sentryError)
     })
     
-    // Log success
-    console.log('✓ Error logged to Sentry:', error.message.substring(0, 100))
-    
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       logged: true 
     })

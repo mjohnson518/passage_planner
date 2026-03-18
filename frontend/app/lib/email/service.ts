@@ -39,7 +39,6 @@ export class EmailService {
         return { success: false, error: error.message }
       }
 
-      console.log('Welcome email sent:', data)
       return { success: true }
     } catch (error: any) {
       console.error('Error sending welcome email:', error)
@@ -67,7 +66,6 @@ export class EmailService {
         return { success: false, error: error.message }
       }
 
-      console.log('Trial ending email sent:', data)
       return { success: true }
     } catch (error: any) {
       console.error('Error sending trial ending email:', error)
@@ -111,7 +109,6 @@ export class EmailService {
         return { success: false, error: error.message }
       }
 
-      console.log('Usage report email sent:', data)
       return { success: true }
     } catch (error: any) {
       console.error('Error sending usage report email:', error)
@@ -150,7 +147,6 @@ export class EmailService {
         return { success: false, error: error.message }
       }
 
-      console.log('Password reset email sent:', data)
       return { success: true }
     } catch (error: any) {
       console.error('Error sending password reset email:', error)
@@ -208,7 +204,6 @@ export class EmailService {
         return { success: false, error: error.message }
       }
 
-      console.log('Subscription confirmation email sent:', data)
       return { success: true }
     } catch (error: any) {
       console.error('Error sending subscription confirmation email:', error)
@@ -261,7 +256,6 @@ export class EmailService {
         return { success: false, error: error.message }
       }
 
-      console.log('Cancellation confirmation email sent:', data)
       return { success: true }
     } catch (error: any) {
       console.error('Error sending cancellation confirmation email:', error)

@@ -66,14 +66,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Send notification to admin (email, Slack, etc.)
-    // For now, just log
     const feedbackData = data as any;
-    console.log('New feedback received:', {
-      id: feedbackData.id,
-      type: feedback_type,
-      userId,
-    });
 
     return NextResponse.json({
       success: true,

@@ -54,19 +54,16 @@ export function AgentHealthDashboard() {
     // or the SocketContext needs to be updated to use socket.io
   }, [connected, agentStatuses])
 
-  const handleStartAgent = (name: string) => {
+  const handleStartAgent = (_name: string) => {
     // TODO: Implement agent start via WebSocket or API
-    console.log('Start agent:', name)
   }
 
-  const handleStopAgent = (name: string) => {
+  const handleStopAgent = (_name: string) => {
     // TODO: Implement agent stop via WebSocket or API
-    console.log('Stop agent:', name)
   }
 
-  const handleRestartAgent = (name: string) => {
+  const handleRestartAgent = (_name: string) => {
     // TODO: Implement agent restart via WebSocket or API
-    console.log('Restart agent:', name)
   }
 
   const getStatusColor = (status: string) => {
