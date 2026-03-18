@@ -46,6 +46,11 @@
     --success: 158 64% 40%;
     --warning: 38 92% 50%;
     --chart-grid: 205 30% 85%;
+
+    /* Night Watch Marketing Colors */
+    --seafoam: 170 100% 47%;
+    --night: 222 47% 8%;
+    --amber-sail: 35 75% 67%;
   }
 
   .dark {
@@ -410,6 +415,107 @@
       url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
     pointer-events: none;
   }
+
+  /* Night Watch — Landing Page Dark Sections */
+
+  .section-night-hero {
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 65% 55% at 15% 70%, hsl(var(--seafoam) / 0.07) 0%, transparent 52%),
+      radial-gradient(ellipse 50% 40% at 85% 10%, hsl(var(--amber-sail) / 0.06) 0%, transparent 50%),
+      hsl(var(--night));
+  }
+
+  .glass-night {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius);
+  }
+
+  .card-night {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .card-night:hover {
+    border-color: hsl(var(--seafoam) / 0.3);
+    box-shadow: 0 20px 40px -15px hsl(var(--seafoam) / 0.1);
+  }
+
+  .card-night-featured {
+    background: rgba(0, 242, 195, 0.04);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid hsl(var(--seafoam) / 0.25);
+    border-radius: var(--radius);
+    box-shadow: 0 0 48px hsl(var(--seafoam) / 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .btn-seafoam {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.5rem;
+    border-radius: calc(var(--radius) - 2px);
+    background: hsl(var(--seafoam));
+    color: hsl(var(--night));
+    font-weight: 700;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 20px hsl(var(--seafoam) / 0.3);
+  }
+
+  .btn-seafoam:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px hsl(var(--seafoam) / 0.45);
+  }
+
+  .btn-seafoam:active {
+    transform: translateY(0);
+  }
+
+  .btn-night-outline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.5rem;
+    border-radius: calc(var(--radius) - 2px);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    transition: all 0.2s ease;
+  }
+
+  .btn-night-outline:hover {
+    border-color: hsl(var(--seafoam) / 0.6);
+    color: hsl(var(--seafoam));
+    background: hsl(var(--seafoam) / 0.05);
+  }
+
+  .eyebrow-night {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: hsl(var(--seafoam));
+    font-family: var(--font-body), 'Source Sans 3', sans-serif;
+  }
 }
 
 @layer utilities {
@@ -563,6 +669,16 @@
     50% {
       box-shadow: 0 0 20px 10px hsl(var(--primary) / 0);
     }
+  }
+
+  /* Live indicator pulse */
+  @keyframes pulse-live {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+    50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  }
+
+  .pulse-live {
+    animation: pulse-live 2s ease-in-out infinite;
   }
 
   /* Status indicator */

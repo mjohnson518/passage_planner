@@ -36,7 +36,7 @@ const plans = [
     cta: 'Start Free Trial',
     href: '/signup?plan=premium',
     popular: true,
-    accent: 'primary',
+    accent: 'seafoam',
   },
   {
     name: 'Captain',
@@ -54,66 +54,98 @@ const plans = [
     ],
     cta: 'Start Free Trial',
     href: '/signup?plan=pro',
-    accent: 'brass',
+    accent: 'amber',
   },
 ]
 
 export function PricingSection() {
   return (
-    <section className="section-alt px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
-      <div className="mx-auto max-w-7xl">
+    <section
+      className="relative px-4 py-20 sm:px-6 lg:px-8 lg:py-28 overflow-hidden"
+      style={{
+        background: 'linear-gradient(180deg, hsl(var(--night)) 0%, hsl(222 40% 10%) 100%)',
+      }}
+    >
+      {/* Subtle chart grid */}
+      <div className="absolute inset-0 chart-grid opacity-[0.07]" />
+
+      {/* Ambient glow blobs */}
+      <div
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse at center, rgba(0,242,195,0.05) 0%, transparent 70%)',
+        }}
+      />
+
+      <div className="relative mx-auto max-w-7xl">
         {/* Header */}
         <div className="text-center mb-16">
-          <span className="badge-primary mb-4">Pricing</span>
-          <h2 className="font-display mt-4">
+          <span className="eyebrow-night mb-5 block">Pricing</span>
+          <h2 className="font-display mt-2 text-white">
             Simple, Transparent Pricing
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="mt-4 text-lg max-w-2xl mx-auto" style={{ color: 'rgba(255,255,255,0.45)' }}>
             Choose the perfect plan for your sailing adventures. All plans include a 14-day free trial.
           </p>
         </div>
 
         {/* Pricing cards */}
-        <div className="grid gap-8 lg:grid-cols-3 max-w-5xl mx-auto">
+        <div className="grid gap-6 lg:grid-cols-3 max-w-5xl mx-auto items-stretch">
           {plans.map((plan) => {
             const IconComponent = plan.icon
+            const isPopular = plan.popular
+            const isAmber = plan.accent === 'amber'
+
             return (
               <div
                 key={plan.name}
                 className={cn(
-                  'relative card p-8 flex flex-col h-full transition-all duration-300',
-                  plan.popular && 'ring-2 ring-primary shadow-maritime-lg scale-[1.02] mt-4'
+                  'relative flex flex-col h-full p-8 transition-all duration-300',
+                  isPopular ? 'card-night-featured scale-[1.03]' : 'card-night'
                 )}
               >
                 {/* Popular badge */}
-                {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <span className="badge-brass px-4 py-1.5 shadow-brass">
+                {isPopular && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10">
+                    <span
+                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide whitespace-nowrap"
+                      style={{ background: 'hsl(var(--seafoam))', color: 'hsl(var(--night))' }}
+                    >
                       Most Popular
                     </span>
                   </div>
                 )}
 
-                {/* Plan header */}
-                <div className="mb-6">
-                  <div className={cn(
-                    'w-12 h-12 rounded-xl flex items-center justify-center mb-4',
-                    plan.accent === 'primary' && 'bg-primary/10 text-primary',
-                    plan.accent === 'brass' && 'bg-brass-50 dark:bg-brass-900/20 text-brass-600 dark:text-brass-400',
-                    plan.accent === 'muted' && 'bg-muted text-muted-foreground'
-                  )}>
+                {/* Plan icon + name */}
+                <div className="mb-6 pt-2">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
+                    style={{
+                      background: isPopular
+                        ? 'rgba(0,242,195,0.1)'
+                        : isAmber
+                          ? 'rgba(226,179,110,0.1)'
+                          : 'rgba(255,255,255,0.06)',
+                      border: `1px solid ${isPopular ? 'rgba(0,242,195,0.22)' : isAmber ? 'rgba(226,179,110,0.22)' : 'rgba(255,255,255,0.08)'}`,
+                      color: isPopular
+                        ? 'hsl(var(--seafoam))'
+                        : isAmber
+                          ? 'hsl(var(--amber-sail))'
+                          : 'rgba(255,255,255,0.45)',
+                    }}
+                  >
                     <IconComponent className="h-6 w-6" />
                   </div>
-                  <h3 className="font-display text-2xl font-bold">{plan.name}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
+                  <h3 className="font-display text-2xl font-bold text-white">{plan.name}</h3>
+                  <p className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{plan.description}</p>
                 </div>
 
                 {/* Price */}
-                <div className="mb-6">
+                <div className="mb-7">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-display font-bold">{plan.price}</span>
+                    <span className="text-4xl font-display font-bold text-white">{plan.price}</span>
                     {plan.period && (
-                      <span className="text-muted-foreground text-sm">{plan.period}</span>
+                      <span className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{plan.period}</span>
                     )}
                   </div>
                 </div>
@@ -122,15 +154,24 @@ export function PricingSection() {
                 <ul className="space-y-3 mb-8 flex-grow">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-3">
-                      <div className={cn(
-                        'w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5',
-                        plan.accent === 'primary' && 'bg-primary/10 text-primary',
-                        plan.accent === 'brass' && 'bg-brass-100 dark:bg-brass-900/20 text-brass-600 dark:text-brass-400',
-                        plan.accent === 'muted' && 'bg-muted text-muted-foreground'
-                      )}>
-                        <Check className="h-3 w-3" />
+                      <div
+                        className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                        style={{
+                          background: isPopular
+                            ? 'rgba(0,242,195,0.15)'
+                            : isAmber
+                              ? 'rgba(226,179,110,0.15)'
+                              : 'rgba(255,255,255,0.07)',
+                          color: isPopular
+                            ? 'hsl(var(--seafoam))'
+                            : isAmber
+                              ? 'hsl(var(--amber-sail))'
+                              : 'rgba(255,255,255,0.45)',
+                        }}
+                      >
+                        <Check className="h-2.5 w-2.5" />
                       </div>
-                      <span className="text-sm">{feature}</span>
+                      <span className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -139,7 +180,7 @@ export function PricingSection() {
                 <Button
                   className={cn(
                     'w-full h-12',
-                    plan.popular ? 'btn-primary' : plan.accent === 'brass' ? 'btn-brass' : 'btn-secondary'
+                    isPopular ? 'btn-seafoam' : isAmber ? 'btn-brass' : 'btn-night-outline'
                   )}
                   asChild
                 >
@@ -152,12 +193,16 @@ export function PricingSection() {
 
         {/* Additional info */}
         <div className="mt-16 text-center">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.28)' }}>
             All plans include SSL encryption and GDPR compliance.
           </p>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.28)' }}>
             Need a custom plan for your marina or sailing school?{' '}
-            <Link href="/contact" className="text-primary hover:underline">
+            <Link
+              href="/contact"
+              className="hover:underline transition-colors"
+              style={{ color: 'hsl(var(--seafoam))' }}
+            >
               Contact sales
             </Link>
           </p>

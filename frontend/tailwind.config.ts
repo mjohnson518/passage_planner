@@ -91,6 +91,10 @@ const config: Config = {
         success: 'hsl(var(--success))',
         warning: 'hsl(var(--warning))',
         'chart-grid': 'hsl(var(--chart-grid))',
+        // Night Watch palette
+        seafoam: 'hsl(var(--seafoam))',
+        night: 'hsl(var(--night))',
+        'amber-sail': 'hsl(var(--amber-sail))',
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -104,6 +108,8 @@ const config: Config = {
         'card': '0 1px 3px 0 hsl(var(--foreground) / 0.05), 0 1px 2px -1px hsl(var(--foreground) / 0.05)',
         'card-hover': '0 20px 40px -15px hsl(var(--primary) / 0.15), 0 8px 16px -8px hsl(var(--foreground) / 0.1)',
         'inner-light': 'inset 0 1px 0 0 hsl(var(--background) / 0.5)',
+        'glow-seafoam': '0 0 24px hsl(var(--seafoam) / 0.4)',
+        'glow-seafoam-lg': '0 0 48px hsl(var(--seafoam) / 0.25)',
       },
       keyframes: {
         "accordion-down": {

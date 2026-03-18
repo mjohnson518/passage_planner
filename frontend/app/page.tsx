@@ -85,119 +85,154 @@ export default function HomePage() {
       />
       <Header />
 
-      {/* Hero Section */}
-      <section className="section-hero relative min-h-[90vh] flex items-center px-4 py-20 sm:px-6 lg:px-8">
-        {/* Background decorations */}
-        <div className="absolute inset-0 chart-grid opacity-40" />
-        <CompassRose className="absolute right-0 top-1/2 -translate-y-1/2 w-[600px] h-[600px] text-primary opacity-[0.07] -mr-40 hidden lg:block animate-compass-needle" />
-        <CompassRose className="absolute left-0 bottom-0 w-[300px] h-[300px] text-accent opacity-[0.05] -ml-20 -mb-20" />
+      {/* Hero Section — Night Watch */}
+      <section className="section-night-hero relative min-h-[92vh] flex items-center px-4 py-28 sm:px-6 lg:px-8">
+        {/* Subtle nautical grid overlay */}
+        <div className="absolute inset-0 chart-grid opacity-[0.08]" />
+        {/* Faint compass rose */}
+        <CompassRose className="absolute right-0 top-1/2 -translate-y-1/2 w-[700px] h-[700px] text-white opacity-[0.03] -mr-52 hidden lg:block" />
 
         <div className="relative mx-auto max-w-7xl w-full">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left column - Content */}
+          <div className="grid lg:grid-cols-[1fr_420px] gap-16 lg:gap-24 items-center">
+            {/* Left column */}
             <div className="text-center lg:text-left animate-fade-in-up">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-8 border border-primary/20">
-                <Zap className="h-4 w-4" />
-                <span>AI-Powered Passage Planning</span>
+              {/* Live eyebrow pill */}
+              <div className="inline-flex items-center gap-3 mb-8 justify-center lg:justify-start">
+                <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 pulse-live" />
+                <span className="eyebrow-night">AI-Powered Passage Planning</span>
               </div>
 
-              <h1 className="font-display text-balance leading-[1.1] tracking-tight">
+              <h1 className="font-display text-white text-balance leading-[1.05] tracking-tight">
                 Navigate with
                 <br />
-                <span className="text-gradient">Confidence</span>
+                <span style={{ color: 'hsl(var(--seafoam))' }}>Confidence</span>
               </h1>
 
-              <p className="mt-6 text-lg lg:text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0 text-balance">
+              <p className="mt-7 text-lg lg:text-xl max-w-xl mx-auto lg:mx-0 text-balance" style={{ color: 'rgba(255,255,255,0.55)' }}>
                 Helmwise orchestrates specialized AI agents to deliver comprehensive passage plans with real-time weather, tidal predictions, and safety analysis.
               </p>
 
               <div className="mt-10 flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
                 <Link href="/signup">
-                  <Button data-testid="hero-cta-signup" size="lg" className="btn-primary group">
+                  <Button data-testid="hero-cta-signup" size="lg" className="btn-seafoam group">
                     Start Free Trial
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Button>
                 </Link>
                 <Link href="/demo">
-                  <Button data-testid="hero-cta-demo" size="lg" variant="outline" className="btn-secondary">
+                  <Button data-testid="hero-cta-demo" size="lg" className="btn-night-outline">
                     View Demo
                   </Button>
                 </Link>
               </div>
 
               {/* Platform highlights */}
-              <div className="mt-12 flex flex-col sm:flex-row items-center gap-6 justify-center lg:justify-start text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Shield className="h-4 w-4 text-primary" />
+              <div className="mt-12 flex flex-col sm:flex-row items-center gap-6 justify-center lg:justify-start text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 flex-shrink-0" style={{ color: 'hsl(var(--seafoam))' }} />
                   <span>Safety-first passage planning</span>
                 </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Navigation className="h-4 w-4 text-primary" />
+                <div className="flex items-center gap-2">
+                  <Navigation className="h-4 w-4 flex-shrink-0" style={{ color: 'hsl(var(--seafoam))' }} />
                   <span>70+ ports covered</span>
                 </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Zap className="h-4 w-4 text-primary" />
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 flex-shrink-0" style={{ color: 'hsl(var(--seafoam))' }} />
                   <span>6 AI agents in parallel</span>
                 </div>
               </div>
             </div>
 
-            {/* Right column - Visual */}
+            {/* Right column — Glass Passage Plan Card */}
             <div className="relative hidden lg:block">
               <div className="relative">
-                {/* Main card */}
-                <div className="card-nautical p-6 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+                {/* Main glassmorphism card */}
+                <div className="glass-night p-7 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
                   <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-display text-lg">Passage Plan</h3>
-                    <span className="badge-success">GO</span>
+                    <h3 className="font-display text-white text-lg">Passage Plan</h3>
+                    <span
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
+                      style={{
+                        background: 'rgba(0,242,195,0.12)',
+                        color: 'hsl(var(--seafoam))',
+                        border: '1px solid rgba(0,242,195,0.25)',
+                      }}
+                    >
+                      <CheckCircle className="h-3 w-3" />
+                      GO
+                    </span>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                      <Navigation className="h-5 w-5 text-primary" />
+                  <div className="space-y-3">
+                    {/* Route */}
+                    <div
+                      className="flex items-center gap-3 p-3 rounded-lg"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}
+                    >
+                      <Navigation className="h-5 w-5 flex-shrink-0" style={{ color: 'hsl(var(--seafoam))' }} />
                       <div>
-                        <p className="text-sm font-medium">Miami, FL → Nassau, Bahamas</p>
-                        <p className="text-xs text-muted-foreground">184nm · Est. 28h</p>
+                        <p className="text-sm font-medium text-white">Miami, FL → Nassau, Bahamas</p>
+                        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>184nm · Est. 28h</p>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="p-3 rounded-lg bg-ocean-50 dark:bg-ocean-900/20 text-center">
-                        <Cloud className="h-5 w-5 mx-auto text-ocean-600 dark:text-ocean-400 mb-1" />
-                        <p className="text-xs text-muted-foreground">Weather</p>
-                        <p className="text-sm font-semibold">Clear</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-ocean-50 dark:bg-ocean-900/20 text-center">
-                        <Waves className="h-5 w-5 mx-auto text-ocean-600 dark:text-ocean-400 mb-1" />
-                        <p className="text-xs text-muted-foreground">Seas</p>
-                        <p className="text-sm font-semibold">2-4ft</p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-ocean-50 dark:bg-ocean-900/20 text-center">
-                        <Compass className="h-5 w-5 mx-auto text-ocean-600 dark:text-ocean-400 mb-1" />
-                        <p className="text-xs text-muted-foreground">Wind</p>
-                        <p className="text-sm font-semibold">12kts SE</p>
-                      </div>
+                    {/* Conditions grid */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { icon: Cloud, label: 'Weather', value: 'Clear' },
+                        { icon: Waves, label: 'Seas', value: '2–4ft' },
+                        { icon: Compass, label: 'Wind', value: '12kt SE' },
+                      ].map(({ icon: Icon, label, value }) => (
+                        <div
+                          key={label}
+                          className="p-3 rounded-lg text-center"
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
+                        >
+                          <Icon className="h-4 w-4 mx-auto mb-1" style={{ color: 'rgba(255,255,255,0.35)' }} />
+                          <p className="text-[9px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.35)' }}>{label}</p>
+                          <p className="text-sm font-semibold text-white mt-0.5">{value}</p>
+                        </div>
+                      ))}
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm text-success">
-                      <CheckCircle className="h-4 w-4" />
-                      <span>All safety checks passed</span>
+                    {/* Safety status */}
+                    <div
+                      className="flex items-center gap-2.5 p-3 rounded-lg text-sm"
+                      style={{ background: 'rgba(0,242,195,0.06)', border: '1px solid rgba(0,242,195,0.14)' }}
+                    >
+                      <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'hsl(var(--seafoam))' }} />
+                      <span style={{ color: 'hsl(var(--seafoam))' }}>All safety checks passed</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Floating agent status card */}
-                <div className="absolute -right-4 -bottom-4 card p-4 shadow-maritime-lg animate-float" style={{ animationDelay: '0.5s' }}>
-                  <div className="flex items-center gap-3">
+                {/* Floating agent status pill */}
+                <div
+                  className="absolute -right-5 -bottom-5 animate-float"
+                  style={{ animationDelay: '0.5s' }}
+                >
+                  <div
+                    className="glass-night px-4 py-3 flex items-center gap-3"
+                    style={{ border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}
+                  >
                     <div className="relative">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brass-400 to-brass-600 flex items-center justify-center">
-                        <Zap className="h-5 w-5 text-white" />
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center"
+                        style={{
+                          background: 'linear-gradient(135deg, rgba(0,242,195,0.2), rgba(0,242,195,0.05))',
+                          border: '1px solid rgba(0,242,195,0.25)',
+                        }}
+                      >
+                        <Zap className="h-4 w-4" style={{ color: 'hsl(var(--seafoam))' }} />
                       </div>
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-success rounded-full border-2 border-background" />
+                      <span
+                        className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full pulse-live"
+                        style={{ border: '2px solid #0A1120' }}
+                      />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">6 AI Agents</p>
-                      <p className="text-xs text-muted-foreground">Working in parallel</p>
+                      <p className="text-sm font-semibold text-white leading-none">6 Agents Active</p>
+                      <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Processing in parallel</p>
                     </div>
                   </div>
                 </div>
@@ -206,8 +241,10 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Wave decoration at bottom */}
-        <WaveDecoration className="absolute bottom-0 left-0 right-0 w-full h-24 text-secondary" />
+        {/* Wave fade to next section */}
+        <div className="absolute bottom-0 left-0 right-0 w-full h-20" style={{ opacity: 0.04 }}>
+          <WaveDecoration className="w-full h-full text-white" />
+        </div>
       </section>
 
       {/* Platform Capabilities Section */}
