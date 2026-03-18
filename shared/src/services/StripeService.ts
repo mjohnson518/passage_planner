@@ -45,7 +45,7 @@ export class StripeService {
         mode: 'subscription',
         success_url: successUrl,
         cancel_url: cancelUrl,
-        metadata: { userId },
+        metadata: { userId, founding: couponId ? 'true' : 'false' },
         subscription_data: {
           trial_period_days: 14,
           metadata: { userId },
