@@ -81,9 +81,9 @@ export default function OnboardingPage() {
       // Save onboarding data to profile
       const response = await fetch('/api/user/profile', {
         method: 'PUT',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           sailing_experience: onboardingData.sailingExperience,
@@ -103,9 +103,9 @@ export default function OnboardingPage() {
       // Track onboarding completion
       await fetch('/api/analytics/track', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           event: 'onboarding_completed',
@@ -128,9 +128,9 @@ export default function OnboardingPage() {
       // Mark onboarding as skipped
       await fetch('/api/user/profile', {
         method: 'PUT',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           onboarding_completed: true,

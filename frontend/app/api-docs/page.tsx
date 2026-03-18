@@ -223,9 +223,7 @@ export default function APIDocsPage() {
   const checkProAccess = async () => {
     try {
       const response = await fetch('/api/user/subscription', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+        credentials: 'include',
       })
       
       if (response.ok) {
@@ -249,9 +247,7 @@ export default function APIDocsPage() {
   const fetchApiKey = async () => {
     try {
       const response = await fetch('/api/user/api-key', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+        credentials: 'include',
       })
 
       if (response.ok) {
@@ -267,9 +263,7 @@ export default function APIDocsPage() {
     try {
       const response = await fetch('/api/user/api-key/generate', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+        credentials: 'include',
       })
 
       if (response.ok) {

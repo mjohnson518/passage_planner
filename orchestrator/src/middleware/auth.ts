@@ -41,12 +41,22 @@ export class AuthMiddleware {
 
   async authenticate(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      // Check for JWT token
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith('Bearer ')) {
-        const token = authHeader.substring(7);
-        const decoded = await this.verifyJWT(token);
-        
+      // SECURITY: Prefer httpOnly cookie (XSS-safe); fall back to Bearer token
+      // for API clients and backward compatibility during migration
+      const cookieHeader = req.headers.cookie;
+      let jwtToken: string | null = null;
+      if (cookieHeader) {
+        const match = cookieHeader.match(/(?:^|;)\s*auth_token=([^;]+)/);
+        if (match) jwtToken = decodeURIComponent(match[1]);
+      }
+      if (!jwtToken) {
+        const authHeader = req.headers.authorization;
+        if (authHeader?.startsWith('Bearer ')) {
+          jwtToken = authHeader.substring(7);
+        }
+      }
+      if (jwtToken) {
+        const decoded = await this.verifyJWT(jwtToken);
         if (decoded) {
           req.user = decoded;
           await this.loadSubscription(req);

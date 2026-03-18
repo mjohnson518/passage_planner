@@ -80,9 +80,7 @@ export function AdminOverview() {
   const fetchMetrics = async () => {
     try {
       const response = await fetch('/api/admin/metrics/overview', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+        credentials: 'include',
       })
 
       if (response.ok) {

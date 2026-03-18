@@ -50,9 +50,7 @@ export default function AdminDashboard() {
 
     try {
       const response = await fetch('/api/admin/verify', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+        credentials: 'include',
       })
 
       if (!response.ok) {

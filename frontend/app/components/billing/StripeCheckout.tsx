@@ -30,21 +30,12 @@ export default function StripeCheckout({
       setLoading(true)
       setError(null)
 
-      // Get auth token from localStorage (or use cookie-based auth)
-      const authToken = localStorage.getItem('auth_token')
-      
-      if (!authToken) {
-        setError('You must be logged in to subscribe')
-        toast.error('Please log in to continue')
-        return
-      }
-
       // Call our API route to create Stripe checkout session
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify({
           tier,
@@ -64,9 +55,6 @@ export default function StripeCheckout({
       if (!url) {
         throw new Error('No checkout URL received')
       }
-
-      // Track checkout initiation
-      console.log('Redirecting to Stripe checkout:', { tier, period, priceId })
 
       // Redirect to Stripe checkout
       window.location.href = url

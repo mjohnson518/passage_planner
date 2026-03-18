@@ -62,9 +62,9 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/mcp/tools/call`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify({
           tool: 'plan_passage',
@@ -103,9 +103,7 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/api/passages/${requestId}/status`,
           {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-            },
+            credentials: 'include',
           }
         )
 
@@ -135,11 +133,7 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
   }
 
   const cancelPlanning = useCallback(() => {
-    // TODO: Implement cancellation via WebSocket or API
-    if (currentRequestId) {
-      console.log('Cancel passage:', currentRequestId)
-    }
-    
+
     setLoading(false)
     setStatus('cancelled')
     setCurrentRequestId(null)
@@ -156,9 +150,9 @@ export function usePassagePlanner(): UsePassagePlannerReturn {
         `${process.env.NEXT_PUBLIC_API_URL}/api/passages/${currentPlan.id}/export`,
         {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
           },
           body: JSON.stringify({ format }),
         }

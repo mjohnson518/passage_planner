@@ -97,9 +97,7 @@ export default function FleetPage() {
   const fetchFleet = async () => {
     try {
       const response = await fetch('/api/fleet', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+        credentials: 'include',
       })
 
       if (response.status === 404) {
@@ -131,9 +129,7 @@ export default function FleetPage() {
   const fetchVessels = async (fleetId: string) => {
     try {
       const response = await fetch(`/api/fleet/${fleetId}/vessels`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+        credentials: 'include',
       })
 
       if (response.ok) {
@@ -148,9 +144,7 @@ export default function FleetPage() {
   const fetchMembers = async (fleetId: string) => {
     try {
       const response = await fetch(`/api/fleet/${fleetId}/members`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+        credentials: 'include',
       })
 
       if (response.ok) {
@@ -166,9 +160,9 @@ export default function FleetPage() {
     try {
       const response = await fetch('/api/fleet/create', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
         body: JSON.stringify({ name, description })
       })
@@ -193,9 +187,9 @@ export default function FleetPage() {
     try {
       const response = await fetch(`/api/fleet/${fleet.id}/vessels`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
         body: JSON.stringify(vesselData)
       })
@@ -219,9 +213,9 @@ export default function FleetPage() {
     try {
       const response = await fetch(`/api/fleet/${fleet.id}/invite`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
         body: JSON.stringify({ email, role, vesselIds })
       })

@@ -122,20 +122,11 @@ export default function PricingPage() {
     setLoading(tier.name)
 
     try {
-      // Get auth token from localStorage
-      const authToken = localStorage.getItem('auth_token')
-      
-      if (!authToken) {
-        console.error('No auth token found')
-        router.push('/login')
-        return
-      }
-
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify({
           tier: tier.name.toLowerCase(),

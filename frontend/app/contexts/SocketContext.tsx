@@ -46,25 +46,16 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
       timeout: 10000,
+      withCredentials: true,
     })
 
     socketRef.current = socket
 
     socket.on('connect', () => {
-      console.log('Socket.IO connected to orchestrator')
       setConnected(true)
-
-      // Authenticate immediately after connecting if we have a token
-      const token = typeof window !== 'undefined'
-        ? localStorage.getItem('auth_token') ?? sessionStorage.getItem('auth_token')
-        : null
-      if (token) {
-        socket.emit('authenticate', token)
-      }
     })
 
     socket.on('disconnect', () => {
-      console.log('Socket.IO disconnected')
       setConnected(false)
     })
 
@@ -73,7 +64,6 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     })
 
     socket.on('authenticated', () => {
-      console.log('Socket.IO authenticated')
     })
 
     socket.on('authentication_error', () => {

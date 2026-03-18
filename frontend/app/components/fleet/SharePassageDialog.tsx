@@ -58,9 +58,7 @@ export function SharePassageDialog({
   const fetchUserPassages = async () => {
     try {
       const response = await fetch('/api/passages', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        }
+        credentials: 'include',
       })
 
       if (response.ok) {
@@ -83,9 +81,9 @@ export function SharePassageDialog({
     try {
       const response = await fetch(`/api/fleet/${fleetId}/passages/share`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
         body: JSON.stringify({
           passageId: selectedPassage,

@@ -56,11 +56,10 @@ export function useServiceWorker() {
               minInterval: 24 * 60 * 60 * 1000, // 24 hours
             })
           } catch (error) {
-            console.log('Periodic sync not available:', error)
+            // Periodic sync not available in this browser
           }
         }
 
-        console.log('Service Worker registered successfully')
       } catch (error) {
         console.error('Service Worker registration failed:', error)
       }
@@ -107,7 +106,6 @@ export function useServiceWorker() {
   // Request background sync
   const requestSync = useCallback(async (tag: string) => {
     if (!state.registration || !('sync' in state.registration)) {
-      console.log('Background sync not supported')
       return false
     }
 
@@ -137,7 +135,6 @@ export function useServiceWorker() {
           id: `${Date.now()}-${Math.random()}`,
           data,
           timestamp: Date.now(),
-          token: localStorage.getItem('auth_token'),
         })
         
         request.onsuccess = () => resolve()
@@ -215,9 +212,9 @@ export function useServiceWorker() {
       // Send subscription to server
       await fetch('/api/push/subscribe', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
         },
         body: JSON.stringify(subscription),
       })
