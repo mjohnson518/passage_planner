@@ -517,6 +517,25 @@
     font-family: var(--font-body), 'Source Sans 3', sans-serif;
   }
 
+  /* Footer navigation links */
+  .footer-link {
+    color: rgba(255, 255, 255, 0.45);
+    transition: color 0.2s ease;
+  }
+
+  .footer-link:hover {
+    color: hsl(var(--seafoam));
+  }
+
+  .footer-icon {
+    color: rgba(255, 255, 255, 0.25);
+    transition: color 0.2s ease;
+  }
+
+  .footer-icon:hover {
+    color: hsl(var(--seafoam));
+  }
+
   /* Night section with more depth */
   .section-night {
     background: linear-gradient(180deg, hsl(222 47% 6%) 0%, hsl(var(--night)) 100%);
