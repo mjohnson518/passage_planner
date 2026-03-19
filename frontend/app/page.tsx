@@ -240,8 +240,7 @@ export default function HomePage() {
                       </div>
                       <span
                         className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full pulse-live"
-                        style={{ background: '#FF4B4B' }}
-                        style={{ border: '2px solid #0A1120' }}
+                        style={{ background: '#FF4B4B', border: '2px solid #0A1120' }}
                       />
                     </div>
                     <div>
