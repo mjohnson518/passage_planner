@@ -111,11 +111,11 @@ export default function HomePage() {
             <div className="text-center lg:text-left animate-fade-in-up">
               {/* Live eyebrow pill */}
               <div className="inline-flex items-center gap-3 mb-8 justify-center lg:justify-start">
-                <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 pulse-live" />
+                <span className="w-2 h-2 rounded-full flex-shrink-0 pulse-live" style={{ background: '#FF4B4B' }} />
                 <span className="eyebrow-night">AI-Powered Passage Planning</span>
               </div>
 
-              <h1 className="font-display text-white text-balance leading-[1.05] tracking-tight">
+              <h1 className="font-display text-white text-balance leading-[1.05] tracking-tight lg:text-7xl">
                 Navigate with
                 <br />
                 <span style={{ color: 'hsl(var(--seafoam))' }}>Confidence</span>
@@ -239,7 +239,8 @@ export default function HomePage() {
                         <Zap className="h-4 w-4" style={{ color: 'hsl(var(--seafoam))' }} />
                       </div>
                       <span
-                        className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full pulse-live"
+                        className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full pulse-live"
+                        style={{ background: '#FF4B4B' }}
                         style={{ border: '2px solid #0A1120' }}
                       />
                     </div>
@@ -380,7 +381,7 @@ export default function HomePage() {
               <div
                 key={i}
                 className={`group relative card-night card-glow-hover p-8 ${i === 0 ? 'reveal-on-scroll' : i === 1 ? 'reveal-on-scroll-delay-1' : 'reveal-on-scroll-delay-2'}`}
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)' }}
               >
                 {/* Step number — large serif ghost */}
                 <div

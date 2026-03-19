@@ -20,7 +20,7 @@ export function FeatureCard({ icon: Icon, title, description, accent = 'ocean', 
         )}
         style={{
           background: 'rgba(255,255,255,0.03)',
-          border: `1px solid rgba(255,255,255,0.07)`,
+          border: `1px solid rgba(255,255,255,0.10)`,
         }}
       >
         {/* Icon container */}
