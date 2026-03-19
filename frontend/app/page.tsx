@@ -139,20 +139,26 @@ export default function HomePage() {
                 </Link>
               </div>
 
-              {/* Platform highlights */}
-              <div className="mt-12 flex flex-col sm:flex-row items-center gap-6 justify-center lg:justify-start text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 flex-shrink-0" style={{ color: 'hsl(var(--seafoam))' }} />
-                  <span>Safety-first passage planning</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Navigation className="h-4 w-4 flex-shrink-0" style={{ color: 'hsl(var(--seafoam))' }} />
-                  <span>70+ ports covered</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 flex-shrink-0" style={{ color: 'hsl(var(--seafoam))' }} />
-                  <span>6 AI agents in parallel</span>
-                </div>
+              {/* Stats strip */}
+              <div className="mt-12 flex items-start justify-center lg:justify-start">
+                {[
+                  { value: '70+', label: 'Ports Covered' },
+                  { value: '6', label: 'AI Agents' },
+                  { value: '<30s', label: 'Avg Plan Time' },
+                ].map(({ value, label }, i) => (
+                  <div
+                    key={i}
+                    className={i > 0 ? 'pl-8 ml-8' : ''}
+                    style={i > 0 ? { borderLeft: '1px solid rgba(255,255,255,0.1)' } : undefined}
+                  >
+                    <p className="font-display font-bold text-white leading-none" style={{ fontSize: '1.75rem' }}>
+                      {value}
+                    </p>
+                    <p className="font-mono-data text-[10px] uppercase tracking-widest mt-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                      {label}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -260,45 +266,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stats Section — editorial typographic numbers */}
-      <section
-        className="relative px-4 py-20 sm:px-6 lg:px-8"
-        style={{ background: 'hsl(222 47% 6%)' }}
-      >
-        {/* Thin divider */}
-        <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
-        <div className="mx-auto max-w-7xl">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-px" style={{ background: 'rgba(255,255,255,0.06)' }}>
-            {[
-              { value: '6', label: 'Specialized AI Agents', sub: 'working in parallel' },
-              { value: '70+', label: 'Ports Covered', sub: 'East Coast to Caribbean' },
-              { value: '<30s', label: 'Avg. Plan Time', sub: 'from route to briefing' },
-              { value: '5', label: 'Data Sources', sub: 'NOAA, tidal, AIS & more' },
-            ].map((stat, i) => (
-              <div
-                key={i}
-                className="group px-8 py-10"
-                style={{ background: 'hsl(222 47% 6%)' }}
-              >
-                <p
-                  className="font-display font-bold leading-none mb-3 transition-colors duration-300"
-                  style={{
-                    fontSize: 'clamp(2.5rem, 5vw, 4rem)',
-                    color: i % 2 === 0 ? 'hsl(var(--seafoam))' : 'rgba(255,255,255,0.9)',
-                  }}
-                >
-                  {stat.value}
-                </p>
-                <p className="text-sm font-semibold text-white/80 mb-1">{stat.label}</p>
-                <p className="font-mono-data text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>{stat.sub}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Features Section — 3-col dark glass */}
       <section
+        id="capabilities"
         className="relative px-4 py-24 sm:px-6 lg:px-8 lg:py-40 overflow-hidden"
         style={{ background: 'linear-gradient(180deg, hsl(222 47% 6%) 0%, hsl(var(--night)) 100%)' }}
       >
@@ -332,101 +302,110 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* How it Works — dark glass with serif step numbers */}
+      {/* How it Works — 2-col: step list + visual card */}
       <section
+        id="process"
         className="relative px-4 py-24 sm:px-6 lg:px-8 lg:py-40 overflow-hidden"
         style={{ background: 'hsl(var(--night))' }}
       >
         <div className="absolute inset-0 chart-grid opacity-[0.06]" />
-        {/* Top ambient */}
         <div
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse at top, rgba(0,242,195,0.04) 0%, transparent 70%)' }}
+          className="absolute top-0 right-0 w-[500px] h-[400px] pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse at top right, rgba(0,242,195,0.04) 0%, transparent 70%)' }}
         />
 
         <div className="relative mx-auto max-w-7xl">
-          <div className="text-center mb-20 reveal-on-scroll">
-            <span className="eyebrow-night mb-5 block">Process</span>
-            <h2 className="font-display text-white">
-              Plan Your Passage in Minutes
-            </h2>
-            <p className="mx-auto mt-5 max-w-2xl text-lg" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              From ports to comprehensive plan in three simple steps
-            </p>
-          </div>
+          <div className="grid lg:grid-cols-[1fr_420px] gap-12 lg:gap-20 items-start">
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            {[
-              {
-                step: '01',
+            {/* Left — heading + numbered steps */}
+            <div>
+              <div className="mb-14 reveal-on-scroll">
+                <span className="eyebrow-night mb-5 block">Process</span>
+                <h2 className="font-display text-white">
+                  Plan Your Passage in Minutes
+                </h2>
+                <p className="mt-5 max-w-lg text-lg" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                  From ports to comprehensive plan in three simple steps. Our AI handles the heavy lifting of data correlation.
+                </p>
+              </div>
 
-                title: 'Enter Your Route',
-                description: 'Select departure and destination ports, add waypoints, and set your departure time.',
-                icon: Map,
-              },
-              {
-                step: '02',
-                title: 'AI Analysis',
-                description: 'Six specialized agents analyze weather, tides, hazards, and safety factors simultaneously.',
-                icon: Zap,
-              },
-              {
-                step: '03',
-                title: 'Get Your Plan',
-                description: 'Receive a comprehensive passage plan with GO/NO-GO decision, waypoints, and export options.',
-                icon: CheckCircle,
-              },
-            ].map((item, i) => (
+              <div className="space-y-0">
+                {[
+                  {
+                    step: '01',
+                    title: 'Enter Your Route',
+                    description: 'Select departure and destination ports, add waypoints, and set your departure time. We match to over 70 ports.',
+                  },
+                  {
+                    step: '02',
+                    title: 'AI Analysis',
+                    description: 'Six specialized agents analyze weather, tides, hazards, and safety factors simultaneously.',
+                  },
+                  {
+                    step: '03',
+                    title: 'Get Your Plan',
+                    description: 'Receive a comprehensive passage plan with GO/NO-GO decision, waypoints, and export options for your plotter.',
+                  },
+                ].map((item, i) => (
+                  <div
+                    key={i}
+                    className={`flex gap-7 py-9 ${i < 2 ? 'border-b' : ''} ${i === 0 ? 'reveal-on-scroll' : i === 1 ? 'reveal-on-scroll-delay-1' : 'reveal-on-scroll-delay-2'}`}
+                    style={{ borderColor: 'rgba(255,255,255,0.07)' }}
+                  >
+                    <span
+                      className="font-mono-data font-bold flex-shrink-0 leading-none"
+                      style={{ color: 'hsl(var(--seafoam))', fontSize: '0.75rem', paddingTop: '4px', minWidth: '28px' }}
+                    >
+                      {item.step}
+                    </span>
+                    <div>
+                      <h3 className="font-display text-xl font-bold text-white mb-2">{item.title}</h3>
+                      <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)' }}>{item.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right — nautical visual card */}
+            <div className="hidden lg:flex sticky top-24">
               <div
-                key={i}
-                className={`group relative card-night card-glow-hover p-8 ${i === 0 ? 'reveal-on-scroll' : i === 1 ? 'reveal-on-scroll-delay-1' : 'reveal-on-scroll-delay-2'}`}
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)' }}
+                className="relative w-full rounded-2xl flex items-center justify-center overflow-hidden"
+                style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  minHeight: '480px',
+                }}
               >
-                {/* Step number — large serif ghost */}
+                {/* Seafoam ambient glow */}
                 <div
-                  className="font-display font-black leading-none mb-6 select-none"
-                  style={{
-                    fontSize: '5rem',
-                    color: 'rgba(0,242,195,0.1)',
-                    lineHeight: 1,
-                    letterSpacing: '-0.04em',
-                  }}
-                >
-                  {item.step}
-                </div>
-
-                {/* Icon */}
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(0,242,195,0.05) 0%, transparent 65%)' }}
+                />
+                {/* Large faint compass rose */}
+                <CompassRose className="w-72 h-72 text-white opacity-[0.07]" />
+                {/* Center icon overlay */}
                 <div
-                  className="w-11 h-11 rounded-xl flex items-center justify-center mb-5"
+                  className="absolute w-16 h-16 rounded-2xl flex items-center justify-center"
                   style={{
-                    background: 'rgba(0,242,195,0.08)',
-                    border: '1px solid rgba(0,242,195,0.16)',
+                    background: 'rgba(0,242,195,0.1)',
+                    border: '1px solid rgba(0,242,195,0.22)',
                     color: 'hsl(var(--seafoam))',
                   }}
                 >
-                  <item.icon className="h-5 w-5" />
+                  <Shield className="h-7 w-7" />
                 </div>
-
-                <h3 className="font-display text-xl font-bold text-white mb-3">{item.title}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)' }}>{item.description}</p>
-
-                {/* Connector arrow for non-last */}
-                {i < 2 && (
-                  <div
-                    className="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-6 h-6 items-center justify-center rounded-full"
-                    style={{ background: 'hsl(var(--night))', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.25)' }}
-                  >
-                    <ArrowRight className="h-3 w-3" />
-                  </div>
-                )}
               </div>
-            ))}
+            </div>
+
           </div>
         </div>
       </section>
 
       {/* Pricing Section */}
-      <PricingSection />
+      <div id="pricing">
+        <PricingSection />
+      </div>
 
       {/* CTA Section — deep dark navy */}
       <section

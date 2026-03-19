@@ -48,6 +48,16 @@ export function Header() {
     { name: 'Pricing', href: '/pricing', requireAuth: false },
   ]
 
+  const landingAnchors = [
+    { name: 'Capabilities', href: '#capabilities' },
+    { name: 'Process', href: '#process' },
+    { name: 'Pricing', href: '#pricing' },
+  ]
+
+  const desktopNavItems = isLandingPage && !isAuthenticated
+    ? landingAnchors
+    : navigation.filter(item => !item.requireAuth || isAuthenticated)
+
   const activeAgents = Object.keys(agentStatuses).length
   const displayName = user?.email?.split('@')[0] || (isDemoMode ? 'Demo' : '')
 
@@ -110,8 +120,7 @@ export function Header() {
 
           {/* Desktop Navigation */}
           <div className="hidden lg:flex lg:items-center lg:gap-1">
-            {navigation
-              .filter(item => !item.requireAuth || isAuthenticated)
+            {desktopNavItems
               .map((item) => (
                 <Link
                   key={item.name}
