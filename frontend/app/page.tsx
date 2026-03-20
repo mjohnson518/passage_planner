@@ -111,14 +111,28 @@ export default function HomePage() {
             <div className="text-center lg:text-left animate-fade-in-up">
               {/* Live eyebrow pill */}
               <div className="inline-flex items-center gap-3 mb-8 justify-center lg:justify-start">
-                <span className="w-2 h-2 rounded-full flex-shrink-0 pulse-live" style={{ background: '#FF4B4B' }} />
+                <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ background: 'hsl(var(--seafoam))' }} />
                 <span className="eyebrow-night">AI-Powered Passage Planning</span>
               </div>
 
-              <h1 className="font-display text-white text-balance leading-[1.05] tracking-tight lg:text-7xl">
-                Navigate with
-                <br />
-                <span style={{ color: 'hsl(var(--seafoam))' }}>Confidence</span>
+              <h1 className="font-display tracking-tight">
+                <span
+                  className="block text-white font-normal"
+                  style={{ fontSize: 'clamp(1.75rem, 4vw, 3rem)', letterSpacing: '-0.02em', lineHeight: 1.1 }}
+                >
+                  Navigate with
+                </span>
+                <span
+                  className="block font-bold italic"
+                  style={{
+                    fontSize: 'clamp(4rem, 10vw, 8rem)',
+                    color: 'hsl(var(--seafoam))',
+                    letterSpacing: '-0.03em',
+                    lineHeight: 0.92,
+                  }}
+                >
+                  Confidence
+                </span>
               </h1>
 
               <p className="mt-7 text-lg lg:text-xl max-w-xl mx-auto lg:mx-0 text-balance" style={{ color: 'rgba(255,255,255,0.55)' }}>
@@ -220,12 +234,12 @@ export default function HomePage() {
                       style={{ background: 'rgba(0,242,195,0.06)', border: '1px solid rgba(0,242,195,0.14)' }}
                     >
                       <CheckCircle className="h-4 w-4 flex-shrink-0" style={{ color: 'hsl(var(--seafoam))' }} />
-                      <span style={{ color: 'hsl(var(--seafoam))' }}>All safety checks passed</span>
+                      <span style={{ color: 'hsl(var(--seafoam))' }}>All safety checks passed by AI agents</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Floating agent status pill */}
+                {/* Floating status pill */}
                 <div
                   className="absolute -right-5 -bottom-5 animate-float"
                   style={{ animationDelay: '0.5s' }}
@@ -238,20 +252,20 @@ export default function HomePage() {
                       <div
                         className="w-9 h-9 rounded-full flex items-center justify-center"
                         style={{
-                          background: 'linear-gradient(135deg, rgba(0,242,195,0.2), rgba(0,242,195,0.05))',
+                          background: 'rgba(0,242,195,0.1)',
                           border: '1px solid rgba(0,242,195,0.25)',
                         }}
                       >
-                        <Zap className="h-4 w-4" style={{ color: 'hsl(var(--seafoam))' }} />
+                        <Navigation className="h-4 w-4" style={{ color: 'hsl(var(--seafoam))' }} />
                       </div>
                       <span
-                        className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full pulse-live"
-                        style={{ background: '#FF4B4B', border: '2px solid #0A1120' }}
+                        className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full animate-pulse"
+                        style={{ background: 'hsl(var(--seafoam))', border: '2px solid #0A1120' }}
                       />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-white leading-none">6 Agents Active</p>
-                      <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Processing in parallel</p>
+                      <p className="text-sm font-semibold text-white leading-none">Optimizing Route...</p>
+                      <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>AI working</p>
                     </div>
                   </div>
                 </div>
