@@ -1,3 +1,4 @@
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Button } from './components/ui/button'
 import { FeatureCard } from './components/marketing/FeatureCard'
@@ -12,9 +13,13 @@ import {
   Anchor,
   ArrowRight,
   Navigation,
-  Zap,
   CheckCircle
 } from 'lucide-react'
+
+const ParticleGrid = dynamic(
+  () => import('./components/marketing/ParticleGrid').then(m => m.ParticleGrid),
+  { ssr: false }
+)
 
 // Decorative compass SVG component
 function CompassRose({ className }: { className?: string }) {
@@ -84,7 +89,9 @@ export default function HomePage() {
       <Header />
 
       {/* Hero Section — Night Watch */}
-      <section className="section-night-hero relative min-h-[92vh] flex items-center px-4 py-28 sm:px-6 lg:px-8">
+      <section className="section-night-hero relative min-h-screen flex items-center px-4 py-28 sm:px-6 lg:px-8">
+        {/* Interactive particle grid — scoped to hero */}
+        <ParticleGrid />
         {/* Subtle nautical grid overlay */}
         <div className="absolute inset-0 chart-grid opacity-[0.08]" />
         {/* Faint compass rose */}
@@ -106,7 +113,7 @@ export default function HomePage() {
         </div>
 
         <div className="relative mx-auto max-w-7xl w-full">
-          <div className="grid lg:grid-cols-[1fr_420px] gap-16 lg:gap-24 items-center">
+          <div className="grid lg:grid-cols-[1fr_440px] gap-16 lg:gap-20 items-center">
             {/* Left column */}
             <div className="text-center lg:text-left animate-fade-in-up">
               {/* Live eyebrow pill */}
@@ -177,8 +184,8 @@ export default function HomePage() {
             </div>
 
             {/* Right column — Glass Passage Plan Card */}
-            <div className="relative hidden lg:block">
-              <div className="relative">
+            <div className="relative hidden lg:block lg:mt-12 lg:-mr-6">
+              <div className="relative" style={{ transform: 'translateX(20px) translateY(-30px)' }}>
                 {/* Main glassmorphism card */}
                 <div className="glass-night p-7 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
                   <div className="flex items-center justify-between mb-6">
@@ -186,13 +193,13 @@ export default function HomePage() {
                     <span
                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
                       style={{
-                        background: 'rgba(0,242,195,0.12)',
-                        color: 'hsl(var(--seafoam))',
-                        border: '1px solid rgba(0,242,195,0.25)',
+                        background: 'rgba(239,68,68,0.12)',
+                        color: '#EF4444',
+                        border: '1px solid rgba(239,68,68,0.3)',
                       }}
                     >
-                      <CheckCircle className="h-3 w-3" />
-                      GO
+                      <span className="w-2 h-2 rounded-full bg-red-500 pulse-live flex-shrink-0" />
+                      LIVE
                     </span>
                   </div>
 
@@ -283,7 +290,7 @@ export default function HomePage() {
       {/* Features Section — 3-col dark glass */}
       <section
         id="capabilities"
-        className="relative px-4 py-24 sm:px-6 lg:px-8 lg:py-40 overflow-hidden"
+        className="relative px-4 py-28 sm:px-6 lg:px-8 lg:py-40 overflow-hidden"
         style={{ background: 'linear-gradient(180deg, hsl(222 47% 6%) 0%, hsl(var(--night)) 100%)' }}
       >
         {/* Subtle chart grid */}
@@ -306,12 +313,12 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <FeatureCard icon={Cloud} title="Weather Routing" description="Real-time NOAA forecasts with storm tracking, wind analysis, and optimal departure windows" accent="seafoam" dark />
-            <FeatureCard icon={Waves} title="Tidal Analysis" description="Precise tide and current predictions from official NOAA stations along your route" accent="seafoam" dark />
-            <FeatureCard icon={Map} title="Route Optimization" description="AI-calculated waypoints considering weather windows, currents, and hazards" accent="amber" dark />
-            <FeatureCard icon={Anchor} title="Port Intelligence" description="Comprehensive marina data, facilities, entry requirements, and emergency contacts" accent="seafoam" dark />
-            <FeatureCard icon={Shield} title="Safety Briefings" description="Automated risk assessment, USCG warnings, and emergency harbor identification" accent="amber" dark />
-            <FeatureCard icon={Compass} title="Navigation Warnings" description="Live NAVTEX alerts, restricted zones, and Notice to Mariners for your route" accent="seafoam" dark />
+            <div className="reveal-on-scroll"><FeatureCard icon={Cloud} title="Weather Routing" description="Real-time NOAA forecasts with storm tracking, wind analysis, and optimal departure windows" accent="seafoam" dark /></div>
+            <div className="reveal-on-scroll-delay-1"><FeatureCard icon={Waves} title="Tidal Analysis" description="Precise tide and current predictions from official NOAA stations along your route" accent="seafoam" dark /></div>
+            <div className="reveal-on-scroll-delay-2"><FeatureCard icon={Map} title="Route Optimization" description="AI-calculated waypoints considering weather windows, currents, and hazards" accent="amber" dark /></div>
+            <div className="reveal-on-scroll-delay-3"><FeatureCard icon={Anchor} title="Port Intelligence" description="Comprehensive marina data, facilities, entry requirements, and emergency contacts" accent="seafoam" dark /></div>
+            <div className="reveal-on-scroll-delay-1"><FeatureCard icon={Shield} title="Safety Briefings" description="Automated risk assessment, USCG warnings, and emergency harbor identification" accent="amber" dark /></div>
+            <div className="reveal-on-scroll-delay-2"><FeatureCard icon={Compass} title="Navigation Warnings" description="Live NAVTEX alerts, restricted zones, and Notice to Mariners for your route" accent="seafoam" dark /></div>
           </div>
         </div>
       </section>
@@ -423,7 +430,7 @@ export default function HomePage() {
 
       {/* CTA Section — deep dark navy */}
       <section
-        className="relative px-4 py-24 sm:px-6 lg:px-8 lg:py-40 overflow-hidden"
+        className="relative px-4 py-28 sm:px-6 lg:px-8 lg:py-40 overflow-hidden"
         style={{ background: 'linear-gradient(180deg, hsl(222 47% 6%) 0%, hsl(222 47% 5%) 100%)' }}
       >
         {/* Chart grid */}
@@ -466,7 +473,7 @@ export default function HomePage() {
         data-testid="footer"
         className="px-4 pt-16 pb-10 sm:px-6 lg:px-8"
         style={{
-          background: 'hsl(222 47% 5%)',
+          background: 'hsl(var(--bg-deep))',
           borderTop: '1px solid rgba(255,255,255,0.06)',
         }}
       >

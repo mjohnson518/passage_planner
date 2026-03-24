@@ -40,6 +40,7 @@ export function Header() {
   }, [pathname])
 
   const isAuthenticated = user || isDemoMode
+  const isLandingPage = pathname === '/'
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', requireAuth: true },
@@ -73,8 +74,6 @@ export function Header() {
   const toggleTheme = () => {
     setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
   }
-
-  const isLandingPage = pathname === '/'
 
   return (
     <header className={cn(

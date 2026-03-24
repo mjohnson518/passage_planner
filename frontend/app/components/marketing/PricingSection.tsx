@@ -61,7 +61,7 @@ const plans = [
 export function PricingSection() {
   return (
     <section
-      className="relative px-4 py-20 sm:px-6 lg:px-8 lg:py-28 overflow-hidden"
+      className="relative px-4 py-24 sm:px-6 lg:px-8 lg:py-40 overflow-hidden"
       style={{
         background: 'linear-gradient(180deg, hsl(var(--night)) 0%, hsl(222 40% 10%) 100%)',
       }}

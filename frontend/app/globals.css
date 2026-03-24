@@ -48,8 +48,9 @@
     --chart-grid: 205 30% 85%;
 
     /* Night Watch Marketing Colors */
-    --seafoam: 170 100% 47%;
+    --seafoam: 164 100% 47%;
     --night: 222 47% 8%;
+    --bg-deep: 222 50% 4%;
     --amber-sail: 35 75% 67%;
   }
 
@@ -428,7 +429,7 @@
   }
 
   .glass-night {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.03);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.10);
@@ -436,7 +437,7 @@
   }
 
   .card-night {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.02);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.10);
@@ -464,7 +465,7 @@
     align-items: center;
     justify-content: center;
     padding: 0.75rem 1.5rem;
-    border-radius: calc(var(--radius) - 2px);
+    border-radius: 9999px;
     background: hsl(var(--seafoam));
     color: hsl(var(--night));
     font-weight: 700;
@@ -511,12 +512,12 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.7rem;
-    font-weight: 700;
+    font-size: 11px;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.15em;
     color: hsl(var(--seafoam));
-    font-family: var(--font-body), 'Source Sans 3', sans-serif;
+    font-family: var(--font-mono), 'Roboto Mono', monospace;
   }
 
   /* Footer navigation links */

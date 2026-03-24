@@ -19,7 +19,7 @@ export function FeatureCard({ icon: Icon, title, description, accent = 'ocean', 
           isAmber && 'card-glow-hover-amber'
         )}
         style={{
-          background: 'rgba(255,255,255,0.03)',
+          background: 'rgba(255,255,255,0.02)',
           border: `1px solid rgba(255,255,255,0.10)`,
         }}
       >
