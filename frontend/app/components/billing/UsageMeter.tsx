@@ -34,28 +34,28 @@ export function UsageMeter() {
   const atLimit = !isUnlimited && used >= limit && summary.bonusPassages === 0
 
   const barColor = isUnlimited
-    ? 'bg-green-500'
+    ? 'bg-success'
     : pct >= 100
-    ? 'bg-red-500'
+    ? 'bg-destructive'
     : pct >= 80
-    ? 'bg-amber-500'
-    : 'bg-blue-500'
+    ? 'bg-warning'
+    : 'bg-primary'
 
   return (
     <div className="rounded-lg border bg-card p-4 space-y-2">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">Passages this month</span>
         {isUnlimited ? (
-          <span className="text-green-600 font-medium">Unlimited</span>
+          <span className="text-success font-medium">Unlimited</span>
         ) : (
-          <span className={cn('font-medium', atLimit ? 'text-red-600' : 'text-muted-foreground')}>
+          <span className={cn('font-medium', atLimit ? 'text-destructive' : 'text-muted-foreground')}>
             {used} / {limit}
           </span>
         )}
       </div>
 
       {!isUnlimited && (
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-muted rounded-full h-2">
           <div
             className={cn('h-2 rounded-full transition-all', barColor)}
             style={{ width: `${pct}%` }}
@@ -64,13 +64,13 @@ export function UsageMeter() {
       )}
 
       {summary.bonusPassages > 0 && (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-warning">
           +{summary.bonusPassages} bonus passage{summary.bonusPassages !== 1 ? 's' : ''} remaining
         </p>
       )}
 
       {atLimit && (
-        <p className="text-xs text-red-600">
+        <p className="text-xs text-destructive">
           Monthly limit reached.{' '}
           <Link href="/pricing" className="underline hover:no-underline">
             Buy a passage pack
@@ -84,7 +84,7 @@ export function UsageMeter() {
       )}
 
       {isUnlimited && (
-        <p className="text-xs text-green-600">
+        <p className="text-xs text-success">
           {used} passages planned this month
         </p>
       )}

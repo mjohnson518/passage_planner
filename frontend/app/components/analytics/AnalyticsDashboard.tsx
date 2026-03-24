@@ -23,6 +23,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Skeleton } from '../ui/skeleton'
 import { useSocket } from '../../contexts/SocketContext'
+import { useChartColors } from '@/lib/chart-colors'
 
 interface BusinessMetrics {
   mrr: number
@@ -46,9 +47,9 @@ interface ChartData {
   cohortRetention: Array<{ week: number; retention: number }>
 }
 
-const COLORS = ['#0ea5e9', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444']
-
 export function AnalyticsDashboard() {
+  const chartColors = useChartColors()
+  const COLORS = [chartColors.primary, chartColors.quaternary, chartColors.success, chartColors.tertiary, chartColors.danger]
   const [metrics, setMetrics] = useState<BusinessMetrics | null>(null)
   const [chartData, setChartData] = useState<ChartData | null>(null)
   const [timeRange, setTimeRange] = useState('30d')
@@ -179,12 +180,12 @@ export function AnalyticsDashboard() {
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip formatter={(value: number) => `$${value}`} />
-                <Area 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#0ea5e9" 
-                  fill="#0ea5e9" 
-                  fillOpacity={0.3} 
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke={chartColors.primary}
+                  fill={chartColors.primary}
+                  fillOpacity={0.3}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -205,22 +206,22 @@ export function AnalyticsDashboard() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="total" 
-                  stroke="#0ea5e9" 
+                <Line
+                  type="monotone"
+                  dataKey="total"
+                  stroke={chartColors.primary}
                   name="Total Users"
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="paid" 
-                  stroke="#10b981" 
+                <Line
+                  type="monotone"
+                  dataKey="paid"
+                  stroke={chartColors.success}
                   name="Paid Users"
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="trial" 
-                  stroke="#f59e0b" 
+                <Line
+                  type="monotone"
+                  dataKey="trial"
+                  stroke={chartColors.tertiary}
                   name="Trial Users"
                 />
               </LineChart>
@@ -241,7 +242,7 @@ export function AnalyticsDashboard() {
                 <XAxis type="number" />
                 <YAxis dataKey="feature" type="category" width={100} />
                 <Tooltip />
-                <Bar dataKey="count" fill="#0ea5e9" />
+                <Bar dataKey="count" fill={chartColors.primary} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -263,7 +264,7 @@ export function AnalyticsDashboard() {
                   labelLine={false}
                   label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
                   outerRadius={80}
-                  fill="#8884d8"
+                  fill={chartColors.primary}
                   dataKey="value"
                 >
                   {chartData?.subscriptionDistribution.map((entry, index) => (
@@ -289,11 +290,11 @@ export function AnalyticsDashboard() {
                 <XAxis dataKey="week" label={{ value: 'Weeks after signup', position: 'insideBottom', offset: -5 }} />
                 <YAxis label={{ value: 'Retention %', angle: -90, position: 'insideLeft' }} />
                 <Tooltip formatter={(value: number) => `${value}%`} />
-                <Area 
-                  type="monotone" 
-                  dataKey="retention" 
-                  stroke="#8b5cf6" 
-                  fill="#8b5cf6" 
+                <Area
+                  type="monotone"
+                  dataKey="retention"
+                  stroke={chartColors.quaternary}
+                  fill={chartColors.quaternary}
                   fillOpacity={0.3}
                 />
               </AreaChart>

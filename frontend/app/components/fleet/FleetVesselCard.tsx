@@ -22,11 +22,11 @@ export function FleetVesselCard({ vessel, canEdit, onUpdate }: FleetVesselCardPr
   const getStatusColor = (status: FleetVessel['status']) => {
     switch (status) {
       case 'active':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+        return 'bg-success/10 text-success border-success/20'
       case 'maintenance':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+        return 'bg-warning/10 text-warning border-warning/20'
       case 'inactive':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+        return 'bg-muted text-muted-foreground border-border'
     }
   }
 

@@ -107,20 +107,20 @@ export function WeatherWidget() {
 
   const getWeatherIcon = (icon: string) => {
     const iconMap = {
-      sun: <Sun className="h-8 w-8 text-yellow-500" />,
-      cloud: <Cloud className="h-8 w-8 text-gray-500" />,
-      rain: <CloudRain className="h-8 w-8 text-blue-500" />,
-      snow: <CloudSnow className="h-8 w-8 text-blue-300" />,
-      drizzle: <CloudDrizzle className="h-8 w-8 text-blue-400" />
+      sun: <Sun className="h-8 w-8 text-warning" />,
+      cloud: <Cloud className="h-8 w-8 text-muted-foreground" />,
+      rain: <CloudRain className="h-8 w-8 text-primary" />,
+      snow: <CloudSnow className="h-8 w-8 text-ocean-light" />,
+      drizzle: <CloudDrizzle className="h-8 w-8 text-ocean-mid" />
     }
     return iconMap[icon as keyof typeof iconMap] || iconMap.cloud
   }
 
   const getWindColor = (speed: number) => {
-    if (speed < 10) return 'text-green-600'
-    if (speed < 20) return 'text-yellow-600'
-    if (speed < 30) return 'text-orange-600'
-    return 'text-red-600'
+    if (speed < 10) return 'text-success'
+    if (speed < 20) return 'text-warning'
+    if (speed < 30) return 'text-accent'
+    return 'text-destructive'
   }
 
   if (loading) {
@@ -225,7 +225,7 @@ export function WeatherWidget() {
         {/* Marine Conditions */}
         <div className="grid grid-cols-2 gap-4 pt-4 border-t">
           <div className="flex items-center gap-2">
-            <Waves className="h-4 w-4 text-blue-500" />
+            <Waves className="h-4 w-4 text-primary" />
             <div>
               <div className="text-sm font-medium">Waves</div>
               <div className="text-sm text-muted-foreground">
@@ -235,7 +235,7 @@ export function WeatherWidget() {
           </div>
           
           <div className="flex items-center gap-2">
-            <Droplets className="h-4 w-4 text-blue-500" />
+            <Droplets className="h-4 w-4 text-primary" />
             <div>
               <div className="text-sm font-medium">Water Temp</div>
               <div className="text-sm text-muted-foreground">

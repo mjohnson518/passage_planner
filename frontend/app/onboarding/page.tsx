@@ -155,20 +155,20 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 to-blue-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
           {/* Progress bar */}
           <div className="mb-8">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              <h2 className="text-sm font-medium text-muted-foreground">
                 Step {currentStep + 1} of {steps.length}: {steps[currentStep].title}
               </h2>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleSkip}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-muted-foreground hover:text-foreground"
               >
                 Skip
               </Button>
@@ -177,7 +177,7 @@ export default function OnboardingPage() {
           </div>
 
           {/* Step content */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
+          <div className="bg-card rounded-lg shadow-maritime p-8 border border-border">
             {currentStep === 0 && (
               <WelcomeStep 
                 userName={(user as any)?.display_name || (user as any)?.user_metadata?.display_name || user.email?.split('@')[0] || 'Sailor'}

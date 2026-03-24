@@ -328,7 +328,7 @@ export default function WeatherPage() {
                   <Skeleton className="w-full h-full" />
                 </div>
               ) : (
-                <div className="h-full relative bg-gradient-to-b from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800">
+                <div className="h-full relative bg-gradient-to-b from-secondary/30 to-secondary/60">
                   {/* Placeholder for actual map */}
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center">
@@ -358,19 +358,19 @@ export default function WeatherPage() {
                     <p className="text-xs font-medium mb-2">Legend</p>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 bg-green-500" />
+                        <div className="w-4 h-4 bg-success rounded-sm" />
                         <span className="text-xs">Light (0-10 kts)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 bg-yellow-500" />
+                        <div className="w-4 h-4 bg-warning rounded-sm" />
                         <span className="text-xs">Moderate (10-20 kts)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 bg-orange-500" />
+                        <div className="w-4 h-4 bg-accent rounded-sm" />
                         <span className="text-xs">Strong (20-30 kts)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 bg-red-500" />
+                        <div className="w-4 h-4 bg-destructive rounded-sm" />
                         <span className="text-xs">Gale (30+ kts)</span>
                       </div>
                     </div>

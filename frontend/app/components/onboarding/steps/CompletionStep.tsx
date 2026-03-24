@@ -27,8 +27,8 @@ export function CompletionStep({ data, onComplete, onPrevious }: CompletionStepP
   return (
     <div className="space-y-6">
       <div className="text-center mb-6">
-        <div className="inline-flex p-3 bg-green-100 dark:bg-green-900/20 rounded-full mb-4">
-          <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
+        <div className="inline-flex p-3 bg-success/10 rounded-full mb-4">
+          <CheckCircle2 className="h-12 w-12 text-success" />
         </div>
         <h2 className="text-2xl font-bold mb-2">You're all set!</h2>
         <p className="text-muted-foreground">

@@ -120,11 +120,11 @@ export function UserManagement() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'active':
-        return <CheckCircle className="h-4 w-4 text-green-500" />
+        return <CheckCircle className="h-4 w-4 text-success" />
       case 'suspended':
-        return <Ban className="h-4 w-4 text-yellow-500" />
+        return <Ban className="h-4 w-4 text-warning" />
       default:
-        return <XCircle className="h-4 w-4 text-gray-500" />
+        return <XCircle className="h-4 w-4 text-muted-foreground" />
     }
   }
 
@@ -141,7 +141,7 @@ export function UserManagement() {
     return (
       <div className="space-y-4">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
+          <div key={i} className="h-16 bg-muted rounded animate-pulse" />
         ))}
       </div>
     )
@@ -159,7 +159,7 @@ export function UserManagement() {
         <CardContent>
           <div className="flex gap-4 mb-6">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
                 placeholder="Search users..."
                 value={searchTerm}
@@ -217,7 +217,7 @@ export function UserManagement() {
                     <TableCell>
                       <div>
                         <div className="font-medium">{user.name || 'Unnamed'}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
+                        <div className="text-sm text-muted-foreground">{user.email}</div>
                         {user.role === 'admin' && (
                           <Badge variant="outline" className="mt-1">Admin</Badge>
                         )}
@@ -232,7 +232,7 @@ export function UserManagement() {
                     <TableCell>
                       <div className="space-y-1">
                         {getTierBadge(user.subscription.tier)}
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-muted-foreground">
                           {user.subscription.status}
                         </div>
                       </div>

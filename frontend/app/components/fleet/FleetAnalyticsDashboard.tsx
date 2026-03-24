@@ -19,6 +19,7 @@ import {
 } from 'recharts'
 import { Skeleton } from '../ui/skeleton'
 import type { FleetAnalytics } from '@/types/shared'
+import { useChartColors } from '../../lib/chart-colors'
 
 interface FleetAnalyticsDashboardProps {
   fleetId: string
@@ -26,9 +27,8 @@ interface FleetAnalyticsDashboardProps {
   members?: any[]
 }
 
-const COLORS = ['#0ea5e9', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444']
-
 export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashboardProps) {
+  const chartColors = useChartColors()
   const [analytics, setAnalytics] = useState<FleetAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -130,7 +130,7 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
               <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="passages" fill="#0ea5e9" />
+              <Bar dataKey="passages" fill={chartColors.primary} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -149,7 +149,7 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
               <XAxis type="number" />
               <YAxis dataKey="route" type="category" width={120} />
               <Tooltip />
-              <Bar dataKey="count" fill="#8b5cf6" />
+              <Bar dataKey="count" fill={chartColors.quaternary} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -171,11 +171,11 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
                 labelLine={false}
                 label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
                 outerRadius={80}
-                fill="#8884d8"
+                fill={chartColors.primary}
                 dataKey="value"
               >
                 {pieData.map((entry: any, index: number) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell key={`cell-${index}`} fill={Object.values(chartColors)[index % 5] as string} />
                 ))}
               </Pie>
               <Tooltip />
@@ -200,8 +200,8 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
               <Area 
                 type="monotone" 
                 dataKey="passages" 
-                stroke="#10b981" 
-                fill="#10b981" 
+                stroke={chartColors.success}
+                fill={chartColors.success}
                 fillOpacity={0.3} 
               />
             </AreaChart>

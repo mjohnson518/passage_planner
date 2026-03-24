@@ -7,6 +7,7 @@ import { Badge } from '../ui/badge'
 import { Progress } from '../ui/progress'
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { useChartColors } from "@/lib/chart-colors"
 import { Bot, Activity, RefreshCw, PauseCircle, PlayCircle, AlertCircle, CheckCircle2, XCircle, Cpu, Clock, MessageSquare } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -37,6 +38,7 @@ interface AgentHistory {
 }
 
 export function AgentMonitoring() {
+  const chartColors = useChartColors()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
@@ -102,13 +104,13 @@ export function AgentMonitoring() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'running':
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />
+        return <CheckCircle2 className="h-4 w-4 text-success" />
       case 'stopped':
-        return <PauseCircle className="h-4 w-4 text-gray-500" />
+        return <PauseCircle className="h-4 w-4 text-muted-foreground" />
       case 'error':
-        return <XCircle className="h-4 w-4 text-red-500" />
+        return <XCircle className="h-4 w-4 text-destructive" />
       case 'starting':
-        return <RefreshCw className="h-4 w-4 text-yellow-500 animate-spin" />
+        return <RefreshCw className="h-4 w-4 text-warning animate-spin" />
       default:
         return null
     }
@@ -144,11 +146,11 @@ export function AgentMonitoring() {
 
   const getAgentIcon = (type: string) => {
     const icons: Record<string, JSX.Element> = {
-      weather: <Bot className="h-5 w-5 text-blue-500" />,
+      weather: <Bot className="h-5 w-5 text-primary" />,
       tidal: <Bot className="h-5 w-5 text-cyan-500" />,
-      port: <Bot className="h-5 w-5 text-green-500" />,
+      port: <Bot className="h-5 w-5 text-success" />,
       routing: <Bot className="h-5 w-5 text-purple-500" />,
-      safety: <Bot className="h-5 w-5 text-orange-500" />,
+      safety: <Bot className="h-5 w-5 text-accent" />,
       meta: <Bot className="h-5 w-5 text-pink-500" />
     }
     return icons[type] || <Bot className="h-5 w-5" />
@@ -158,7 +160,7 @@ export function AgentMonitoring() {
     return (
       <div className="space-y-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-32 bg-gray-100 rounded animate-pulse" />
+          <div key={i} className="h-32 bg-muted rounded animate-pulse" />
         ))}
       </div>
     )
@@ -357,7 +359,7 @@ export function AgentMonitoring() {
                     yAxisId="left"
                     type="monotone"
                     dataKey="cpuUsage"
-                    stroke="#8884d8"
+                    stroke={chartColors.primary}
                     strokeWidth={2}
                     name="CPU %"
                   />
@@ -365,7 +367,7 @@ export function AgentMonitoring() {
                     yAxisId="left"
                     type="monotone"
                     dataKey="memoryUsage"
-                    stroke="#82ca9d"
+                    stroke={chartColors.secondary}
                     strokeWidth={2}
                     name="Memory %"
                   />
@@ -373,7 +375,7 @@ export function AgentMonitoring() {
                     yAxisId="right"
                     type="monotone"
                     dataKey="avgResponseTime"
-                    stroke="#ffc658"
+                    stroke={chartColors.tertiary}
                     strokeWidth={2}
                     name="Response Time (ms)"
                   />
@@ -404,7 +406,7 @@ export function AgentMonitoring() {
                 <div className="space-y-1">
                   {agent.capabilities.map((capability, idx) => (
                     <div key={idx} className="text-sm text-muted-foreground flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3 text-green-500" />
+                      <CheckCircle2 className="h-3 w-3 text-success" />
                       {capability}
                     </div>
                   ))}

@@ -137,20 +137,20 @@ export default function PortSelector({
       />
 
       {showDropdown && filteredPorts.length > 0 && (
-        <div data-testid="port-selector-dropdown" className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+        <div data-testid="port-selector-dropdown" className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-maritime max-h-60 overflow-auto">
           {filteredPorts.map((port, index) => (
             <div
               key={index}
-              className="px-3 py-2 hover:bg-blue-50 cursor-pointer flex items-center justify-between"
+              className="px-3 py-2 hover:bg-accent cursor-pointer flex items-center justify-between"
               onClick={() => handleSelectPort(port)}
             >
               <div>
-                <div className="font-medium text-sm">{port.name}</div>
+                <div className="font-medium text-sm text-popover-foreground">{port.name}</div>
                 {port.country && (
-                  <div className="text-xs text-gray-500">{port.country}</div>
+                  <div className="text-xs text-muted-foreground">{port.country}</div>
                 )}
               </div>
-              <MapPin className="h-4 w-4 text-gray-400" />
+              <MapPin className="h-4 w-4 text-muted-foreground" />
             </div>
           ))}
         </div>

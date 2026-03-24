@@ -68,7 +68,7 @@ export default function InteractiveMap({
   return (
     <div 
       ref={mapRef}
-      className="w-full h-full bg-blue-50 dark:bg-blue-950/20 rounded-lg"
+      className="w-full h-full bg-primary/5 rounded-lg"
       style={{ minHeight: '400px' }}
     />
   )

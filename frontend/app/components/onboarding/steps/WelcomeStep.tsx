@@ -55,7 +55,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         ))}
       </div>
 
-      <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 mb-6">
+      <div className="bg-primary/5 rounded-lg p-4 mb-6">
         <p className="text-sm">
           <strong>This quick setup will:</strong>
         </p>

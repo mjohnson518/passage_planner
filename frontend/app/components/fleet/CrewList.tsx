@@ -39,24 +39,24 @@ export function CrewList({ members, crew, fleetId, vessels, isAdmin, onUpdate }:
   const getRoleBadgeColor = (role: CrewMember['role']) => {
     switch (role) {
       case 'captain':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
+        return 'bg-accent/10 text-accent-foreground border-accent/20'
       case 'skipper':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+        return 'bg-primary/10 text-primary border-primary/20'
       case 'crew':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+        return 'bg-success/10 text-success border-success/20'
       case 'guest':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+        return 'bg-muted text-muted-foreground border-border'
     }
   }
 
   const getStatusIcon = (status: CrewMember['status']) => {
     switch (status) {
       case 'active':
-        return <UserCheck className="h-4 w-4 text-green-600" />
+        return <UserCheck className="h-4 w-4 text-success" />
       case 'invited':
-        return <Mail className="h-4 w-4 text-yellow-600" />
+        return <Mail className="h-4 w-4 text-warning" />
       case 'inactive':
-        return <UserX className="h-4 w-4 text-gray-600" />
+        return <UserX className="h-4 w-4 text-muted-foreground" />
     }
   }
 

@@ -143,7 +143,7 @@ export default function PricingPage() {
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
       {/* Founding Member Banner */}
       {foundingSpots !== null && foundingSpots > 0 && (
-        <div className="bg-amber-500 text-white text-center py-3 px-4">
+        <div className="bg-warning text-warning-foreground text-center py-3 px-4">
           <span className="font-bold">
             <Star className="inline h-4 w-4 mr-1" />
             Founding Member Special — Only {foundingSpots} of {FOUNDING_MEMBER.totalSpots} spots left!
@@ -183,7 +183,7 @@ export default function PricingPage() {
             />
             <span className={cn('font-medium transition-colors', isYearly ? 'text-primary' : 'text-muted-foreground')}>
               Yearly
-              <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+              <span className="ml-2 text-xs bg-success/10 text-success px-2 py-1 rounded-full">
                 Save {ANNUAL_SAVE_PERCENT}%
               </span>
             </span>
@@ -244,12 +244,12 @@ export default function PricingPage() {
                     )}
                   </div>
                   {isYearly && !isFree && annualPrice !== null && (
-                    <p className="text-sm text-green-600 mt-1">
+                    <p className="text-sm text-success mt-1">
                       ${monthlyPrice * 12 - annualPrice} saved annually
                     </p>
                   )}
                   {showFoundingAnnual && (
-                    <p className="text-sm text-amber-600 mt-1 font-medium">
+                    <p className="text-sm text-warning mt-1 font-medium">
                       Founding member: <span className="line-through">${annualPrice}/yr</span>{' '}
                       <span className="font-bold">${FOUNDING_MEMBER.discountedPrice}/yr</span> first year
                     </p>
@@ -282,7 +282,7 @@ export default function PricingPage() {
                 <div className="mt-6 space-y-3">
                   {(TIER_FEATURE_LABELS[key] ?? []).map((feature) => (
                     <div key={feature} className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                      <Check className="h-5 w-5 text-success flex-shrink-0 mt-0.5" />
                       <span className="text-sm">{feature}</span>
                     </div>
                   ))}

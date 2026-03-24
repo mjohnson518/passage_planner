@@ -30,14 +30,14 @@ export function MetricCard({
   }
 
   const getTrendColor = () => {
-    if (trend === 'up') return 'text-green-600'
-    if (trend === 'down') return 'text-red-600'
-    return 'text-gray-600'
+    if (trend === 'up') return 'text-success'
+    if (trend === 'down') return 'text-destructive'
+    return 'text-muted-foreground'
   }
 
   const getChangeColor = () => {
-    if (!change) return 'text-gray-600'
-    return change > 0 ? 'text-green-600' : 'text-red-600'
+    if (!change) return 'text-muted-foreground'
+    return change > 0 ? 'text-success' : 'text-destructive'
   }
 
   return (
@@ -50,8 +50,8 @@ export function MetricCard({
       <CardContent>
         {loading ? (
           <div className="space-y-2">
-            <div className="h-8 w-24 bg-gray-200 animate-pulse rounded" />
-            <div className="h-4 w-32 bg-gray-200 animate-pulse rounded" />
+            <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-32 bg-muted animate-pulse rounded" />
           </div>
         ) : (
           <div className="space-y-1">
@@ -74,4 +74,4 @@ export function MetricCard({
       </CardContent>
     </Card>
   )
-} 
+}

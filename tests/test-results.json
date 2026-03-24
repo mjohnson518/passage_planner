@@ -1,0 +1,778 @@
+{
+  "config": {
+    "configFile": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/playwright.config.ts",
+    "rootDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/e2e/global-setup.ts",
+    "globalTeardown": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/e2e/global-teardown.ts",
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 5
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 5
+        },
+        "id": "baseline-screenshots",
+        "name": "baseline-screenshots",
+        "testDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "baseline.spec.ts"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 5
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/e2e",
+        "testIgnore": [
+          "baseline.spec.ts"
+        ],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 5
+        },
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 5
+        },
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 5
+        },
+        "id": "Mobile Chrome",
+        "name": "Mobile Chrome",
+        "testDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 5
+        },
+        "id": "Mobile Safari",
+        "name": "Mobile Safari",
+        "testDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 5
+        },
+        "id": "Microsoft Edge",
+        "name": "Microsoft Edge",
+        "testDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 5
+        },
+        "id": "Google Chrome",
+        "name": "Google Chrome",
+        "testDir": "/Users/marcjohnson/Desktop/MJ/Stuff/MJ_Info/Projects/sail/passage-planner/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "html",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results.json"
+        }
+      ],
+      [
+        "junit",
+        {
+          "outputFile": "test-results.xml"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 5,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:3000",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "baseline.spec.ts",
+      "file": "baseline.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Baseline Screenshots — Public Routes",
+          "file": "baseline.spec.ts",
+          "line": 13,
+          "column": 6,
+          "specs": [
+            {
+              "title": "capture landing (/)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 60468,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:17:02.953Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-edd13c43244e1f83b085",
+              "file": "baseline.spec.ts",
+              "line": 15,
+              "column": 9
+            },
+            {
+              "title": "capture login (/login)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 59978,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:17:02.978Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-ad2dbee681c393251e44",
+              "file": "baseline.spec.ts",
+              "line": 15,
+              "column": 9
+            },
+            {
+              "title": "capture signup (/signup)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 59980,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:17:02.966Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-8ce92955602e2925392e",
+              "file": "baseline.spec.ts",
+              "line": 15,
+              "column": 9
+            },
+            {
+              "title": "capture reset-password (/reset-password)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 61453,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:17:02.930Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-ff8f2edb5f87c06e374a",
+              "file": "baseline.spec.ts",
+              "line": 15,
+              "column": 9
+            },
+            {
+              "title": "capture pricing (/pricing)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 61206,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:17:02.883Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-d80f75a7dbd5d9a11a60",
+              "file": "baseline.spec.ts",
+              "line": 15,
+              "column": 9
+            },
+            {
+              "title": "capture api-docs (/api-docs)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 24627,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:18:04.740Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-3fe434857bf60d9dacd6",
+              "file": "baseline.spec.ts",
+              "line": 15,
+              "column": 9
+            },
+            {
+              "title": "capture offline (/offline)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 32434,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [
+                        {
+                          "text": "[baseline] /offline returned 500 — capturing error state\n"
+                        }
+                      ],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:18:04.739Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-4ce85550627dfda5b9ac",
+              "file": "baseline.spec.ts",
+              "line": 15,
+              "column": 9
+            }
+          ]
+        },
+        {
+          "title": "Baseline Screenshots — Auth Routes (unauthenticated)",
+          "file": "baseline.spec.ts",
+          "line": 29,
+          "column": 6,
+          "specs": [
+            {
+              "title": "capture dashboard unauthenticated (/dashboard)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 19568,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:18:05.212Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-0e7f3e12388162b42bee",
+              "file": "baseline.spec.ts",
+              "line": 31,
+              "column": 9
+            },
+            {
+              "title": "capture planner unauthenticated (/planner)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 18773,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:18:06.047Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-31fa0cbfa8926820ee7e",
+              "file": "baseline.spec.ts",
+              "line": 31,
+              "column": 9
+            },
+            {
+              "title": "capture passages unauthenticated (/passages)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 23093,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:18:06.262Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-05a288b3bdfabf6e67ba",
+              "file": "baseline.spec.ts",
+              "line": 31,
+              "column": 9
+            },
+            {
+              "title": "capture fleet unauthenticated (/fleet)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 10004,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:18:24.854Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-b1f59e511c8071c93119",
+              "file": "baseline.spec.ts",
+              "line": 31,
+              "column": 9
+            },
+            {
+              "title": "capture weather unauthenticated (/weather)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9971,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:18:24.905Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-e542c1dc3b3d2e4de2e9",
+              "file": "baseline.spec.ts",
+              "line": 31,
+              "column": 9
+            },
+            {
+              "title": "capture onboarding unauthenticated (/onboarding)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 33057,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:18:29.385Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-c118dea9a637312ca19a",
+              "file": "baseline.spec.ts",
+              "line": 31,
+              "column": 9
+            }
+          ]
+        },
+        {
+          "title": "Baseline Screenshots — Admin Routes (unauthenticated)",
+          "file": "baseline.spec.ts",
+          "line": 44,
+          "column": 6,
+          "specs": [
+            {
+              "title": "capture admin unauthenticated (/admin)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 8548,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:18:29.388Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-113f7884f4a7850a702a",
+              "file": "baseline.spec.ts",
+              "line": 46,
+              "column": 9
+            },
+            {
+              "title": "capture admin-agents unauthenticated (/admin/agents)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 4,
+                      "status": "passed",
+                      "duration": 31255,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:18:34.877Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-aea845ba64e45b6d3bfa",
+              "file": "baseline.spec.ts",
+              "line": 46,
+              "column": 9
+            },
+            {
+              "title": "capture admin-analytics unauthenticated (/admin/analytics)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "baseline-screenshots",
+                  "projectName": "baseline-screenshots",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 31316,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-02-11T08:18:34.895Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "d2923076b323a8336a93-cccbb9cd637338cb7f57",
+              "file": "baseline.spec.ts",
+              "line": 46,
+              "column": 9
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-02-11T08:16:58.393Z",
+    "duration": 128154.39099999999,
+    "expected": 16,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

@@ -7,6 +7,7 @@ import { Badge } from '../ui/badge'
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { DollarSign, TrendingUp, TrendingDown, Users, CreditCard, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
+import { useChartColors } from '@/lib/chart-colors'
 
 interface RevenueData {
   mrr: number
@@ -41,6 +42,7 @@ interface RevenueData {
 }
 
 export function RevenueMetrics() {
+  const chartColors = useChartColors()
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState('30d')
   const [data, setData] = useState<RevenueData | null>(null)
@@ -75,13 +77,13 @@ export function RevenueMetrics() {
     return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
   }
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042']
+  const COLORS = [chartColors.primary, chartColors.secondary, chartColors.tertiary, chartColors.danger]
 
   if (loading || !data) {
     return (
       <div className="space-y-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-32 bg-gray-100 rounded animate-pulse" />
+          <div key={i} className="h-32 bg-muted rounded animate-pulse" />
         ))}
       </div>
     )
@@ -113,7 +115,7 @@ export function RevenueMetrics() {
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(data.mrr)}</div>
             <p className="text-xs text-muted-foreground">
-              <span className={data.growth >= 0 ? 'text-green-600' : 'text-red-600'}>
+              <span className={data.growth >= 0 ? 'text-success' : 'text-destructive'}>
                 {formatPercentage(data.growth)}
               </span>
               {' '}from last month
@@ -178,7 +180,7 @@ export function RevenueMetrics() {
                 <Line
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#8884d8"
+                  stroke={chartColors.primary}
                   strokeWidth={2}
                   dot={{ r: 4 }}
                   activeDot={{ r: 6 }}
@@ -203,7 +205,7 @@ export function RevenueMetrics() {
                   labelLine={false}
                   label={({ tier, percent }: any) => `${tier}: ${(percent * 100).toFixed(0)}%`}
                   outerRadius={80}
-                  fill="#8884d8"
+                  fill={chartColors.primary}
                   dataKey="revenue"
                 >
                   {data.revenueByTier.map((entry, index) => (
@@ -226,10 +228,10 @@ export function RevenueMetrics() {
           {(() => {
             const total = data.subscriptions.free + data.subscriptions.premium + data.subscriptions.pro + data.subscriptions.enterprise
             const tiers = [
-              { key: 'free', label: 'Free', count: data.subscriptions.free, color: 'bg-gray-500', variant: 'secondary' as const },
-              { key: 'premium', label: 'Premium', count: data.subscriptions.premium, color: 'bg-amber-500', variant: 'default' as const },
-              { key: 'pro', label: 'Pro', count: data.subscriptions.pro, color: 'bg-blue-500', variant: 'default' as const },
-              { key: 'enterprise', label: 'Enterprise', count: data.subscriptions.enterprise, color: 'bg-red-500', variant: 'destructive' as const },
+              { key: 'free', label: 'Free', count: data.subscriptions.free, color: 'bg-muted-foreground', variant: 'secondary' as const },
+              { key: 'premium', label: 'Premium', count: data.subscriptions.premium, color: 'bg-warning', variant: 'default' as const },
+              { key: 'pro', label: 'Pro', count: data.subscriptions.pro, color: 'bg-primary', variant: 'default' as const },
+              { key: 'enterprise', label: 'Enterprise', count: data.subscriptions.enterprise, color: 'bg-destructive', variant: 'destructive' as const },
             ]
             return (
               <div className="space-y-4">
@@ -240,14 +242,14 @@ export function RevenueMetrics() {
                         <Badge variant={t.variant}>{t.label}</Badge>
                         <span className="text-sm font-medium">{t.count} users</span>
                         {t.key === 'premium' && data.foundingMembers !== undefined && data.foundingMembers > 0 && (
-                          <span className="text-xs text-amber-600">({data.foundingMembers} founding)</span>
+                          <span className="text-xs text-warning">({data.foundingMembers} founding)</span>
                         )}
                       </div>
                       <span className="text-sm text-muted-foreground">
                         {total > 0 ? ((t.count / total) * 100).toFixed(1) : '0.0'}%
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-muted rounded-full h-2">
                       <div
                         className={`${t.color} h-2 rounded-full`}
                         style={{ width: total > 0 ? `${(t.count / total) * 100}%` : '0%' }}
@@ -278,12 +280,12 @@ export function RevenueMetrics() {
             <BarChart data={data.churnByMonth}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
-              <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
-              <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
+              <YAxis yAxisId="left" orientation="left" stroke={chartColors.primary} />
+              <YAxis yAxisId="right" orientation="right" stroke={chartColors.secondary} />
               <Tooltip />
               <Legend />
-              <Bar yAxisId="left" dataKey="rate" fill="#8884d8" name="Churn Rate (%)" />
-              <Bar yAxisId="right" dataKey="count" fill="#82ca9d" name="Customers Lost" />
+              <Bar yAxisId="left" dataKey="rate" fill={chartColors.primary} name="Churn Rate (%)" />
+              <Bar yAxisId="right" dataKey="count" fill={chartColors.secondary} name="Customers Lost" />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>

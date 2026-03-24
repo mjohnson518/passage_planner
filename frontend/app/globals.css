@@ -52,6 +52,21 @@
     --night: 222 47% 8%;
     --bg-deep: 222 50% 4%;
     --amber-sail: 35 75% 67%;
+
+    /* Chart / Data Visualization */
+    --chart-1: 205 85% 28%;
+    --chart-2: 164 100% 38%;
+    --chart-3: 38 70% 50%;
+    --chart-4: 270 50% 45%;
+    --chart-5: 0 72% 51%;
+
+    /* Safety Status Colors (GO / CAUTION / NO-GO) */
+    --status-go: 142 71% 35%;
+    --status-go-bg: 142 60% 96%;
+    --status-caution: 38 92% 42%;
+    --status-caution-bg: 38 80% 96%;
+    --status-nogo: 0 72% 45%;
+    --status-nogo-bg: 0 80% 97%;
   }
 
   .dark {
@@ -92,6 +107,21 @@
     --success: 158 55% 50%;
     --warning: 38 85% 55%;
     --chart-grid: 220 20% 25%;
+
+    /* Chart / Data Visualization */
+    --chart-1: 200 70% 55%;
+    --chart-2: 164 100% 47%;
+    --chart-3: 38 75% 55%;
+    --chart-4: 270 60% 65%;
+    --chart-5: 0 65% 55%;
+
+    /* Safety Status Colors (GO / CAUTION / NO-GO) */
+    --status-go: 142 60% 45%;
+    --status-go-bg: 142 40% 12%;
+    --status-caution: 38 85% 55%;
+    --status-caution-bg: 38 50% 12%;
+    --status-nogo: 0 65% 55%;
+    --status-nogo-bg: 0 50% 12%;
   }
 }
 

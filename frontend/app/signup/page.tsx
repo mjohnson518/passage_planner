@@ -95,11 +95,11 @@ export default function SignupPage() {
         {/* Signup Form */}
         <div className="glass rounded-lg p-8">
           {!supabaseConfigured && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md flex items-start gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="mb-4 p-3 bg-warning/10 border border-warning/30 rounded-md flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-amber-800 text-sm font-medium">Authentication not configured</p>
-                <p className="text-amber-700 text-xs mt-1">
+                <p className="text-warning text-sm font-medium">Authentication not configured</p>
+                <p className="text-warning/80 text-xs mt-1">
                   Supabase environment variables are not set. Please configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
                 </p>
               </div>
@@ -181,10 +181,10 @@ export default function SignupPage() {
                         className={cn(
                           'h-1 flex-1 rounded-full transition-colors',
                           i < passwordStrength
-                            ? passwordStrength <= 2 
-                              ? 'bg-amber-500' 
-                              : 'bg-green-500'
-                            : 'bg-gray-200 dark:bg-gray-700'
+                            ? passwordStrength <= 2
+                              ? 'bg-warning'
+                              : 'bg-success'
+                            : 'bg-muted'
                         )}
                       />
                     ))}
@@ -196,7 +196,7 @@ export default function SignupPage() {
                         className={cn(
                           'flex items-center gap-2 text-xs transition-colors',
                           req.regex.test(formData.password)
-                            ? 'text-green-600'
+                            ? 'text-success'
                             : 'text-muted-foreground'
                         )}
                       >
@@ -281,15 +281,15 @@ export default function SignupPage() {
         {/* Benefits */}
         <div className="mt-8 space-y-3">
           <div className="flex items-center gap-3 text-sm">
-            <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+            <Check className="h-5 w-5 text-success flex-shrink-0" />
             <span>Start with 2 free passages per month</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+            <Check className="h-5 w-5 text-success flex-shrink-0" />
             <span>14-day free trial of Premium features</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <Check className="h-5 w-5 text-green-500 flex-shrink-0" />
+            <Check className="h-5 w-5 text-success flex-shrink-0" />
             <span>No credit card required</span>
           </div>
         </div>

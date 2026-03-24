@@ -199,15 +199,15 @@ export default function PlannerPage() {
   return (
     <div className="container mx-auto px-4 py-6 max-w-4xl">
       {/* Safety disclaimer — persistent, non-dismissible (CLAUDE.md requirement) */}
-      <div className="mb-4 rounded-md border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+      <div className="mb-4 rounded-md border border-border bg-muted px-4 py-3 text-sm text-foreground">
         <strong>Navigation Aid Only:</strong> This tool is an aid to passage planning only. It is not a substitute
         for professional seamanship, official nautical charts, current NOTAMs, or sound judgment. Always
         independently verify all data before departure.{' '}
-        <a href="/terms" className="underline hover:text-slate-900">See full Terms of Service.</a>
+        <a href="/terms" className="underline hover:text-foreground/80">See full Terms of Service.</a>
       </div>
 
       <div className="mb-6">
-        <h1 className="text-2xl lg:text-3xl font-bold">Plan New Passage</h1>
+        <h1 className="text-2xl lg:text-3xl font-bold font-display">Plan New Passage</h1>
         <p className="text-muted-foreground mt-1">
           Enter your route details and we'll create a comprehensive passage plan
         </p>
@@ -215,7 +215,7 @@ export default function PlannerPage() {
 
       {/* Agent Status Display */}
       {loading && (
-        <Card data-testid="planner-loading" className="mb-6 border-blue-200 bg-blue-50">
+        <Card data-testid="planner-loading" className="mb-6 border-primary/20 bg-primary/5">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -230,9 +230,9 @@ export default function PlannerPage() {
               {Object.entries(agentStatuses).map(([agentName, status]) => (
                 <div key={agentName} className="flex items-center gap-2 text-sm">
                   {status.status === 'active' ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   ) : (
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <CheckCircle2 className="h-4 w-4 text-success" />
                   )}
                   <span className="font-medium capitalize">{agentName}:</span>
                   <span className="text-muted-foreground">{status.message}</span>
@@ -245,8 +245,8 @@ export default function PlannerPage() {
 
       {/* Persistent WebSocket connection status — always visible when a plan is displayed */}
       {passagePlan && (
-        <div className={`text-xs px-3 py-1.5 rounded mb-2 flex items-center gap-2 ${connected ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-          <span className={`h-2 w-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+        <div className={`text-xs px-3 py-1.5 rounded mb-2 flex items-center gap-2 ${connected ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+          <span className={`h-2 w-2 rounded-full ${connected ? 'bg-success' : 'bg-destructive'}`} />
           {connected ? 'Live updates connected' : 'Disconnected — data may be stale'}
         </div>
       )}
@@ -256,11 +256,11 @@ export default function PlannerPage() {
         <div className="space-y-6 mb-6">
           {/* SAFETY_UNVERIFIED critical banner — shown when SafetyAgent failed */}
           {(passagePlan as any).status === 'SAFETY_UNVERIFIED' && (
-            <div className="rounded-md border-2 border-red-600 bg-red-50 px-5 py-4" role="alert">
-              <p className="font-bold text-red-800 text-base uppercase tracking-wide mb-1">
+            <div className="rounded-md border-2 border-destructive bg-destructive/5 px-5 py-4" role="alert">
+              <p className="font-bold text-destructive text-base uppercase tracking-wide mb-1">
                 ⚠ Safety Checks Could Not Be Completed
               </p>
-              <p className="text-red-700 text-sm">
+              <p className="text-destructive/80 text-sm">
                 Automated safety verification failed for this passage plan. <strong>Manual verification is
                 required before departure.</strong> Do not rely on this plan without independently
                 checking all safety conditions against official nautical charts, NOAA marine forecasts,
@@ -271,11 +271,11 @@ export default function PlannerPage() {
 
           {/* SAFETY_WARNING amber banner — shown when critical hazards detected */}
           {(passagePlan as any).status === 'SAFETY_WARNING' && (
-            <div className="rounded-md border-2 border-amber-600 bg-amber-50 px-5 py-4" role="alert">
-              <p className="font-bold text-amber-800 text-base uppercase tracking-wide mb-1">
+            <div className="rounded-md border-2 border-warning bg-warning/5 px-5 py-4" role="alert">
+              <p className="font-bold text-warning text-base uppercase tracking-wide mb-1">
                 ⚠ Safety Warnings Detected
               </p>
-              <p className="text-amber-700 text-sm">
+              <p className="text-warning/80 text-sm">
                 Critical hazards were identified along this route. Review all safety warnings carefully.
                 <strong> Do not depart without addressing every critical warning below.</strong>
               </p>
@@ -284,15 +284,15 @@ export default function PlannerPage() {
 
           {/* Safety Decision - PROMINENT DISPLAY */}
           <Card data-testid="planner-safety-decision" className={`border-2 ${
-            passagePlan.summary.safetyDecision === 'GO' ? 'border-green-500 bg-green-50' :
-            passagePlan.summary.safetyDecision === 'CAUTION' ? 'border-yellow-500 bg-yellow-50' :
-            'border-red-500 bg-red-50'
+            passagePlan.summary.safetyDecision === 'GO' ? 'border-status-go bg-status-go-bg' :
+            passagePlan.summary.safetyDecision === 'CAUTION' ? 'border-status-caution bg-status-caution-bg' :
+            'border-status-nogo bg-status-nogo-bg'
           }`}>
             <CardHeader>
               <CardTitle className="text-2xl flex items-center gap-2">
-                {passagePlan.summary.safetyDecision === 'GO' && <CheckCircle2 className="h-8 w-8 text-green-600" />}
-                {passagePlan.summary.safetyDecision === 'CAUTION' && <AlertCircle className="h-8 w-8 text-yellow-600" />}
-                {passagePlan.summary.safetyDecision === 'NO-GO' && <X className="h-8 w-8 text-red-600" />}
+                {passagePlan.summary.safetyDecision === 'GO' && <CheckCircle2 className="h-8 w-8 text-status-go" />}
+                {passagePlan.summary.safetyDecision === 'CAUTION' && <AlertCircle className="h-8 w-8 text-status-caution" />}
+                {passagePlan.summary.safetyDecision === 'NO-GO' && <X className="h-8 w-8 text-status-nogo" />}
                 Safety Decision: {passagePlan.summary.safetyDecision}
               </CardTitle>
               <CardDescription className="text-lg">
@@ -362,7 +362,7 @@ export default function PlannerPage() {
               const issuedAt = new Date((passagePlan.weather.departure as any).issuedAt);
               const ageMs = Date.now() - issuedAt.getTime();
               const ageMin = Math.round(ageMs / 60000);
-              const color = ageMs < 30 * 60 * 1000 ? 'text-green-700' : ageMs < 60 * 60 * 1000 ? 'text-amber-700' : 'text-red-700';
+              const color = ageMs < 30 * 60 * 1000 ? 'text-success' : ageMs < 60 * 60 * 1000 ? 'text-warning' : 'text-destructive';
               const staleLabel = ageMs >= 60 * 60 * 1000 ? ' ⚠ STALE — verify independently' : '';
               return (
                 <p className={`text-xs mt-1 ${color}`}>
@@ -381,7 +381,7 @@ export default function PlannerPage() {
                     <p><strong>Waves:</strong> {passagePlan.weather.departure.waveHeight} ft</p>
                     <p><strong>Temp:</strong> {passagePlan.weather.departure.temperature}°F</p>
                     {passagePlan.weather.departure.warnings.length > 0 && (
-                      <p className="text-orange-600"><strong>⚠️ Warnings:</strong> {passagePlan.weather.departure.warnings.join(', ')}</p>
+                      <p className="text-warning"><strong>⚠️ Warnings:</strong> {passagePlan.weather.departure.warnings.join(', ')}</p>
                     )}
                   </div>
                 </div>
@@ -393,7 +393,7 @@ export default function PlannerPage() {
                     <p><strong>Waves:</strong> {passagePlan.weather.destination.waveHeight} ft</p>
                     <p><strong>Temp:</strong> {passagePlan.weather.destination.temperature}°F</p>
                     {passagePlan.weather.destination.warnings.length > 0 && (
-                      <p className="text-orange-600"><strong>⚠️ Warnings:</strong> {passagePlan.weather.destination.warnings.join(', ')}</p>
+                      <p className="text-warning"><strong>⚠️ Warnings:</strong> {passagePlan.weather.destination.warnings.join(', ')}</p>
                     )}
                   </div>
                 </div>
@@ -446,8 +446,8 @@ export default function PlannerPage() {
             </CardHeader>
             <CardContent>
               {passagePlan.navigationWarnings.critical > 0 && (
-                <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded">
-                  <p className="font-bold text-red-700">⚠️ {passagePlan.navigationWarnings.critical} CRITICAL WARNING(S)</p>
+                <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded">
+                  <p className="font-bold text-destructive">⚠️ {passagePlan.navigationWarnings.critical} CRITICAL WARNING(S)</p>
             </div>
               )}
             
@@ -455,9 +455,9 @@ export default function PlannerPage() {
               <div className="space-y-2">
                   {passagePlan.navigationWarnings.warnings.slice(0, 5).map((warning: any, idx: number) => (
                     <div key={idx} className={`p-3 rounded border ${
-                      warning.severity === 'critical' ? 'bg-red-50 border-red-200' :
-                      warning.severity === 'warning' ? 'bg-yellow-50 border-yellow-200' :
-                      'bg-blue-50 border-blue-200'
+                      warning.severity === 'critical' ? 'bg-destructive/5 border-destructive/20' :
+                      warning.severity === 'warning' ? 'bg-warning/5 border-warning/20' :
+                      'bg-primary/5 border-primary/20'
                     }`}>
                       <p className="font-semibold text-sm">{warning.title}</p>
                       <p className="text-xs text-muted-foreground mt-1">{warning.description}</p>
@@ -536,7 +536,7 @@ export default function PlannerPage() {
                       <p><strong>VHF:</strong> Channel {passagePlan.port.departure.contact?.vhf}</p>
                       <p><strong>Facilities:</strong> {passagePlan.port.departure.facilities?.fuel ? '⛽' : ''} {passagePlan.port.departure.facilities?.water ? '💧' : ''} {passagePlan.port.departure.facilities?.repair ? '🔧' : ''}</p>
                       {passagePlan.port.departure.customs?.portOfEntry && (
-                        <p className="text-blue-600"><strong>🛂 Port of Entry</strong></p>
+                        <p className="text-primary"><strong>🛂 Port of Entry</strong></p>
                       )}
                     </div>
                   ) : (
@@ -554,7 +554,7 @@ export default function PlannerPage() {
                       <p><strong>VHF:</strong> Channel {passagePlan.port.destination.contact?.vhf}</p>
                       <p><strong>Facilities:</strong> {passagePlan.port.destination.facilities?.fuel ? '⛽' : ''} {passagePlan.port.destination.facilities?.water ? '💧' : ''} {passagePlan.port.destination.facilities?.repair ? '🔧' : ''}</p>
                       {passagePlan.port.destination.customs?.portOfEntry && (
-                        <p className="text-blue-600"><strong>🛂 Port of Entry</strong></p>
+                        <p className="text-primary"><strong>🛂 Port of Entry</strong></p>
                       )}
                     </div>
                   ) : (
@@ -919,7 +919,7 @@ export default function PlannerPage() {
                     <p>Fuel needed (est): <strong>{passagePlan ? (passagePlan.route.estimatedDurationHours * formData.fuelRate).toFixed(1) : '---'} gal</strong></p>
                     <p>30% reserve: <strong>{passagePlan ? (passagePlan.route.estimatedDurationHours * formData.fuelRate * 1.3).toFixed(1) : '---'} gal</strong></p>
                     {passagePlan && (formData.fuelCapacity < passagePlan.route.estimatedDurationHours * formData.fuelRate * 1.3) && (
-                      <p className="text-red-600 font-semibold">Insufficient fuel with 30% reserve!</p>
+                      <p className="text-destructive font-semibold">Insufficient fuel with 30% reserve!</p>
                     )}
                   </div>
                 )}
@@ -986,7 +986,7 @@ export default function PlannerPage() {
                           ...prev,
                           checklist: { ...prev.checklist, [item.id]: e.target.checked }
                         }))}
-                        className="mt-1 rounded border-gray-300"
+                        className="mt-1 rounded border-input"
                       />
                       <span className="text-sm">{item.label}</span>
                     </label>

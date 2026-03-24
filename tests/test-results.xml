@@ -1,0 +1,40 @@
+<testsuites id="" name="" tests="16" failures="0" skipped="0" errors="0" time="128.15439099999998">
+<testsuite name="baseline.spec.ts" timestamp="2026-02-11T08:16:59.806Z" hostname="baseline-screenshots" tests="16" failures="0" skipped="0" time="545.731" errors="0">
+<testcase name="Baseline Screenshots — Public Routes › capture landing (/)" classname="baseline.spec.ts" time="60.468">
+</testcase>
+<testcase name="Baseline Screenshots — Public Routes › capture login (/login)" classname="baseline.spec.ts" time="59.978">
+</testcase>
+<testcase name="Baseline Screenshots — Public Routes › capture signup (/signup)" classname="baseline.spec.ts" time="59.98">
+</testcase>
+<testcase name="Baseline Screenshots — Public Routes › capture reset-password (/reset-password)" classname="baseline.spec.ts" time="61.453">
+</testcase>
+<testcase name="Baseline Screenshots — Public Routes › capture pricing (/pricing)" classname="baseline.spec.ts" time="61.206">
+</testcase>
+<testcase name="Baseline Screenshots — Public Routes › capture api-docs (/api-docs)" classname="baseline.spec.ts" time="24.627">
+</testcase>
+<testcase name="Baseline Screenshots — Public Routes › capture offline (/offline)" classname="baseline.spec.ts" time="32.434">
+<system-err>
+<![CDATA[[baseline] /offline returned 500 — capturing error state
+]]>
+</system-err>
+</testcase>
+<testcase name="Baseline Screenshots — Auth Routes (unauthenticated) › capture dashboard unauthenticated (/dashboard)" classname="baseline.spec.ts" time="19.568">
+</testcase>
+<testcase name="Baseline Screenshots — Auth Routes (unauthenticated) › capture planner unauthenticated (/planner)" classname="baseline.spec.ts" time="18.773">
+</testcase>
+<testcase name="Baseline Screenshots — Auth Routes (unauthenticated) › capture passages unauthenticated (/passages)" classname="baseline.spec.ts" time="23.093">
+</testcase>
+<testcase name="Baseline Screenshots — Auth Routes (unauthenticated) › capture fleet unauthenticated (/fleet)" classname="baseline.spec.ts" time="10.004">
+</testcase>
+<testcase name="Baseline Screenshots — Auth Routes (unauthenticated) › capture weather unauthenticated (/weather)" classname="baseline.spec.ts" time="9.971">
+</testcase>
+<testcase name="Baseline Screenshots — Auth Routes (unauthenticated) › capture onboarding unauthenticated (/onboarding)" classname="baseline.spec.ts" time="33.057">
+</testcase>
+<testcase name="Baseline Screenshots — Admin Routes (unauthenticated) › capture admin unauthenticated (/admin)" classname="baseline.spec.ts" time="8.548">
+</testcase>
+<testcase name="Baseline Screenshots — Admin Routes (unauthenticated) › capture admin-agents unauthenticated (/admin/agents)" classname="baseline.spec.ts" time="31.255">
+</testcase>
+<testcase name="Baseline Screenshots — Admin Routes (unauthenticated) › capture admin-analytics unauthenticated (/admin/analytics)" classname="baseline.spec.ts" time="31.316">
+</testcase>
+</testsuite>
+</testsuites>

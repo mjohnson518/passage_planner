@@ -112,8 +112,8 @@ export default function ResetPasswordPage() {
         ) : (
           <CardContent className="space-y-4">
             <div className="flex justify-center">
-              <div className="rounded-full bg-green-100 p-3">
-                <Mail className="h-6 w-6 text-green-600" />
+              <div className="rounded-full bg-success/10 p-3">
+                <Mail className="h-6 w-6 text-success" />
               </div>
             </div>
             

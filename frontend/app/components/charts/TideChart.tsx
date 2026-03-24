@@ -2,6 +2,7 @@
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { format } from 'date-fns'
+import { useChartColors } from '@/lib/chart-colors'
 
 interface TideDataPoint {
   time: string | Date
@@ -15,12 +16,13 @@ interface TideChartProps {
   showCurrentTime?: boolean
 }
 
-export default function TideChart({ 
-  data = [], 
+export default function TideChart({
+  data = [],
   unit = 'feet',
   showCurrentTime = true
 }: TideChartProps) {
-  
+  const colors = useChartColors()
+
   if (!data || data.length === 0) {
     return (
       <div className="w-full h-[300px] bg-muted/20 rounded-lg flex items-center justify-center">
@@ -31,11 +33,10 @@ export default function TideChart({
     )
   }
 
-  // Format data for Recharts
   const chartData = data.map(point => ({
     ...point,
-    time: typeof point.time === 'string' 
-      ? point.time 
+    time: typeof point.time === 'string'
+      ? point.time
       : format(new Date(point.time), 'HH:mm'),
     displayTime: typeof point.time === 'string'
       ? new Date(point.time).getTime()
@@ -44,7 +45,6 @@ export default function TideChart({
 
   const currentTime = showCurrentTime ? new Date().getTime() : null
 
-  // Calculate min/max for better Y-axis scaling
   const heights = data.map(d => d.height)
   const minHeight = Math.min(...heights)
   const maxHeight = Math.max(...heights)
@@ -55,33 +55,33 @@ export default function TideChart({
       <AreaChart data={chartData}>
         <defs>
           <linearGradient id="tideGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.8}/>
-            <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.1}/>
+            <stop offset="5%" stopColor={colors.secondary} stopOpacity={0.8}/>
+            <stop offset="95%" stopColor={colors.secondary} stopOpacity={0.1}/>
           </linearGradient>
         </defs>
-        
+
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        
-        <XAxis 
-          dataKey="time" 
+
+        <XAxis
+          dataKey="time"
           className="text-xs"
           tick={{ fontSize: 12 }}
         />
-        
-        <YAxis 
+
+        <YAxis
           className="text-xs"
           tick={{ fontSize: 12 }}
           domain={[minHeight - padding, maxHeight + padding]}
-          label={{ 
-            value: `Height (${unit})`, 
-            angle: -90, 
+          label={{
+            value: `Height (${unit})`,
+            angle: -90,
             position: 'insideLeft',
             style: { fontSize: 12 }
           }}
         />
-        
-        <Tooltip 
-          contentStyle={{ 
+
+        <Tooltip
+          contentStyle={{
             backgroundColor: 'hsl(var(--background))',
             border: '1px solid hsl(var(--border))',
             borderRadius: '8px'
@@ -94,20 +94,20 @@ export default function TideChart({
             return [value, name]
           }}
         />
-        
+
         {showCurrentTime && currentTime && (
-          <ReferenceLine 
-            x={currentTime} 
-            stroke="#ef4444" 
+          <ReferenceLine
+            x={currentTime}
+            stroke={colors.danger}
             strokeDasharray="3 3"
             label={{ value: 'Now', position: 'top', fontSize: 12 }}
           />
         )}
-        
-        <Area 
-          type="monotone" 
-          dataKey="height" 
-          stroke="#06b6d4" 
+
+        <Area
+          type="monotone"
+          dataKey="height"
+          stroke={colors.secondary}
           strokeWidth={2}
           fill="url(#tideGradient)"
           dot={(props: any) => {
@@ -119,7 +119,7 @@ export default function TideChart({
                 cx={cx}
                 cy={cy}
                 r={4}
-                fill={payload.type === 'high' ? '#22c55e' : '#ef4444'}
+                fill={payload.type === 'high' ? colors.success : colors.danger}
                 stroke="white"
                 strokeWidth={2}
               />

@@ -17,6 +17,7 @@ import {
   ArrowDownRight
 } from 'lucide-react'
 import { Line, Bar } from 'recharts'
+import { useChartColors } from '@/lib/chart-colors'
 import { 
   LineChart, 
   BarChart,
@@ -66,6 +67,7 @@ interface OverviewMetrics {
 }
 
 export function AdminOverview() {
+  const chartColors = useChartColors()
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null)
   const [revenueChart, setRevenueChart] = useState<any[]>([])
   const [userChart, setUserChart] = useState<any[]>([])
@@ -102,8 +104,8 @@ export function AdminOverview() {
         {[...Array(8)].map((_, i) => (
           <Card key={i}>
             <CardHeader className="animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
-              <div className="h-8 bg-gray-200 rounded w-3/4"></div>
+              <div className="h-4 bg-muted rounded w-1/2 mb-2"></div>
+              <div className="h-8 bg-muted rounded w-3/4"></div>
             </CardHeader>
           </Card>
         ))}
@@ -173,13 +175,13 @@ export function AdminOverview() {
                 <div className="text-2xl font-bold">{metric.value}</div>
                 <p className="text-xs text-muted-foreground flex items-center mt-1">
                   {metric.trend === 'up' ? (
-                    <ArrowUpRight className="h-3 w-3 text-green-600 mr-1" />
+                    <ArrowUpRight className="h-3 w-3 text-success mr-1" />
                   ) : metric.trend === 'down' ? (
-                    <ArrowDownRight className="h-3 w-3 text-red-600 mr-1" />
+                    <ArrowDownRight className="h-3 w-3 text-destructive mr-1" />
                   ) : null}
                   <span className={
-                    metric.trend === 'up' ? 'text-green-600' : 
-                    metric.trend === 'down' ? 'text-red-600' : ''
+                    metric.trend === 'up' ? 'text-success' : 
+                    metric.trend === 'down' ? 'text-destructive' : ''
                   }>
                     {Math.abs(metric.change).toFixed(1)}%
                   </span>
@@ -207,17 +209,17 @@ export function AdminOverview() {
                 <YAxis tickFormatter={(value) => `$${value / 1000}k`} />
                 <Tooltip formatter={(value: any) => formatCurrency(value)} />
                 <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="mrr" 
-                  stroke="#8884d8" 
+                <Line
+                  type="monotone"
+                  dataKey="mrr"
+                  stroke={chartColors.primary}
                   name="MRR"
                   strokeWidth={2}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="arr" 
-                  stroke="#82ca9d" 
+                <Line
+                  type="monotone"
+                  dataKey="arr"
+                  stroke={chartColors.secondary}
                   name="ARR"
                   strokeWidth={2}
                 />
@@ -240,8 +242,8 @@ export function AdminOverview() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="new" fill="#82ca9d" name="New Users" />
-                <Bar dataKey="churned" fill="#ef4444" name="Churned" />
+                <Bar dataKey="new" fill={chartColors.success} name="New Users" />
+                <Bar dataKey="churned" fill={chartColors.danger} name="Churned" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -297,16 +299,16 @@ export function AdminOverview() {
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <button className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 text-sm">
+            <button className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm">
               View Error Logs
             </button>
-            <button className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 text-sm">
+            <button className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm">
               Export User Data
             </button>
-            <button className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 text-sm">
+            <button className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm">
               Send Newsletter
             </button>
-            <button className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 text-sm">
+            <button className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm">
               System Maintenance
             </button>
           </CardContent>

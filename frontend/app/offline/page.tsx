@@ -24,9 +24,9 @@ export default function OfflinePage() {
             Try Again
           </Button>
           
-          <div className="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 mb-2 text-left">
-            <p className="font-bold text-red-800 text-sm uppercase mb-1">⚠ Navigation Safety Warning</p>
-            <p className="text-red-700 text-sm">
+          <div className="rounded-md border-2 border-destructive bg-destructive/5 px-4 py-3 mb-2 text-left">
+            <p className="font-bold text-destructive text-sm uppercase mb-1">⚠ Navigation Safety Warning</p>
+            <p className="text-destructive/80 text-sm">
               Cached weather and tidal data may be <strong>dangerously outdated</strong>.
               Do not use for navigation decisions without independent verification from
               official sources (NOAA, Coast Guard, VHF weather radio).

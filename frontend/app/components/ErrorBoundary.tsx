@@ -125,35 +125,35 @@ export class ErrorBoundary extends Component<Props, State> {
 
       // Default error UI
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-          <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-6">
-            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full">
-              <AlertCircle className="w-6 h-6 text-red-600" />
+        <div className="min-h-screen flex items-center justify-center bg-background px-4">
+          <div className="max-w-md w-full bg-card shadow-maritime rounded-lg p-6 border border-border">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-destructive/10 rounded-full">
+              <AlertCircle className="w-6 h-6 text-destructive" />
             </div>
 
-            <h1 className="mt-4 text-xl font-semibold text-gray-900 text-center">
+            <h1 className="mt-4 text-xl font-semibold text-foreground text-center">
               Something went wrong
             </h1>
 
-            <p className="mt-2 text-sm text-gray-600 text-center">
+            <p className="mt-2 text-sm text-muted-foreground text-center">
               We encountered an unexpected error while processing your request.
               Our team has been notified and is working to fix the issue.
             </p>
 
             {process.env.NODE_ENV === 'development' && this.state.error && (
-              <div className="mt-4 p-3 bg-gray-100 rounded border border-gray-200">
-                <p className="text-xs font-semibold text-gray-700 mb-1">
+              <div className="mt-4 p-3 bg-muted rounded border border-border">
+                <p className="text-xs font-semibold text-foreground mb-1">
                   Error Details (Development Only):
                 </p>
-                <p className="text-xs text-gray-600 font-mono break-all">
+                <p className="text-xs text-muted-foreground font-mono break-all">
                   {this.state.error.message}
                 </p>
                 {this.state.errorInfo && (
                   <details className="mt-2">
-                    <summary className="text-xs text-gray-500 cursor-pointer">
+                    <summary className="text-xs text-muted-foreground cursor-pointer">
                       Component Stack
                     </summary>
-                    <pre className="text-xs text-gray-600 mt-1 overflow-auto max-h-40">
+                    <pre className="text-xs text-muted-foreground mt-1 overflow-auto max-h-40">
                       {this.state.errorInfo.componentStack}
                     </pre>
                   </details>
@@ -162,8 +162,8 @@ export class ErrorBoundary extends Component<Props, State> {
             )}
 
             {this.state.errorCount > 2 && (
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                <p className="text-xs text-yellow-800">
+              <div className="mt-4 p-3 bg-warning/5 border border-warning/20 rounded">
+                <p className="text-xs text-warning">
                   This error has occurred {this.state.errorCount} times.
                   Please refresh the page or contact support if the problem persists.
                 </p>
@@ -173,7 +173,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="mt-6 flex gap-3">
               <button
                 onClick={this.handleReset}
-                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-border rounded-md shadow-sm text-sm font-medium text-foreground bg-card hover:bg-muted focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring"
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Try Again
@@ -181,7 +181,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
               <button
                 onClick={this.handleGoHome}
-                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring"
               >
                 <Home className="w-4 h-4 mr-2" />
                 Go Home
@@ -190,7 +190,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
             <button
               onClick={this.handleRefresh}
-              className="mt-3 w-full inline-flex items-center justify-center px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              className="mt-3 w-full inline-flex items-center justify-center px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
             >
               Or refresh the page
             </button>
@@ -218,19 +218,19 @@ export function FeatureErrorBoundary({
   onError,
 }: FeatureErrorBoundaryProps) {
   const fallback = (
-    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+    <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
       <div className="flex items-start">
-        <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
+        <AlertCircle className="w-5 h-5 text-destructive mt-0.5 mr-3 flex-shrink-0" />
         <div>
-          <h3 className="text-sm font-semibold text-red-900">
+          <h3 className="text-sm font-semibold text-destructive">
             Error loading {featureName}
           </h3>
-          <p className="mt-1 text-sm text-red-700">
+          <p className="mt-1 text-sm text-destructive/80">
             This feature is temporarily unavailable. Please try refreshing the page.
           </p>
           <button
             onClick={() => window.location.reload()}
-            className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+            className="mt-2 text-sm text-destructive hover:text-destructive/80 underline"
           >
             Refresh Page
           </button>

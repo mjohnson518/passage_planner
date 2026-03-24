@@ -19,7 +19,7 @@ const SyntaxHighlighter: any = dynamic(
   () => import('react-syntax-highlighter/dist/esm/prism').then((m: any) => ({ default: m.Prism })),
   {
     ssr: false,
-    loading: () => <pre className="bg-zinc-900 rounded-lg p-4 text-sm text-zinc-300"><code>Loading...</code></pre>
+    loading: () => <pre className="bg-muted rounded-lg p-4 text-sm text-muted-foreground"><code>Loading...</code></pre>
   }
 )
 
@@ -483,7 +483,7 @@ export default function APIDocsPage() {
                                 </code>
                                 <span className="text-muted-foreground">
                                   {param.type}
-                                  {param.required && <span className="text-red-500 ml-1">*</span>}
+                                  {param.required && <span className="text-destructive ml-1">*</span>}
                                 </span>
                                 <span className="text-muted-foreground">—</span>
                                 <span className="text-muted-foreground">{param.description}</span>
@@ -505,7 +505,7 @@ export default function APIDocsPage() {
                                 </code>
                                 <span className="text-muted-foreground">
                                   {field.type}
-                                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                                  {field.required && <span className="text-destructive ml-1">*</span>}
                                 </span>
                                 <span className="text-muted-foreground">—</span>
                                 <span className="text-muted-foreground">{field.description}</span>

@@ -69,29 +69,29 @@ export function AgentHealthDashboard() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'running':
-        return 'bg-green-500'
+        return 'bg-success'
       case 'starting':
       case 'stopping':
-        return 'bg-yellow-500'
+        return 'bg-warning'
       case 'stopped':
-        return 'bg-gray-500'
+        return 'bg-muted-foreground'
       case 'crashed':
-        return 'bg-red-500'
+        return 'bg-destructive'
       default:
-        return 'bg-gray-500'
+        return 'bg-muted-foreground'
     }
   }
 
   const getHealthColor = (status?: string) => {
     switch (status) {
       case 'healthy':
-        return 'text-green-600'
+        return 'text-success'
       case 'degraded':
-        return 'text-yellow-600'
+        return 'text-warning'
       case 'unhealthy':
-        return 'text-red-600'
+        return 'text-destructive'
       default:
-        return 'text-gray-600'
+        return 'text-muted-foreground'
     }
   }
 
@@ -194,7 +194,7 @@ export function AgentHealthDashboard() {
 
               {/* Restart Count */}
               {agent.restartCount > 0 && (
-                <div className="flex items-center gap-2 text-sm text-yellow-600">
+                <div className="flex items-center gap-2 text-sm text-warning">
                   <AlertCircle className="h-4 w-4" />
                   Restarted {agent.restartCount} time{agent.restartCount > 1 ? 's' : ''}
                 </div>

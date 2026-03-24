@@ -354,8 +354,8 @@ export default function PassageDetailPage() {
             <CardContent>
               <div className="space-y-4">
                 {/* Departure */}
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-950/30">
-                  <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-sm">
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-success/10">
+                  <div className="w-8 h-8 rounded-full bg-success flex items-center justify-center text-white font-bold text-sm">
                     D
                   </div>
                   <div className="flex-1">
@@ -400,8 +400,8 @@ export default function PassageDetailPage() {
                 ))}
 
                 {/* Destination */}
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30">
-                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5">
+                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
                     A
                   </div>
                   <div className="flex-1">
@@ -452,7 +452,7 @@ export default function PassageDetailPage() {
 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="flex items-center gap-2">
-                          <Wind className="h-4 w-4 text-blue-500" />
+                          <Wind className="h-4 w-4 text-primary" />
                           <div>
                             <p className="text-sm font-medium">Wind</p>
                             <p className="text-sm text-muted-foreground">
@@ -463,7 +463,7 @@ export default function PassageDetailPage() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <Waves className="h-4 w-4 text-cyan-500" />
+                          <Waves className="h-4 w-4 text-secondary-foreground" />
                           <div>
                             <p className="text-sm font-medium">Waves</p>
                             <p className="text-sm text-muted-foreground">
@@ -489,17 +489,17 @@ export default function PassageDetailPage() {
 
                       {/* Wind warning for safety */}
                       {segment.wind.speed > 20 && (
-                        <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                          <span className="text-sm text-yellow-700 dark:text-yellow-300">
+                        <div className="mt-3 p-2 bg-warning/5 border border-warning/20 rounded flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-warning" />
+                          <span className="text-sm text-warning">
                             Strong winds expected - consider timing or alternate route
                           </span>
                         </div>
                       )}
                       {segment.waves.height > 2 && (
-                        <div className="mt-3 p-2 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-orange-600" />
-                          <span className="text-sm text-orange-700 dark:text-orange-300">
+                        <div className="mt-3 p-2 bg-destructive/5 border border-destructive/20 rounded flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-destructive" />
+                          <span className="text-sm text-destructive">
                             Significant wave height - may affect comfort and safety
                           </span>
                         </div>
@@ -550,18 +550,18 @@ export default function PassageDetailPage() {
                               key={index}
                               className={`p-3 rounded-lg border flex items-center justify-between ${
                                 tide.type === 'high'
-                                  ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800'
-                                  : 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800'
+                                  ? 'bg-primary/5 border-primary/20'
+                                  : 'bg-muted/50 border-border'
                               }`}
                             >
                               <div className="flex items-center gap-3">
                                 <div className={`p-2 rounded-full ${
-                                  tide.type === 'high' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-slate-100 dark:bg-slate-800'
+                                  tide.type === 'high' ? 'bg-primary/10' : 'bg-muted'
                                 }`}>
                                   {tide.type === 'high' ? (
-                                    <Waves className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                    <Waves className="h-4 w-4 text-primary" />
                                   ) : (
-                                    <Anchor className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                                    <Anchor className="h-4 w-4 text-muted-foreground" />
                                   )}
                                 </div>
                                 <div>
@@ -587,11 +587,11 @@ export default function PassageDetailPage() {
 
                   {/* Tidal current warning */}
                   {passage.tides.some((t: any) => t.current && t.current.speed > 1.5) && (
-                    <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-2">
-                      <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                    <div className="p-3 bg-warning/5 border border-warning/20 rounded-lg flex items-start gap-2">
+                      <AlertTriangle className="h-5 w-5 text-warning mt-0.5" />
                       <div>
-                        <p className="font-medium text-amber-800 dark:text-amber-200">Strong Tidal Currents</p>
-                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                        <p className="font-medium text-warning">Strong Tidal Currents</p>
+                        <p className="text-sm text-warning/80">
                           Some locations have currents exceeding 1.5 knots. Plan your departure time to use favorable currents and avoid opposing strong flows.
                         </p>
                       </div>
@@ -638,7 +638,7 @@ export default function PassageDetailPage() {
                     <div className="space-y-2">
                       {passage.safety.navigationWarnings.map((warning: any, index: number) => (
                         <div key={index} className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />
+                          <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
                           <p className="text-sm">{warning}</p>
                         </div>
                       ))}

@@ -224,10 +224,11 @@ export default function PassagesPage() {
   if (!user) return null
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <div className="flex items-center justify-between">
+    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6 relative">
+      <div className="absolute inset-0 chart-grid opacity-30 pointer-events-none" />
+      <div className="relative flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Passages</h2>
+          <h2 className="text-3xl font-bold tracking-tight font-display text-gradient">Passages</h2>
           <p className="text-muted-foreground">
             Manage your sailing routes and passage plans
           </p>
@@ -326,7 +327,7 @@ export default function PassagesPage() {
       ) : (
         <div className="space-y-4">
           {filteredPassages.map((passage) => (
-            <Card key={passage.id} className="hover:shadow-lg transition-shadow">
+            <Card key={passage.id} className="card-hover">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4 flex-1">

@@ -107,7 +107,7 @@ export default function PDFPreview({ passage, onClose }: PDFPreviewProps) {
           </div>
         ) : pdfUrl ? (
           <div className="space-y-4">
-            <div className="bg-gray-100 rounded-lg p-4 h-96 overflow-auto">
+            <div className="bg-muted rounded-lg p-4 h-96 overflow-auto">
               <embed
                 src={pdfUrl}
                 type="application/pdf"

@@ -120,7 +120,7 @@ export function DemoPassage() {
                 <div className="flex items-center gap-2 text-sm">
                   <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium">Conditions:</span>
-                  <span className="text-green-600">Good for sailing</span>
+                  <span className="text-success">Good for sailing</span>
                 </div>
               </div>
             </div>
@@ -161,7 +161,7 @@ export function DemoPassage() {
               </TabsContent>
               
               <TabsContent value="weather" className="space-y-3">
-                <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4">
+                <div className="bg-primary/5 rounded-lg p-4">
                   <h4 className="font-medium mb-2">{demoRoute.weather.summary}</h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
@@ -182,7 +182,7 @@ export function DemoPassage() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Conditions</p>
-                      <p className="font-medium text-green-600">Favorable</p>
+                      <p className="font-medium text-success">Favorable</p>
                     </div>
                   </div>
                 </div>
@@ -218,7 +218,7 @@ export function DemoPassage() {
               <TabsContent value="safety" className="space-y-3">
                 <div className="space-y-2">
                   <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5" />
+                    <div className="w-2 h-2 rounded-full bg-success mt-1.5" />
                     <div>
                       <p className="font-medium text-sm">VHF Coverage</p>
                       <p className="text-sm text-muted-foreground">
@@ -227,7 +227,7 @@ export function DemoPassage() {
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5" />
+                    <div className="w-2 h-2 rounded-full bg-success mt-1.5" />
                     <div>
                       <p className="font-medium text-sm">Safe Harbors</p>
                       <p className="text-sm text-muted-foreground">
@@ -236,7 +236,7 @@ export function DemoPassage() {
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
-                    <div className="w-2 h-2 rounded-full bg-yellow-500 mt-1.5" />
+                    <div className="w-2 h-2 rounded-full bg-warning mt-1.5" />
                     <div>
                       <p className="font-medium text-sm">Navigation Warning</p>
                       <p className="text-sm text-muted-foreground">
@@ -246,7 +246,7 @@ export function DemoPassage() {
                   </div>
                 </div>
                 
-                <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 mt-4">
+                <div className="bg-warning/5 border border-warning/20 rounded-lg p-3 mt-4">
                   <p className="text-sm font-medium">Emergency Contacts</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     USCG Sector Boston: VHF 16 or (617) 223-5757

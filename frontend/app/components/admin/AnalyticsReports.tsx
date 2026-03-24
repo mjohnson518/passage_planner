@@ -10,6 +10,7 @@ import { Badge } from '../ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts'
 import { Download, FileText, TrendingUp, TrendingDown, MapPin, Anchor, Wind, Calendar } from 'lucide-react'
+import { useChartColors } from '@/lib/chart-colors'
 import { toast } from 'sonner'
 import { format, addDays } from 'date-fns'
 
@@ -59,6 +60,7 @@ interface AnalyticsData {
 }
 
 export function AnalyticsReports() {
+  const chartColors = useChartColors()
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -104,13 +106,13 @@ export function AnalyticsReports() {
     }
   }
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d']
+  const COLORS = [chartColors.primary, chartColors.secondary, chartColors.tertiary, chartColors.danger, chartColors.quaternary, chartColors.success]
 
   if (loading || !data) {
     return (
       <div className="space-y-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-64 bg-gray-100 rounded animate-pulse" />
+          <div key={i} className="h-64 bg-muted rounded animate-pulse" />
         ))}
       </div>
     )
@@ -218,7 +220,7 @@ export function AnalyticsReports() {
                 <Line
                   type="monotone"
                   dataKey="count"
-                  stroke="#8884d8"
+                  stroke={chartColors.primary}
                   strokeWidth={2}
                   dot={{ r: 4 }}
                 />
@@ -242,7 +244,7 @@ export function AnalyticsReports() {
                   labelLine={false}
                   label={({ condition, percentage }) => `${condition}: ${percentage}%`}
                   outerRadius={80}
-                  fill="#8884d8"
+                  fill={chartColors.primary}
                   dataKey="count"
                 >
                   {data.weatherConditions.map((entry, index) => (
@@ -283,11 +285,11 @@ export function AnalyticsReports() {
                   <TableCell>{(route.avgDuration / 24).toFixed(1)} days</TableCell>
                   <TableCell>
                     {idx < 3 ? (
-                      <TrendingUp className="h-4 w-4 text-green-500" />
+                      <TrendingUp className="h-4 w-4 text-success" />
                     ) : idx > 6 ? (
-                      <TrendingDown className="h-4 w-4 text-red-500" />
+                      <TrendingDown className="h-4 w-4 text-destructive" />
                     ) : (
-                      <Wind className="h-4 w-4 text-gray-500" />
+                      <Wind className="h-4 w-4 text-muted-foreground" />
                     )}
                   </TableCell>
                 </TableRow>
@@ -310,14 +312,14 @@ export function AnalyticsReports() {
                 <XAxis dataKey="feature" angle={-45} textAnchor="end" height={100} />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="usage" fill="#8884d8">
+                <Bar dataKey="usage" fill={chartColors.primary}>
                   {data.featureUsage.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
+                    <Cell
+                      key={`cell-${index}`}
                       fill={
-                        entry.tier === 'enterprise' ? '#FF8042' :
-                        entry.tier === 'pro' ? '#00C49F' : '#0088FE'
-                      } 
+                        entry.tier === 'enterprise' ? chartColors.danger :
+                        entry.tier === 'pro' ? chartColors.secondary : chartColors.primary
+                      }
                     />
                   ))}
                 </Bar>
@@ -377,7 +379,7 @@ export function AnalyticsReports() {
               <PolarGrid />
               <PolarAngleAxis dataKey="metric" />
               <PolarRadiusAxis angle={90} domain={[0, 100]} />
-              <Radar name="Performance" dataKey="value" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
+              <Radar name="Performance" dataKey="value" stroke={chartColors.primary} fill={chartColors.primary} fillOpacity={0.4} />
             </RadarChart>
           </ResponsiveContainer>
         </CardContent>

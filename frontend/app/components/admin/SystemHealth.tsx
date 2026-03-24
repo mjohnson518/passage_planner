@@ -6,6 +6,7 @@ import { Badge } from '../ui/badge'
 import { Progress } from '../ui/progress'
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { useChartColors } from "@/lib/chart-colors"
 import { Activity, Database, HardDrive, Cpu, MemoryStick, Network, AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
 
 interface SystemMetrics {
@@ -58,6 +59,7 @@ interface SystemMetrics {
 }
 
 export function SystemHealth() {
+  const chartColors = useChartColors()
   const [loading, setLoading] = useState(true)
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
@@ -87,24 +89,24 @@ export function SystemHealth() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'healthy':
-        return 'text-green-500'
+        return 'text-success'
       case 'degraded':
-        return 'text-yellow-500'
+        return 'text-warning'
       case 'down':
-        return 'text-red-500'
+        return 'text-destructive'
       default:
-        return 'text-gray-500'
+        return 'text-muted-foreground'
     }
   }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'healthy':
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />
+        return <CheckCircle2 className="h-4 w-4 text-success" />
       case 'degraded':
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />
+        return <AlertCircle className="h-4 w-4 text-warning" />
       case 'down':
-        return <XCircle className="h-4 w-4 text-red-500" />
+        return <XCircle className="h-4 w-4 text-destructive" />
       default:
         return null
     }
@@ -134,7 +136,7 @@ export function SystemHealth() {
     return (
       <div className="space-y-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-32 bg-gray-100 rounded animate-pulse" />
+          <div key={i} className="h-32 bg-muted rounded animate-pulse" />
         ))}
       </div>
     )
@@ -231,14 +233,14 @@ export function SystemHealth() {
                 <Line
                   type="monotone"
                   dataKey="cpu"
-                  stroke="#8884d8"
+                  stroke={chartColors.primary}
                   strokeWidth={2}
                   name="CPU %"
                 />
                 <Line
                   type="monotone"
                   dataKey="memory"
-                  stroke="#82ca9d"
+                  stroke={chartColors.secondary}
                   strokeWidth={2}
                   name="Memory %"
                 />
@@ -265,16 +267,16 @@ export function SystemHealth() {
                   yAxisId="left"
                   type="monotone"
                   dataKey="requests"
-                  stroke="#8884d8"
-                  fill="#8884d8"
-                  fillOpacity={0.6}
+                  stroke={chartColors.primary}
+                  fill={chartColors.primary}
+                  fillOpacity={0.3}
                   name="Requests"
                 />
                 <Line
                   yAxisId="right"
                   type="monotone"
                   dataKey="responseTime"
-                  stroke="#ff7300"
+                  stroke={chartColors.tertiary}
                   strokeWidth={2}
                   name="Response Time (ms)"
                 />

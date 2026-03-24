@@ -96,6 +96,23 @@ const config: Config = {
         seafoam: 'hsl(var(--seafoam))',
         night: 'hsl(var(--night))',
         'amber-sail': 'hsl(var(--amber-sail))',
+        // Chart data visualization
+        chart: {
+          1: 'hsl(var(--chart-1))',
+          2: 'hsl(var(--chart-2))',
+          3: 'hsl(var(--chart-3))',
+          4: 'hsl(var(--chart-4))',
+          5: 'hsl(var(--chart-5))',
+        },
+        // Safety status
+        status: {
+          go: 'hsl(var(--status-go))',
+          'go-bg': 'hsl(var(--status-go-bg))',
+          caution: 'hsl(var(--status-caution))',
+          'caution-bg': 'hsl(var(--status-caution-bg))',
+          nogo: 'hsl(var(--status-nogo))',
+          'nogo-bg': 'hsl(var(--status-nogo-bg))',
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
