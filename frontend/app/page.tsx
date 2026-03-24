@@ -1,9 +1,9 @@
-import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Button } from './components/ui/button'
 import { FeatureCard } from './components/marketing/FeatureCard'
 import { PricingSection } from './components/marketing/PricingSection'
 import { Header } from './components/layout/Header'
+import { ParticleGrid } from './components/marketing/ParticleGrid'
 import {
   Compass,
   Cloud,
@@ -15,11 +15,6 @@ import {
   Navigation,
   CheckCircle
 } from 'lucide-react'
-
-const ParticleGrid = dynamic(
-  () => import('./components/marketing/ParticleGrid').then(m => m.ParticleGrid),
-  { ssr: false }
-)
 
 // Decorative compass SVG component
 function CompassRose({ className }: { className?: string }) {
