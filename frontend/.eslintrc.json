@@ -1,0 +1,16 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "JSXAttribute[name.name='className'] Literal[value=/\\b(bg|text|border|ring|fill|stroke)-(red|blue|green|gray|slate|zinc|amber|yellow|sky|indigo|purple|pink|rose|orange|teal|cyan|lime|emerald|violet|fuchsia)-[0-9]/]",
+        "message": "Use semantic design tokens (e.g. bg-primary, text-destructive, bg-success) instead of raw Tailwind color classes. Night Watch marketing classes (bg-white/[0.08], text-white/60) are exempt."
+      },
+      {
+        "selector": "JSXAttribute[name.name='className'] TemplateLiteral > TemplateElement[value.raw=/\\b(bg|text|border|ring)-(red|blue|green|gray|slate|zinc|amber|yellow)-[0-9]/]",
+        "message": "Use semantic design tokens instead of raw Tailwind color classes."
+      }
+    ]
+  }
+}

@@ -188,12 +188,12 @@ export default function HomePage() {
                     <span
                       className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
                       style={{
-                        background: 'rgba(239,68,68,0.12)',
-                        color: '#EF4444',
-                        border: '1px solid rgba(239,68,68,0.3)',
+                        background: 'hsl(var(--destructive) / 0.12)',
+                        color: 'hsl(var(--destructive))',
+                        border: '1px solid hsl(var(--destructive) / 0.3)',
                       }}
                     >
-                      <span className="w-2 h-2 rounded-full bg-red-500 pulse-live flex-shrink-0" />
+                      <span className="w-2 h-2 rounded-full bg-destructive pulse-live flex-shrink-0" />
                       LIVE
                     </span>
                   </div>
