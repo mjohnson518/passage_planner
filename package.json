@@ -22,7 +22,13 @@
     "docker:up": "docker-compose -f tests/integration/docker-compose.yml up -d",
     "docker:down": "docker-compose -f tests/integration/docker-compose.yml down",
     "setup": "npm install && npm run setup:env && npm run docker:up",
-    "setup:env": "node scripts/setup/env-setup.js"
+    "setup:env": "node scripts/setup/env-setup.js",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,md,yml,yaml}": [
+      "prettier --write --ignore-unknown"
+    ]
   },
   "devDependencies": {
     "@jest/types": "^29.6.3",
@@ -37,7 +43,9 @@
     "@types/node": "^20.19.8",
     "concurrently": "^8.2.2",
     "eslint": "^8.57.1",
+    "husky": "^9.1.7",
     "jest": "^29.7.0",
+    "lint-staged": "^16.4.0",
     "nodemon": "^3.1.10",
     "prettier": "^3.6.2",
     "ts-jest": "^29.4.0",
