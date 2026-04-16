@@ -40,7 +40,7 @@ jest.mock('@passage-planner/shared', () => {
   };
 });
 
-import { WeatherAgent } from '../index';
+import { WeatherAgent, assertWeatherFresh, StaleWeatherError, MAX_WEATHER_AGE_MS } from '../index';
 
 // ── Shared test data ──────────────────────────────────────────────────────
 
@@ -274,6 +274,45 @@ describe('WeatherAgent (production index.ts)', () => {
       const ageMinutes = (Date.now() - issuedAt.getTime()) / 60_000;
       // Mock returns a fresh Date(), so age should be < 1 minute
       expect(ageMinutes).toBeLessThan(60);
+    });
+
+    // SAFETY CRITICAL: CLAUDE.md mandates rejecting weather data >1h old.
+    // These tests pin the rule so a silent regression fails CI.
+    describe('assertWeatherFresh (>1h = reject)', () => {
+      it('accepts data issued just now', () => {
+        expect(() => assertWeatherFresh(new Date())).not.toThrow();
+      });
+
+      it('accepts data issued 59 minutes ago', () => {
+        const issued = new Date(Date.now() - 59 * 60_000);
+        expect(() => assertWeatherFresh(issued)).not.toThrow();
+      });
+
+      it('rejects data exactly 61 minutes old', () => {
+        const issued = new Date(Date.now() - 61 * 60_000);
+        expect(() => assertWeatherFresh(issued)).toThrow(StaleWeatherError);
+      });
+
+      it('rejects data 24 hours old with a clear message', () => {
+        const issued = new Date(Date.now() - 24 * 60 * 60_000);
+        let caught: unknown;
+        try {
+          assertWeatherFresh(issued);
+        } catch (err) {
+          caught = err;
+        }
+        expect(caught).toBeInstanceOf(StaleWeatherError);
+        expect((caught as StaleWeatherError).ageMinutes).toBeGreaterThanOrEqual(60);
+        expect((caught as Error).message).toMatch(/stale/i);
+      });
+
+      it('rejects an invalid date (defensive)', () => {
+        expect(() => assertWeatherFresh('not-a-date')).toThrow(StaleWeatherError);
+      });
+
+      it('pins the max age at 1 hour — changes require a deliberate CLAUDE.md update', () => {
+        expect(MAX_WEATHER_AGE_MS).toBe(60 * 60 * 1000);
+      });
     });
   });
 });

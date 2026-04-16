@@ -1,10 +1,40 @@
 import { BaseAgent, NOAATidalService, CacheManager } from '@passage-planner/shared';
 import { Logger } from 'pino';
 import pino from 'pino';
-import { 
+import {
   CallToolRequestSchema,
-  ListToolsRequestSchema 
+  ListToolsRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
+
+/**
+ * SAFETY-CRITICAL: Hard ceiling on how old cached tidal data may be before we
+ * refuse to use it. CLAUDE.md mandates rejecting tides >1 day old — predictions
+ * can be superseded when NOAA recalibrates a station, and a tidal error that
+ * says "high water 14:00" when it's actually 12:30 can ground a boat.
+ */
+export const MAX_TIDAL_AGE_MS = 24 * 60 * 60 * 1000;
+
+export class StaleTidalError extends Error {
+  constructor(public readonly ageHours: number, public readonly fetchedAt: Date) {
+    super(
+      `Tidal data is ${ageHours.toFixed(1)} hours old (max 24). Refusing to return — ` +
+      `stale predictions cannot safely drive depth or window decisions. Refresh from NOAA.`
+    );
+    this.name = 'StaleTidalError';
+  }
+}
+
+export function assertTidalFresh(
+  fetchedAt: Date | string | number,
+  now: number = Date.now()
+): void {
+  const fetched = fetchedAt instanceof Date ? fetchedAt : new Date(fetchedAt);
+  const ageMs = now - fetched.getTime();
+  if (Number.isNaN(ageMs) || ageMs > MAX_TIDAL_AGE_MS) {
+    const ageHours = Number.isNaN(ageMs) ? Infinity : ageMs / (60 * 60 * 1000);
+    throw new StaleTidalError(ageHours, fetched);
+  }
+}
 
 export class TidalAgent extends BaseAgent {
   private tidalService: NOAATidalService;

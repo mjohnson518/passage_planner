@@ -238,10 +238,27 @@ export class WeatherAggregator {
       confidence = 'low';
     }
 
+    // SAFETY CRITICAL (CLAUDE.md): when forecasts disagree beyond tolerance, the
+    // representative .value MUST be the pessimistic case (max wind/gust/wave,
+    // min visibility). Averaging disagreeing forecasts can lull mariners into
+    // planning against a benign middle that neither source actually predicts.
+    // Consensus still exposes min/max/sources for UI, but the decision value
+    // defaults to worst-case on disagreement.
+    const representativeWindSpeed = overallConsensus ? avgWindSpeed : Math.max(...windSpeeds);
+    const representativeWindGust = overallConsensus
+      ? avgWindGust
+      : (windGusts.length > 0 ? Math.max(...windGusts) : avgWindGust);
+    const representativeWaveHeight = avgWaveHeight !== undefined
+      ? (waveHeightConsensus ? avgWaveHeight : Math.max(...waveHeights))
+      : undefined;
+    const representativeVisibility = avgVisibility !== undefined
+      ? (overallConsensus ? avgVisibility : Math.min(...visibilities))
+      : undefined;
+
     return {
       time: forecasts[0].data.time,
       windSpeed: {
-        value: avgWindSpeed,
+        value: representativeWindSpeed,
         min: Math.min(...windSpeeds),
         max: Math.max(...windSpeeds),
         sources: forecasts.map(f => ({ name: f.source, value: f.data.windSpeed })),
@@ -251,17 +268,17 @@ export class WeatherAggregator {
         sources: forecasts.map(f => ({ name: f.source, value: f.data.windDirection })),
       },
       windGust: {
-        value: avgWindGust,
+        value: representativeWindGust,
         min: Math.min(...windGusts),
         max: Math.max(...windGusts),
       },
-      waveHeight: avgWaveHeight ? {
-        value: avgWaveHeight,
+      waveHeight: representativeWaveHeight !== undefined ? {
+        value: representativeWaveHeight,
         min: Math.min(...waveHeights),
         max: Math.max(...waveHeights),
       } : undefined,
-      visibility: avgVisibility ? {
-        value: avgVisibility,
+      visibility: representativeVisibility !== undefined ? {
+        value: representativeVisibility,
         min: Math.min(...visibilities),
         max: Math.max(...visibilities),
       } : undefined,

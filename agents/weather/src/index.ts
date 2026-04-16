@@ -7,6 +7,36 @@ import {
   ListToolsRequestSchema 
 } from '@modelcontextprotocol/sdk/types.js';
 
+/**
+ * SAFETY-CRITICAL: Hard ceiling on how old weather data may be before we
+ * refuse to let it drive a navigation decision. CLAUDE.md mandates rejecting
+ * weather >1h old; we enforce it here rather than only warning, because a
+ * silent warning can be ignored but a thrown error forces the caller to refetch.
+ */
+export const MAX_WEATHER_AGE_MS = 60 * 60 * 1000;
+
+export class StaleWeatherError extends Error {
+  constructor(public readonly ageMinutes: number, public readonly issuedAt: Date) {
+    super(
+      `Weather data is ${ageMinutes} minutes old (max 60). Refusing to return — ` +
+      `stale data cannot safely drive passage decisions. Refresh the forecast.`
+    );
+    this.name = 'StaleWeatherError';
+  }
+}
+
+export function assertWeatherFresh(
+  issuedAt: Date | string | number,
+  now: number = Date.now()
+): void {
+  const issued = issuedAt instanceof Date ? issuedAt : new Date(issuedAt);
+  const ageMs = now - issued.getTime();
+  if (Number.isNaN(ageMs) || ageMs > MAX_WEATHER_AGE_MS) {
+    const ageMinutes = Number.isNaN(ageMs) ? Infinity : Math.round(ageMs / 60_000);
+    throw new StaleWeatherError(ageMinutes, issued);
+  }
+}
+
 export class WeatherAgent extends BaseAgent {
   private weatherService: NOAAWeatherService;
   private buoyService: NDBCBuoyService;
@@ -202,11 +232,13 @@ export class WeatherAgent extends BaseAgent {
       // Validate coordinates
       ValidationError.validateCoordinates(latitude, longitude);
       const forecast = await this.weatherService.getMarineForecast(
-        latitude, 
-        longitude, 
+        latitude,
+        longitude,
         days
       );
-      
+
+      assertWeatherFresh(forecast.issuedAt);
+
       return {
         content: [
           {
