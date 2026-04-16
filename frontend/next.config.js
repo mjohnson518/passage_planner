@@ -45,6 +45,30 @@ const nextConfig = {
     ],
   },
 
+  async rewrites() {
+    const orchestratorUrl =
+      process.env.NEXT_PUBLIC_ORCHESTRATOR_URL ||
+      process.env.ORCHESTRATOR_URL ||
+      'http://localhost:8080'
+
+    const proxied = [
+      'subscription',
+      'founding-member',
+      'fleet',
+      'usage',
+      'user',
+      'users',
+      'admin',
+      'agents',
+      'push',
+    ]
+
+    return proxied.map((prefix) => ({
+      source: `/api/${prefix}/:path*`,
+      destination: `${orchestratorUrl}/api/${prefix}/:path*`,
+    }))
+  },
+
   webpack: (config, { isServer }) => {
     config.resolve.fallback = {
       ...config.resolve.fallback,

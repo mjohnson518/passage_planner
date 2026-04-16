@@ -27,17 +27,19 @@ const SharePassageDialog = dynamic(
   () => import('../components/fleet/SharePassageDialog').then(m => ({ default: m.SharePassageDialog })),
   { ssr: false }
 )
-import { 
-  Anchor, 
-  Ship, 
-  Users, 
-  BarChart3, 
+import {
+  Anchor,
+  Ship,
+  Users,
+  BarChart3,
   Plus,
   Settings,
   Share2,
   AlertCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
+import RequireAuth from '../components/auth/RequireAuth'
+import { features } from '../lib/features'
 
 // Fleet types (TODO: Import from shared package when available)
 interface Fleet {
@@ -65,7 +67,40 @@ interface FleetVessel {
   added_at: string
 }
 
-export default function FleetPage() {
+function FleetPageInner() {
+  const router = useRouter()
+
+  if (!features.fleet) {
+    return (
+      <div className="container mx-auto px-4 py-16">
+        <div className="max-w-2xl mx-auto">
+          <Card>
+            <CardHeader className="text-center">
+              <Anchor className="h-16 w-16 text-primary mx-auto mb-4" />
+              <CardTitle className="text-2xl">Fleet Management Coming Soon</CardTitle>
+              <CardDescription>
+                Multi-vessel coordination and crew management are on the way.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-muted-foreground mb-6">
+                We&apos;re building the fleet experience end-to-end before we ship it.
+                In the meantime, you can plan passages for any individual vessel from the planner.
+              </p>
+              <Button size="lg" onClick={() => router.push('/planner')}>
+                Go to Planner
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  return <FleetPageContent />
+}
+
+function FleetPageContent() {
   const { user } = useAuth()
   const router = useRouter()
   const [fleet, setFleet] = useState<Fleet | null>(null)
@@ -409,4 +444,12 @@ export default function FleetPage() {
       />
     </div>
   )
-} 
+}
+
+export default function FleetPage() {
+  return (
+    <RequireAuth>
+      <FleetPageInner />
+    </RequireAuth>
+  )
+}

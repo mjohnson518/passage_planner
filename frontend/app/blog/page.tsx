@@ -7,6 +7,7 @@ import { Anchor, PenLine, ArrowRight } from 'lucide-react'
 export const metadata: Metadata = {
   title: 'Blog - Helmwise',
   description: 'Helmwise blog is coming soon. Maritime safety insights, passage planning tips, and platform updates.',
+  robots: { index: false, follow: true },
 }
 
 export default function BlogPage() {

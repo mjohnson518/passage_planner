@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useAnalytics } from '../hooks/useAnalytics'
+import { features } from '../lib/features'
 
 interface WeatherLayer {
   id: string
@@ -225,10 +226,12 @@ export default function WeatherPage() {
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button onClick={handleExport}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
+          {features.weatherExport && (
+            <Button onClick={handleExport}>
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+          )}
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import { Anchor, History, ArrowRight } from 'lucide-react'
 export const metadata: Metadata = {
   title: 'Changelog - Helmwise',
   description: 'Helmwise changelog is coming soon. Stay up to date with the latest features, improvements, and fixes to our passage planning platform.',
+  robots: { index: false, follow: true },
 }
 
 export default function ChangelogPage() {

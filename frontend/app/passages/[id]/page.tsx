@@ -1,8 +1,12 @@
 export const runtime = 'edge'
 
 import PassageDetailClient from './PassageDetailClient'
+import RequireAuth from '../../components/auth/RequireAuth'
 
 export default function PassageDetailPage() {
-  return <PassageDetailClient />
+  return (
+    <RequireAuth>
+      <PassageDetailClient />
+    </RequireAuth>
+  )
 }
-

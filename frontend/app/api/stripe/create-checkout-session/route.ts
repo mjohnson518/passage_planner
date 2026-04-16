@@ -72,9 +72,9 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json()
-    
+
     return NextResponse.json({
-      url: data.sessionUrl,
+      sessionUrl: data.sessionUrl,
       success: true
     })
   } catch (error) {

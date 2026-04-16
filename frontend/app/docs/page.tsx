@@ -7,6 +7,7 @@ import { Anchor, BookOpen, ArrowRight } from 'lucide-react'
 export const metadata: Metadata = {
   title: 'Documentation - Helmwise',
   description: 'Helmwise documentation is coming soon. Learn how to use AI-powered passage planning for safer maritime navigation.',
+  robots: { index: false, follow: true },
 }
 
 export default function DocsPage() {

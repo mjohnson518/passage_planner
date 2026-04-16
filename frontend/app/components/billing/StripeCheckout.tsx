@@ -50,14 +50,13 @@ export default function StripeCheckout({
         throw new Error(data.error || 'Failed to create checkout session')
       }
 
-      const { url } = await response.json()
+      const { sessionUrl } = await response.json()
 
-      if (!url) {
+      if (!sessionUrl) {
         throw new Error('No checkout URL received')
       }
 
-      // Redirect to Stripe checkout
-      window.location.href = url
+      window.location.href = sessionUrl
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred'

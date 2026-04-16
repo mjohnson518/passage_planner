@@ -28,6 +28,7 @@ import { planPassage, PassagePlanningRequest, PassagePlanningResponse } from '..
 import { analytics } from '@/lib/analytics'
 import LocationAutocomplete from '../components/location/LocationAutocomplete'
 import PortSelector from '../components/location/PortSelector'
+import RequireAuth from '../components/auth/RequireAuth'
 
 // Dynamic import for map component to avoid SSR issues
 const RouteMap = dynamic(
@@ -45,7 +46,7 @@ interface Waypoint {
   lng?: number
 }
 
-export default function PlannerPage() {
+function PlannerPageInner() {
   const { user } = useAuth()
   const { connected, agentStatuses, subscribe, unsubscribe } = useSocket()
   const router = useRouter()
@@ -1030,4 +1031,12 @@ export default function PlannerPage() {
       </div>
     </div>
   )
-} 
+}
+
+export default function PlannerPage() {
+  return (
+    <RequireAuth>
+      <PlannerPageInner />
+    </RequireAuth>
+  )
+}

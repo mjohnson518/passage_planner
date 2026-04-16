@@ -29,6 +29,8 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { useAnalytics } from '../hooks/useAnalytics'
 import { deduplicatedFetch } from '../lib/performance'
+import RequireAuth from '../components/auth/RequireAuth'
+import { features } from '../lib/features'
 
 interface Passage {
   id: string
@@ -48,7 +50,7 @@ interface Passage {
 type SortOption = 'date' | 'name' | 'distance' | 'status'
 type FilterStatus = 'all' | 'draft' | 'planned' | 'completed'
 
-export default function PassagesPage() {
+function PassagesPageInner() {
   const { user, session } = useAuth()
   const router = useRouter()
   const { track, trackFeature } = useAnalytics()
@@ -281,7 +283,7 @@ export default function PassagesPage() {
               </SelectContent>
             </Select>
 
-            {selectedPassages.size > 0 && (
+            {features.bulkExport && selectedPassages.size > 0 && (
               <Button variant="outline" onClick={handleBulkExport}>
                 <Download className="mr-2 h-4 w-4" />
                 Export ({selectedPassages.size})
@@ -395,14 +397,16 @@ export default function PassagesPage() {
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDeletePassage(passage.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {features.passageDelete && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeletePassage(passage.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -443,5 +447,13 @@ export default function PassagesPage() {
         </Card>
       )}
     </div>
+  )
+}
+
+export default function PassagesPage() {
+  return (
+    <RequireAuth>
+      <PassagesPageInner />
+    </RequireAuth>
   )
 }
