@@ -100,14 +100,28 @@ export default function PricingPage() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create checkout session')
+
+        if (response.status === 409 && errorData.action === 'open_customer_portal') {
+          const portalRes = await fetch('/api/stripe/customer-portal', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ returnUrl: `${window.location.origin}/profile` }),
+          })
+          if (portalRes.ok) {
+            const { url } = await portalRes.json()
+            window.location.href = url
+            return
+          }
+        }
+
+        throw new Error(errorData.message || errorData.error || 'Failed to create checkout session')
       }
 
       const { sessionUrl } = await response.json()
       if (!sessionUrl) throw new Error('No checkout URL received')
       window.location.href = sessionUrl
     } catch (error) {
-      console.error('Subscription error:', error)
       alert(error instanceof Error ? error.message : 'Failed to start checkout process')
     } finally {
       setLoading(null)

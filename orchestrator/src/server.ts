@@ -987,6 +987,24 @@ export class HttpServer {
           const { tier, period = 'monthly', founding = false } = checkoutParsed.data;
           const priceId = this.getPriceId(tier, period);
 
+          // Block duplicate subscriptions: if the user already has an active paid
+          // subscription, redirect them to the customer portal instead of creating
+          // a second Stripe checkout session (which would leave them billed twice).
+          const existing = await this.postgres.query(
+            `SELECT tier, status FROM subscriptions
+             WHERE user_id = $1 AND status IN ('active', 'trialing', 'past_due')
+             LIMIT 1`,
+            [req.user.id]
+          );
+          if (existing.rows[0] && existing.rows[0].tier !== 'free') {
+            return res.status(409).json({
+              error: 'Active subscription exists',
+              message: 'You already have an active subscription. Use the billing portal to change plans.',
+              currentTier: existing.rows[0].tier,
+              action: 'open_customer_portal',
+            });
+          }
+
           // Check founding member eligibility
           let foundingDiscount: string | undefined;
           if (

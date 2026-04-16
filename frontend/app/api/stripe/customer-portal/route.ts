@@ -4,16 +4,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 
 /**
- * Create Stripe Customer Portal session for managing subscriptions
- * 
- * TODO: Backend endpoint needs to be implemented at:
- * POST /api/subscription/customer-portal
- * 
- * This allows users to:
- * - Update payment methods
- * - Cancel subscriptions
- * - View billing history
- * - Download invoices
+ * Create Stripe Customer Portal session for managing subscriptions.
+ * Proxies to the orchestrator at POST /api/subscription/customer-portal,
+ * which looks up the user's stripe_customer_id and creates a billingPortal session.
+ *
+ * A 404 from the orchestrator means the user has no subscription row — treat as
+ * client-side error (no portal to open), not a server error.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -47,19 +43,17 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error('Orchestrator customer portal creation failed:', errorData)
-      
-      // If endpoint doesn't exist yet, return helpful message
+
       if (response.status === 404) {
         return NextResponse.json(
-          { 
-            error: 'Customer portal not yet implemented',
-            message: 'Please contact support to manage your subscription'
+          {
+            error: 'No active subscription',
+            message: 'You need an active subscription to access the billing portal. Start a subscription from the pricing page.'
           },
-          { status: 501 }
+          { status: 404 }
         )
       }
-      
+
       return NextResponse.json(
         { error: errorData.error || 'Failed to create customer portal session' },
         { status: response.status }
@@ -67,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json()
-    
+
     return NextResponse.json({
       url: data.url,
       success: true
