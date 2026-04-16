@@ -29,6 +29,8 @@ import { analytics } from '@/lib/analytics'
 import LocationAutocomplete from '../components/location/LocationAutocomplete'
 import PortSelector from '../components/location/PortSelector'
 import RequireAuth from '../components/auth/RequireAuth'
+import { features } from '../lib/features'
+import type { PassageExport } from '../types/shared'
 
 // Dynamic import for map component to avoid SSR issues
 const RouteMap = dynamic(
@@ -589,52 +591,66 @@ function PlannerPageInner() {
                   <Compass className="h-5 w-5" />
                   Route Visualization
                 </span>
-                <div className="flex gap-2">
-                  <Button
-                    data-testid="planner-export-gpx"
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      if (passagePlan) {
-                        const { passageToGPX } = await import('../lib/export/gpx')
-                        const gpx = passageToGPX({
-                          name: `${formData.departure} to ${formData.destination}`,
-                          waypoints: passagePlan.route.waypoints,
-                          departure: { name: formData.departure, latitude: formData.departureCoords.latitude, longitude: formData.departureCoords.longitude },
-                          destination: { name: formData.destination, latitude: formData.destinationCoords.latitude, longitude: formData.destinationCoords.longitude }
-                        })
-                        const blob = new Blob([gpx], { type: 'application/gpx+xml' })
-                        const url = URL.createObjectURL(blob)
-                        const a = document.createElement('a')
-                        a.href = url
-                        a.download = `${formData.departure}-${formData.destination}.gpx`
-                        a.click()
-                        toast.success('GPX file downloaded')
-                      }
-                    }}
-                  >
-                    📥 GPX
-                  </Button>
-                  <Button
-                    data-testid="planner-export-pdf"
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      if (passagePlan) {
-                        const { generatePassagePDF } = await import('../lib/export/pdf')
-                        generatePassagePDF({
-                          name: `${formData.departure} to ${formData.destination}`,
-                          route: passagePlan.route,
-                          weather: passagePlan.weather,
-                          safety: passagePlan.safety
-                        })
-                        toast.success('PDF export started')
-                      }
-                    }}
-                  >
-                    📄 PDF
-                  </Button>
-                </div>
+                {features.exportPassage && (
+                  <div className="flex gap-2">
+                    <Button
+                      data-testid="planner-export-gpx"
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        if (passagePlan) {
+                          const { passageToGPX } = await import('../lib/export/gpx')
+                          const gpx = passageToGPX({
+                            name: `${formData.departure} to ${formData.destination}`,
+                            waypoints: passagePlan.route.waypoints.map((w) => ({
+                              name: w.name ?? 'Waypoint',
+                              latitude: w.latitude,
+                              longitude: w.longitude,
+                              coordinates: { lat: w.latitude, lng: w.longitude },
+                            })),
+                            departure: {
+                              name: formData.departure,
+                              latitude: formData.departureCoords.latitude,
+                              longitude: formData.departureCoords.longitude,
+                              coordinates: { lat: formData.departureCoords.latitude, lng: formData.departureCoords.longitude },
+                            },
+                            destination: {
+                              name: formData.destination,
+                              latitude: formData.destinationCoords.latitude,
+                              longitude: formData.destinationCoords.longitude,
+                              coordinates: { lat: formData.destinationCoords.latitude, lng: formData.destinationCoords.longitude },
+                            },
+                          })
+                          const blob = new Blob([gpx], { type: 'application/gpx+xml' })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `${formData.departure}-${formData.destination}.gpx`
+                          a.click()
+                          toast.success('GPX file downloaded')
+                        }
+                      }}
+                    >
+                      📥 GPX
+                    </Button>
+                    <Button
+                      data-testid="planner-export-pdf"
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        if (passagePlan) {
+                          const { generatePassagePDF } = await import('../lib/export/pdf')
+                          generatePassagePDF({
+                            name: `${formData.departure} to ${formData.destination}`,
+                          } as PassageExport)
+                          toast.success('PDF export started')
+                        }
+                      }}
+                    >
+                      📄 PDF
+                    </Button>
+                  </div>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>

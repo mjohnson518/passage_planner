@@ -22,9 +22,10 @@ import {
   Loader2
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { logger } from '../../lib/logger'
+import type { PassageExport } from '../../types/shared'
 
-// Type inlined from @passage-planner/shared to avoid workspace dependency issues
-type Passage = any; // TODO: Import properly after fixing monorepo build
+type Passage = PassageExport
 
 type ExportFormat = 'gpx' | 'kml' | 'csv' | 'pdf'
 
@@ -127,7 +128,7 @@ export function ExportDialog({ open, onOpenChange, passage }: ExportDialogProps)
       onOpenChange(false)
     } catch (error) {
       toast.error('Export failed. Please try again.')
-      console.error('Export error:', error)
+      logger.error('export failed', { format, error: error instanceof Error ? error.message : String(error) })
     } finally {
       setExporting(false)
     }
@@ -232,7 +233,7 @@ export function ExportDialog({ open, onOpenChange, passage }: ExportDialogProps)
               <strong>File name:</strong> {passage.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_passage.{format}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              <strong>Contains:</strong> {passage.waypoints.length + 2} waypoints, {passage.distance.toFixed(1)} nm
+              <strong>Contains:</strong> {(passage.waypoints?.length ?? 0) + 2} waypoints, {(passage.distance ?? 0).toFixed(1)} nm
             </p>
           </div>
         </div>

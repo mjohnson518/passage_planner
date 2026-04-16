@@ -5,8 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import { Skeleton } from '../ui/skeleton'
 import { FileText, Download, Eye, X } from 'lucide-react'
-import type { Passage } from '@/types/shared'
+import type { PassageExport } from '@/types/shared'
 import { generatePassagePDF } from '../../lib/export/pdf'
+import { logger } from '../../lib/logger'
+
+type Passage = PassageExport
 
 interface PDFPreviewProps {
   passage: Passage
@@ -48,7 +51,7 @@ export default function PDFPreview({ passage, onClose }: PDFPreviewProps) {
       
       setLoading(false)
     } catch (error) {
-      console.error('Failed to generate PDF preview:', error)
+      logger.error('pdf preview failed', { error: error instanceof Error ? error.message : String(error) })
       setLoading(false)
     }
   }

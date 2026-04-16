@@ -1,30 +1,31 @@
-// Import types - shared package not available, using any for now
-// TODO: Add shared package to frontend dependencies or define types locally
+import type { PassageExport } from '../../types/shared'
 
 /**
  * Convert a passage plan to GPX format
  * GPX (GPS Exchange Format) is widely supported by chartplotters and navigation apps
  */
-export function passageToGPX(passage: any): string {
+export function passageToGPX(passage: PassageExport): string {
+  // Body uses a loose view — callers pass several legacy shapes.
+  const p = passage as any
   const timestamp = new Date().toISOString()
   
   // Build waypoints
-  const waypointsXML = buildWaypoints(passage)
-  
+  const waypointsXML = buildWaypoints(p)
+
   // Build route
-  const routeXML = buildRoute(passage)
-  
+  const routeXML = buildRoute(p)
+
   // Build track (actual path with intermediate points)
-  const trackXML = buildTrack(passage)
-  
+  const trackXML = buildTrack(p)
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Helmwise - helmwise.co"
      xmlns="http://www.topografix.com/GPX/1/1"
      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
      xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
   <metadata>
-    <name>${escapeXML(passage.name)}</name>
-    <desc>Passage from ${escapeXML(passage.departure.name)} to ${escapeXML(passage.destination.name)}</desc>
+    <name>${escapeXML(p.name)}</name>
+    <desc>Passage from ${escapeXML(p.departure.name)} to ${escapeXML(p.destination.name)}</desc>
     <author>
       <name>Helmwise</name>
       <link href="https://helmwise.co">
@@ -182,7 +183,7 @@ function formatDuration(hours: number): string {
 /**
  * Download GPX file
  */
-export function downloadGPX(passage: any): void {
+export function downloadGPX(passage: PassageExport): void {
   const gpxContent = passageToGPX(passage)
   const blob = new Blob([gpxContent], { type: 'application/gpx+xml' })
   const url = URL.createObjectURL(blob)

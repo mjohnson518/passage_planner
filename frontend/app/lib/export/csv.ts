@@ -1,10 +1,13 @@
-// Import types - shared package not available in frontend, using any
-// TODO: Add shared package to frontend or define types locally
+import type { PassageExport } from '../../types/shared'
 
 /**
  * Convert passage plan to CSV format for spreadsheet import
  */
-export function passageToCSV(passage: any): string {
+export function passageToCSV(passage: PassageExport): string {
+  // Body uses a loose view of the passage object because callers pass
+  // several legacy shapes. Narrowing lives at the API boundary above.
+  const p = passage as any
+
   const headers = [
     'Waypoint',
     'Latitude',
@@ -15,30 +18,30 @@ export function passageToCSV(passage: any): string {
     'Type',
     'Notes'
   ]
-  
+
   const rows: string[][] = []
-  
+
   // Add departure
   rows.push([
-    passage.departure.name,
-    passage.departure.coordinates.lat.toFixed(6),
-    passage.departure.coordinates.lng.toFixed(6),
+    p.departure.name,
+    p.departure.coordinates.lat.toFixed(6),
+    p.departure.coordinates.lng.toFixed(6),
     '0',
     '',
-    new Date(passage.departureTime).toISOString(),
+    new Date(p.departureTime).toISOString(),
     'Departure',
-    passage.departure.notes || ''
+    p.departure.notes || ''
   ])
-  
+
   // Add waypoints with route info
   let cumulativeDistance = 0
-  passage.route.forEach((segment: any, index: number) => {
+  p.route.forEach((segment: any, index: number) => {
     cumulativeDistance += segment.distance
-    
-    const waypoint = index < passage.waypoints.length ? passage.waypoints[index] : null
+
+    const waypoint = index < p.waypoints.length ? p.waypoints[index] : null
     const name = waypoint?.name || `Waypoint ${index + 1}`
-    const eta = waypoint?.arrivalTime || calculateETA(passage.departureTime, cumulativeDistance, passage.estimatedDuration / passage.distance)
-    
+    const eta = waypoint?.arrivalTime || calculateETA(p.departureTime, cumulativeDistance, p.estimatedDuration / p.distance)
+
     rows.push([
       name,
       segment.to.lat.toFixed(6),
@@ -50,41 +53,41 @@ export function passageToCSV(passage: any): string {
       waypoint?.notes || ''
     ])
   })
-  
+
   // Add destination if not already included
-  const lastSegment = passage.route[passage.route.length - 1]
-  if (!lastSegment || 
-      lastSegment.to.lat !== passage.destination.coordinates.lat || 
-      lastSegment.to.lng !== passage.destination.coordinates.lng) {
+  const lastSegment = p.route[p.route.length - 1]
+  if (!lastSegment ||
+      lastSegment.to.lat !== p.destination.coordinates.lat ||
+      lastSegment.to.lng !== p.destination.coordinates.lng) {
     rows.push([
-      passage.destination.name,
-      passage.destination.coordinates.lat.toFixed(6),
-      passage.destination.coordinates.lng.toFixed(6),
-      passage.distance.toFixed(1),
+      p.destination.name,
+      p.destination.coordinates.lat.toFixed(6),
+      p.destination.coordinates.lng.toFixed(6),
+      p.distance.toFixed(1),
       '',
-      new Date(passage.estimatedArrivalTime).toISOString(),
+      new Date(p.estimatedArrivalTime).toISOString(),
       'Destination',
-      passage.destination.notes || ''
+      p.destination.notes || ''
     ])
   }
-  
+
   // Convert to CSV
   const csvRows = [
     headers.join(','),
     ...rows.map(row => row.map(cell => escapeCSV(cell)).join(','))
   ]
-  
+
   return csvRows.join('\n')
 }
 
 /**
  * Export weather data to CSV
  */
-export function weatherToCSV(passage: any): string {
+export function weatherToCSV(passage: PassageExport): string {
   if (!passage.weather || passage.weather.length === 0) {
     return ''
   }
-  
+
   const headers = [
     'Time',
     'Latitude',
@@ -97,8 +100,8 @@ export function weatherToCSV(passage: any): string {
     'Visibility (nm)',
     'Temperature (°C)'
   ]
-  
-  const rows = passage.weather.map((segment: any) => [
+
+  const rows = passage.weather.map((segment) => [
     new Date(segment.startTime).toISOString(),
     segment.location.lat.toFixed(6),
     segment.location.lng.toFixed(6),
@@ -122,11 +125,11 @@ export function weatherToCSV(passage: any): string {
 /**
  * Export tidal data to CSV
  */
-export function tidesToCSV(passage: any): string {
+export function tidesToCSV(passage: PassageExport): string {
   if (!passage.tides || passage.tides.length === 0) {
     return ''
   }
-  
+
   const headers = [
     'Location',
     'Type',
@@ -135,8 +138,8 @@ export function tidesToCSV(passage: any): string {
     'Current Speed (kts)',
     'Current Direction (°)'
   ]
-  
-  const rows = passage.tides.map((tide: any) => [
+
+  const rows = passage.tides.map((tide) => [
     tide.location,
     tide.type.toUpperCase(),
     new Date(tide.time).toISOString(),
@@ -169,7 +172,7 @@ function escapeCSV(value: string): string {
  * Download CSV file
  */
 export function downloadCSV(
-  passage: any, 
+  passage: PassageExport,
   type: 'route' | 'weather' | 'tides' = 'route'
 ): void {
   let csvContent: string

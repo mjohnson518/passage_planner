@@ -1,8 +1,6 @@
-// @ts-nocheck - Complex PDF generation utility with type issues from missing shared package
-// Import types - shared package not available, using any for now
-// TODO: Add shared package to frontend dependencies and remove @ts-nocheck
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import type { PassageExport } from '../../types/shared'
 
 interface PDFExportOptions {
   includeCharts?: boolean
@@ -12,13 +10,17 @@ interface PDFExportOptions {
   pageSize?: 'a4' | 'letter'
 }
 
+// Loose internal view — callers pass several legacy shapes.
+type LoosePassage = any
+
 /**
  * Generate a professional PDF passage plan
  */
 export async function generatePassagePDF(
-  passage: any, 
+  passage: PassageExport,
   options: PDFExportOptions = {}
 ): Promise<jsPDF> {
+  const p = passage as LoosePassage
   const {
     includeCharts = true,
     includeWeather = true,
@@ -36,43 +38,42 @@ export async function generatePassagePDF(
 
   // Page dimensions
   const pageWidth = pdf.internal.pageSize.getWidth()
-  const pageHeight = pdf.internal.pageSize.getHeight()
   const margin = 20
   const contentWidth = pageWidth - (margin * 2)
   let yPosition = margin
 
   // Title Page
-  addTitlePage(pdf, passage, yPosition, margin, contentWidth)
-  
+  addTitlePage(pdf, p, yPosition, margin, contentWidth)
+
   // Route Overview
   pdf.addPage()
   yPosition = margin
-  addRouteOverview(pdf, passage, yPosition, margin, contentWidth)
-  
+  addRouteOverview(pdf, p, yPosition, margin, contentWidth)
+
   // Waypoint Details
   pdf.addPage()
   yPosition = margin
-  addWaypointDetails(pdf, passage, yPosition, margin, contentWidth)
-  
+  addWaypointDetails(pdf, p, yPosition, margin, contentWidth)
+
   // Weather Information
-  if (includeWeather && passage.weather.length > 0) {
+  if (includeWeather && (p.weather?.length ?? 0) > 0) {
     pdf.addPage()
     yPosition = margin
-    addWeatherInformation(pdf, passage, yPosition, margin, contentWidth)
+    addWeatherInformation(pdf, p, yPosition, margin, contentWidth)
   }
-  
+
   // Tidal Information
-  if (includeTides && passage.tides.length > 0) {
+  if (includeTides && (p.tides?.length ?? 0) > 0) {
     pdf.addPage()
     yPosition = margin
-    addTidalInformation(pdf, passage, yPosition, margin, contentWidth)
+    addTidalInformation(pdf, p, yPosition, margin, contentWidth)
   }
-  
+
   // Safety Information
   if (includeSafety) {
     pdf.addPage()
     yPosition = margin
-    addSafetyInformation(pdf, passage, yPosition, margin, contentWidth)
+    addSafetyInformation(pdf, p, yPosition, margin, contentWidth)
   }
   
   // Add page numbers
@@ -82,8 +83,8 @@ export async function generatePassagePDF(
 }
 
 function addTitlePage(
-  pdf: jsPDF, 
-  passage: any, 
+  pdf: jsPDF,
+  passage: LoosePassage,
   y: number, 
   margin: number, 
   contentWidth: number
@@ -163,7 +164,7 @@ function addTitlePage(
 
 function addRouteOverview(
   pdf: jsPDF,
-  passage: any,
+  passage: LoosePassage,
   y: number,
   margin: number,
   contentWidth: number
@@ -205,7 +206,7 @@ function addRouteOverview(
 
   // Waypoints
   let cumulativeDistance = 0
-  passage.waypoints.forEach((waypoint, index) => {
+  passage.waypoints.forEach((waypoint: LoosePassage, index: number) => {
     const segment = passage.route[index]
     if (segment) {
       cumulativeDistance += segment.distance
@@ -249,7 +250,7 @@ function addRouteOverview(
 
 function addWaypointDetails(
   pdf: jsPDF,
-  passage: any,
+  passage: LoosePassage,
   y: number,
   margin: number,
   contentWidth: number
@@ -271,15 +272,15 @@ function addWaypointDetails(
   }, y, margin, contentWidth)
 
   // Waypoint details
-  passage.waypoints.forEach((waypoint, index) => {
+  passage.waypoints.forEach((waypoint: LoosePassage, index: number) => {
     if (y > pdf.internal.pageSize.getHeight() - 60) {
       pdf.addPage()
       y = margin
     }
-    
+
     const eta = calculateETA(
-      passage.departureTime, 
-      passage.route.slice(0, index + 1).reduce((sum, seg) => sum + seg.distance, 0),
+      passage.departureTime,
+      passage.route.slice(0, index + 1).reduce((sum: number, seg: LoosePassage) => sum + seg.distance, 0),
       passage.estimatedDuration / passage.distance
     )
     
@@ -311,7 +312,7 @@ function addWaypointDetails(
 
 function addWaypointInfo(
   pdf: jsPDF,
-  waypoint: any,
+  waypoint: LoosePassage,
   y: number,
   margin: number,
   contentWidth: number
@@ -354,7 +355,7 @@ function addWaypointInfo(
 
 function addWeatherInformation(
   pdf: jsPDF,
-  passage: any,
+  passage: LoosePassage,
   y: number,
   margin: number,
   contentWidth: number
@@ -367,7 +368,7 @@ function addWeatherInformation(
   pdf.setFontSize(10)
   pdf.setFont('helvetica', 'normal')
   
-  passage.weather.forEach((segment) => {
+  passage.weather.forEach((segment: LoosePassage) => {
     if (y > pdf.internal.pageSize.getHeight() - 40) {
       pdf.addPage()
       y = margin
@@ -397,7 +398,7 @@ function addWeatherInformation(
 
 function addTidalInformation(
   pdf: jsPDF,
-  passage: any,
+  passage: LoosePassage,
   y: number,
   margin: number,
   contentWidth: number
@@ -410,24 +411,24 @@ function addTidalInformation(
   pdf.setFontSize(10)
   
   // Group tides by location
-  const tidesByLocation = passage.tides.reduce((acc, tide) => {
+  const tidesByLocation = passage.tides.reduce((acc: Record<string, LoosePassage[]>, tide: LoosePassage) => {
     if (!acc[tide.location]) acc[tide.location] = []
     acc[tide.location].push(tide)
     return acc
-  }, {} as Record<string, typeof passage.tides>)
-  
+  }, {} as Record<string, LoosePassage[]>)
+
   Object.entries(tidesByLocation).forEach(([location, tides]) => {
     if (y > pdf.internal.pageSize.getHeight() - 40) {
       pdf.addPage()
       y = margin
     }
-    
+
     pdf.setFont('helvetica', 'bold')
     pdf.text(location, margin, y)
     y += 7
-    
+
     pdf.setFont('helvetica', 'normal')
-    tides.forEach(tide => {
+    ;(tides as LoosePassage[]).forEach((tide: LoosePassage) => {
       const tideText = `${tide.type === 'high' ? 'High' : 'Low'} tide: ${formatDateTime(tide.time)} - ${tide.height.toFixed(1)}m`
       pdf.text(tideText, margin + 5, y)
       y += 6
@@ -444,7 +445,7 @@ function addTidalInformation(
 
 function addSafetyInformation(
   pdf: jsPDF,
-  passage: any,
+  passage: LoosePassage,
   y: number,
   margin: number,
   contentWidth: number
@@ -472,7 +473,7 @@ function addSafetyInformation(
     y += 7
     
     pdf.setFont('helvetica', 'normal')
-    passage.safety.navigationWarnings.forEach(warning => {
+    passage.safety.navigationWarnings.forEach((warning: string) => {
       const warningLines = pdf.splitTextToSize(`• ${warning}`, contentWidth - 5)
       pdf.text(warningLines, margin + 5, y)
       y += warningLines.length * 5 + 3
@@ -493,7 +494,7 @@ function addSafetyInformation(
   pdf.text('• SeaTow: 1-800-473-2869', margin, y)
   
   // Add custom emergency contacts if available
-  passage.safety.emergencyContacts.forEach(contact => {
+  passage.safety.emergencyContacts.forEach((contact: LoosePassage) => {
     y += 6
     let contactText = `• ${contact.name}`
     if (contact.vhfChannel) contactText += ` - VHF ${contact.vhfChannel}`
@@ -568,24 +569,19 @@ function truncateText(text: string, maxLength: number): string {
  * Download passage plan as PDF
  */
 export async function downloadPassagePDF(
-  passage: any,
+  passage: PassageExport,
   options?: PDFExportOptions
 ): Promise<void> {
-  try {
-    const pdf = await generatePassagePDF(passage, options)
-    const filename = `${passage.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_passage_plan.pdf`
-    pdf.save(filename)
-  } catch (error) {
-    console.error('Failed to generate PDF:', error)
-    throw error
-  }
+  const pdf = await generatePassagePDF(passage, options)
+  const filename = `${passage.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_passage_plan.pdf`
+  pdf.save(filename)
 }
 
 /**
  * Generate PDF with chart image
  */
 export async function generatePDFWithChart(
-  passage: any,
+  passage: PassageExport,
   chartElement: HTMLElement,
   options?: PDFExportOptions
 ): Promise<void> {

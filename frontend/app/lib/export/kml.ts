@@ -1,39 +1,41 @@
-// Import types - shared package not available, using any for now
-// TODO: Add shared package to frontend dependencies or define types locally
+import type { PassageExport } from '../../types/shared'
 
 /**
  * Convert a passage plan to KML format
  * KML (Keyhole Markup Language) is used by Google Earth and many marine apps
  */
-export function passageToKML(passage: any): string {
+export function passageToKML(passage: PassageExport): string {
+  // Body uses a loose view — callers pass several legacy shapes.
+  const p = passage as any
+
   // Build styles
   const styles = buildStyles()
-  
+
   // Build placemarks for waypoints
-  const placemarks = buildPlacemarks(passage)
-  
+  const placemarks = buildPlacemarks(p)
+
   // Build line string for route
-  const lineString = buildLineString(passage)
-  
+  const lineString = buildLineString(p)
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
-    <name>${escapeXML(passage.name)}</name>
-    <description>Passage from ${escapeXML(passage.departure.name)} to ${escapeXML(passage.destination.name)}</description>
-    
+    <name>${escapeXML(p.name)}</name>
+    <description>Passage from ${escapeXML(p.departure.name)} to ${escapeXML(p.destination.name)}</description>
+
     ${styles}
-    
+
     <Folder>
       <name>Waypoints</name>
       ${placemarks}
     </Folder>
-    
+
     <Folder>
       <name>Route</name>
       ${lineString}
     </Folder>
-    
-    ${buildWeatherOverlay(passage)}
+
+    ${buildWeatherOverlay(p)}
   </Document>
 </kml>`
 }
@@ -242,7 +244,7 @@ function escapeXML(text: string): string {
 /**
  * Download KML file
  */
-export function downloadKML(passage: any): void {
+export function downloadKML(passage: PassageExport): void {
   const kmlContent = passageToKML(passage)
   const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' })
   const url = URL.createObjectURL(blob)
