@@ -655,12 +655,7 @@ export class SafetyAgent {
       hazards,
       recommendations,
       crewExperienceConsidered: !!crew_experience,
-      emergencyProcedures: {
-        manOverboard: 'Execute immediate turn, deploy MOB equipment, call MAYDAY on Ch 16',
-        engineFailure: 'Deploy sea anchor if needed, attempt repair, call for assistance if required',
-        medicalEmergency: 'Administer first aid, contact USCG on Ch 16 for medical advice',
-        collision: 'Check for injuries, assess damage, deploy life raft if sinking'
-      }
+      emergencyProcedures: this.buildAdaptiveEmergencyProcedures(hazards, warnings, route, crew_experience),
     };
 
     // Log the analysis to audit trail
@@ -1050,6 +1045,84 @@ export class SafetyAgent {
 
     this.logger.info({ lat: latitude, lon: longitude, hazards: hazards.hazardsDetected.length }, 'Weather hazards checked');
     return { content: [{ type: 'text', text: JSON.stringify(hazards, null, 2) }] };
+  }
+
+  /**
+   * SAFETY CRITICAL: Emergency procedures must reflect the *actual* hazards on
+   * the analyzed route, not a generic script. A boat running a depth-constrained
+   * coastal passage needs grounding guidance; one transiting a military exclusion
+   * zone needs interception guidance; a multi-day offshore passage needs
+   * abandon-ship/EPIRB guidance. Static copy fails silently when the crew most
+   * needs specifics.
+   */
+  private buildAdaptiveEmergencyProcedures(
+    hazards: any[],
+    warnings: any[],
+    route: any[],
+    crewExperience?: string
+  ): Record<string, string> {
+    const procedures: Record<string, string> = {
+      manOverboard: 'Shout "MOB", throw flotation, mark GPS, execute Quick Stop or Williamson Turn, call MAYDAY on Ch 16 if recovery in doubt',
+      engineFailure: 'Maintain steerage under sail or sea anchor; diagnose (fuel/electrical/cooling); call TowBoatUS/Sea Tow or PAN-PAN on Ch 16 if drifting toward hazards',
+      medicalEmergency: 'Administer first aid, contact USCG on Ch 16 for medical advice; prepare for medevac and divert to nearest port if advised',
+      collision: 'Check crew for injuries; assess hull integrity; plug/brace hull breach; launch life raft with grab bag if sinking; MAYDAY with position and POB',
+    };
+
+    const hasShallow = hazards.some(h => h.type === 'shallow_water');
+    const hasRestricted = hazards.some(h => h.type === 'restricted_area');
+    const hasWeatherWarning = warnings.some(
+      w => w.type === 'weather' || w.severity === 'urgent' || w.severity === 'critical'
+    );
+    const hasTidalUncertainty = warnings.some(w => w.type === 'tidal_data_quality');
+    const hasDataGap = warnings.some(w => w.type === 'data_unavailable');
+
+    // Route length heuristics
+    let routeDistanceNm = 0;
+    for (let i = 0; i < route.length - 1; i++) {
+      routeDistanceNm += this.calculateDistance(route[i], route[i + 1]);
+    }
+    const isLongPassage = route.length > 10 || routeDistanceNm > 50;
+
+    if (hasShallow) {
+      procedures.grounding =
+        'If you touch bottom: reduce sail immediately, check tide state (rising = wait for lift, falling = kedge off fast); ' +
+        'sound bilges for breach; do not attempt power refloat on a falling tide';
+    }
+
+    if (hasRestricted) {
+      procedures.restrictedAreaIncursion =
+        'If hailed by USCG / naval authority on Ch 16: acknowledge, state intentions, alter course as directed immediately. ' +
+        'Do not stop, do not argue on-channel. Note position, time, and hailing vessel for log';
+    }
+
+    if (hasWeatherWarning) {
+      procedures.heavyWeather =
+        'Reef early (first reef by 18kt, second by 25kt, storm jib by 35kt); harness + tether for everyone on deck; ' +
+        'close companionway; secure loose gear below; update position to shore contact; consider heave-to or running off';
+    }
+
+    if (hasTidalUncertainty || hasDataGap) {
+      procedures.navigationalUncertainty =
+        'Treat current position as an estimate: cross-check with 2 independent sources (GPS + visual/radar bearing), ' +
+        'shorten intervals between position fixes, bias toward deeper water when in doubt';
+    }
+
+    if (isLongPassage) {
+      procedures.abandonShip =
+        'Brief all crew on life raft location and grab-bag contents; activate EPIRB before stepping up into raft; ' +
+        'maintain VHF DSC + Ch 16 until the last possible moment; if offshore, activate PLBs individually';
+      procedures.offshoreComms =
+        'Daily position report to shore contact on predetermined schedule; SSB/satellite for offshore weather updates; ' +
+        'test EPIRB/PLB registration and battery before departure';
+    }
+
+    if (crewExperience === 'novice') {
+      procedures.novicReinforcement =
+        'Novice crew: run a deck-tour MOB drill before leaving the dock; confirm each person can operate VHF Ch 16, ' +
+        'start the engine, and trigger the EPIRB without assistance';
+    }
+
+    return procedures;
   }
 
   private calculateDistance(from: any, to: any): number {

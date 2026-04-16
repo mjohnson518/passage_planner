@@ -83,17 +83,49 @@ export class AuthMiddleware {
     }
   }
 
+  /**
+   * SECURITY: Short-lived access tokens (1h) limit the blast radius of a stolen
+   * cookie/token. Long-lived refresh tokens (30d) are stored separately and
+   * can be rotated/revoked on logout or compromise. A 7-day access token on a
+   * life-safety product is an unacceptable window for session hijacking.
+   */
   async generateToken(user: { id: string; email: string }): Promise<string> {
     return jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, type: 'access' },
       this.jwtSecret,
-      { expiresIn: '7d' }
+      { expiresIn: '1h' }
     );
+  }
+
+  async generateRefreshToken(user: { id: string; email: string }): Promise<string> {
+    return jwt.sign(
+      { id: user.id, email: user.email, type: 'refresh' },
+      this.jwtSecret,
+      { expiresIn: '30d' }
+    );
+  }
+
+  /**
+   * Rotate an access token using a valid refresh token. Refresh tokens must
+   * never be accepted where an access token is expected (and vice-versa).
+   */
+  async refreshAccessToken(refreshToken: string): Promise<string | null> {
+    try {
+      const decoded = jwt.verify(refreshToken, this.jwtSecret) as any;
+      if (!decoded || decoded.type !== 'refresh') return null;
+      return this.generateToken({ id: decoded.id, email: decoded.email });
+    } catch {
+      return null;
+    }
   }
 
   private async verifyJWT(token: string): Promise<any> {
     try {
-      return jwt.verify(token, this.jwtSecret);
+      const decoded = jwt.verify(token, this.jwtSecret) as any;
+      // Reject refresh tokens used as access tokens. Legacy tokens without
+      // a `type` field are accepted for backward compatibility during rollout.
+      if (decoded?.type === 'refresh') return null;
+      return decoded;
     } catch (error) {
       return null;
     }

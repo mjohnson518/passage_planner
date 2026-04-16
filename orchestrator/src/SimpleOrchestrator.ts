@@ -48,9 +48,29 @@ export class SimpleOrchestrator {
       logger.warn('REDIS_URL not set — running without Redis (no caching/rate limiting)');
       this.redis = null;
     } else {
+      // SAFETY/RELIABILITY: A single network blip must not take the orchestrator
+      // offline. Exponential backoff (50ms → 2s cap) gives the cluster time to
+      // recover; keeping maxRetriesPerRequest small so a persistent outage
+      // surfaces fast to callers (who fall back to direct API calls rather than
+      // hanging on cached reads).
       this.redis = new Redis(redisUrl, {
-        maxRetriesPerRequest: 1,
-        retryStrategy: () => null // Don't retry if Redis is down
+        maxRetriesPerRequest: 3,
+        retryStrategy: (times: number) => Math.min(50 * Math.pow(2, times - 1), 2000),
+        reconnectOnError: (err: Error) => {
+          const targetErrors = ['READONLY', 'ECONNRESET', 'ETIMEDOUT'];
+          return targetErrors.some(e => err.message.includes(e));
+        },
+        enableOfflineQueue: true,
+        connectTimeout: 10000,
+      });
+      this.redis.on('error', (err) => {
+        logger.warn({ err: err.message }, 'Redis connection error — continuing with degraded cache');
+      });
+      this.redis.on('reconnecting', (delay: number) => {
+        logger.info({ delayMs: delay }, 'Redis reconnecting');
+      });
+      this.redis.on('ready', () => {
+        logger.info('Redis connection ready');
       });
     }
     

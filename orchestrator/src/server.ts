@@ -396,17 +396,10 @@ export class HttpServer {
           const hashedPassword = await this.authService.hashPassword(password);
           const user = await this.createUser(email, hashedPassword, displayName);
 
-          // Generate token
+          // Generate short-lived access + long-lived refresh token
           const token = await this.authService.generateToken(user);
-
-          // Set httpOnly cookie (XSS-safe); also include token in body for API clients
-          res.cookie('auth_token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 24 * 60 * 60 * 1000, // 24 hours
-            path: '/',
-          });
+          const refreshToken = await this.authService.generateRefreshToken(user);
+          this.setAuthCookies(res, token, refreshToken);
           res.json({ token, user: this.sanitizeUser(user) });
         } catch (error) {
           this.logger.error({ error }, 'Signup failed');
@@ -437,15 +430,8 @@ export class HttpServer {
           }
 
           const token = await this.authService.generateToken(user);
-
-          // Set httpOnly cookie (XSS-safe); also include token in body for API clients
-          res.cookie('auth_token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 24 * 60 * 60 * 1000, // 24 hours
-            path: '/',
-          });
+          const refreshToken = await this.authService.generateRefreshToken(user);
+          this.setAuthCookies(res, token, refreshToken);
           res.json({ token, user: this.sanitizeUser(user) });
         } catch (error) {
           this.logger.error({ error }, 'Login failed');
@@ -454,14 +440,43 @@ export class HttpServer {
       }
     );
 
-    // Logout endpoint — clears the httpOnly auth cookie
+    // Refresh endpoint — trade a valid refresh token for a new access token.
+    this.app.post('/api/auth/refresh', async (req, res) => {
+      try {
+        const cookieHeader = req.headers.cookie || '';
+        const match = cookieHeader.match(/(?:^|;)\s*refresh_token=([^;]+)/);
+        const refreshToken = match ? decodeURIComponent(match[1]) : req.body?.refreshToken;
+        if (!refreshToken) {
+          return res.status(401).json({ error: 'Missing refresh token' });
+        }
+        const newAccessToken = await this.authService.refreshAccessToken(refreshToken);
+        if (!newAccessToken) {
+          return res.status(401).json({ error: 'Invalid refresh token' });
+        }
+        res.cookie('auth_token', newAccessToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 1000,
+          path: '/',
+        });
+        res.json({ token: newAccessToken });
+      } catch (error) {
+        this.logger.error({ error }, 'Token refresh failed');
+        res.status(500).json({ error: 'Refresh failed' });
+      }
+    });
+
+    // Logout endpoint — clears the httpOnly auth + refresh cookies
     this.app.post('/api/auth/logout', (req, res) => {
-      res.clearCookie('auth_token', {
+      const cookieOpts = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: 'lax' as const,
         path: '/',
-      });
+      };
+      res.clearCookie('auth_token', cookieOpts);
+      res.clearCookie('refresh_token', cookieOpts);
       res.json({ success: true });
     });
 
@@ -2321,6 +2336,29 @@ export class HttpServer {
     if (!user) return user;
     const { password_hash, ...safe } = user;
     return safe;
+  }
+
+  /**
+   * SECURITY: Set the short-lived access cookie (1h) and the long-lived
+   * refresh cookie (30d, restricted path) in a single place so the two
+   * lifetimes and flags never drift apart.
+   */
+  private setAuthCookies(res: any, accessToken: string, refreshToken: string) {
+    const secure = process.env.NODE_ENV === 'production';
+    res.cookie('auth_token', accessToken, {
+      httpOnly: true,
+      secure,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 1000, // 1 hour — matches JWT expiresIn
+      path: '/',
+    });
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure,
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      path: '/api/auth',
+    });
   }
 
   // Database helpers
