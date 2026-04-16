@@ -163,11 +163,16 @@ export async function middleware(request: NextRequest) {
 
   // 1. Validate origin/referer
   if (!validateOrigin(request)) {
-    console.warn('CSRF: Origin validation failed', {
-      origin: request.headers.get('origin'),
-      referer: request.headers.get('referer'),
-      path: pathname,
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      // SECURITY: Origin/referer kept out of prod logs — never surface raw
+      // headers to shared log sinks; prod should rely on WAF/Sentry signals.
+      // eslint-disable-next-line no-console
+      console.warn('CSRF: Origin validation failed', {
+        origin: request.headers.get('origin'),
+        referer: request.headers.get('referer'),
+        path: pathname,
+      });
+    }
 
     return NextResponse.json(
       { error: 'CSRF validation failed: Invalid origin' },
@@ -181,11 +186,14 @@ export async function middleware(request: NextRequest) {
 
   // Check if both tokens are present
   if (!cookieToken || !headerToken) {
-    console.warn('CSRF: Missing token', {
-      hasCookie: !!cookieToken,
-      hasHeader: !!headerToken,
-      path: pathname,
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.warn('CSRF: Missing token', {
+        hasCookie: !!cookieToken,
+        hasHeader: !!headerToken,
+        path: pathname,
+      });
+    }
 
     return NextResponse.json(
       { error: 'CSRF validation failed: Missing token' },
@@ -195,9 +203,10 @@ export async function middleware(request: NextRequest) {
 
   // Check if tokens match
   if (cookieToken !== headerToken) {
-    console.warn('CSRF: Token mismatch', {
-      path: pathname,
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.warn('CSRF: Token mismatch', { path: pathname });
+    }
 
     return NextResponse.json(
       { error: 'CSRF validation failed: Token mismatch' },
@@ -207,9 +216,10 @@ export async function middleware(request: NextRequest) {
 
   // Check if token is valid (proper format and not expired)
   if (!isValidToken(cookieToken)) {
-    console.warn('CSRF: Invalid or expired token', {
-      path: pathname,
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.warn('CSRF: Invalid or expired token', { path: pathname });
+    }
 
     return NextResponse.json(
       { error: 'CSRF validation failed: Invalid or expired token' },

@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { cn } from '../lib/utils'
 import { analytics } from '../lib/analytics'
 import { isSupabaseConfigured } from '../lib/supabase-client'
+import { logger } from '../lib/logger'
 
 const passwordRequirements = [
   { regex: /.{8,}/, text: 'At least 8 characters' },
@@ -72,7 +73,7 @@ export default function SignupPage() {
       
       // Redirect handled by AuthContext
     } catch (error: any) {
-      console.error('Signup error:', error)
+      logger.error('signup failed', { code: error?.code, status: error?.status })
     } finally {
       setLoading(false)
     }

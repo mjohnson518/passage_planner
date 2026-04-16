@@ -49,8 +49,32 @@ export interface PassagePlanningRequest {
   };
 }
 
+/**
+ * Plan-status codes surfaced from the orchestrator.
+ * OK — no critical issues
+ * SAFETY_WARNING — critical hazard detected on the route
+ * SAFETY_UNVERIFIED — safety system failed to run (fail-closed, show caution)
+ */
+export type PlanStatus = 'OK' | 'SAFETY_WARNING' | 'SAFETY_UNVERIFIED';
+
 export interface PassagePlanningResponse {
   success: boolean;
+  /** Server-generated plan UUID */
+  id?: string;
+  /** When the plan was generated (ISO string) */
+  timestamp?: string;
+  /** Safety fail-closed status */
+  status?: PlanStatus;
+  /** Weather-optimized route (isochrone), when available */
+  weatherRoute?: {
+    waypoints?: Array<{ latitude: number; longitude: number; name?: string }>;
+    totalDistance?: number;
+    estimatedDuration?: string;
+    adjustedDuration?: string;
+    averageSpeed?: number;
+    comparison?: unknown;
+    safetyWarnings?: string[];
+  } | null;
   route: {
     distance: number;
     distanceNm: number;
@@ -77,6 +101,8 @@ export interface PassagePlanningResponse {
       warnings: string[];
       source: string;
       timestamp: string;
+      /** Forecast issue time — used for the >1h staleness gate */
+      issuedAt?: string;
       windDescription: string;
     };
     destination: {
@@ -89,6 +115,8 @@ export interface PassagePlanningResponse {
       warnings: string[];
       source: string;
       timestamp: string;
+      /** Forecast issue time — used for the >1h staleness gate */
+      issuedAt?: string;
       windDescription: string;
     };
     summary: {
@@ -230,6 +258,8 @@ export interface PassagePlanningResponse {
     suitableForPassage: boolean;
     warnings: string[];
     recommendations: string[];
+    /** Average speed for the weather-optimized route (knots), when available */
+    averageSpeed?: number | string;
   };
 }
 
@@ -245,8 +275,6 @@ export async function planPassage(
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
 
   try {
-    console.log('Calling passage planning API:', `${API_URL}/api/passage-planning/analyze`);
-
     const token = await getAuthToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -283,8 +311,6 @@ export async function planPassage(
     if (error.name === 'AbortError') {
       throw new Error('Request timeout - please try again');
     }
-    
-    console.error('Passage planning error:', error);
     throw new Error(error.message || 'Failed to plan passage');
   }
 }

@@ -256,7 +256,7 @@ function PlannerPageInner() {
       {passagePlan && (
         <div className="space-y-6 mb-6">
           {/* SAFETY_UNVERIFIED critical banner — shown when SafetyAgent failed */}
-          {(passagePlan as any).status === 'SAFETY_UNVERIFIED' && (
+          {passagePlan.status === 'SAFETY_UNVERIFIED' && (
             <div className="rounded-md border-2 border-destructive bg-destructive/5 px-5 py-4" role="alert">
               <p className="font-bold text-destructive text-base uppercase tracking-wide mb-1">
                 ⚠ Safety Checks Could Not Be Completed
@@ -271,7 +271,7 @@ function PlannerPageInner() {
           )}
 
           {/* SAFETY_WARNING amber banner — shown when critical hazards detected */}
-          {(passagePlan as any).status === 'SAFETY_WARNING' && (
+          {passagePlan.status === 'SAFETY_WARNING' && (
             <div className="rounded-md border-2 border-warning bg-warning/5 px-5 py-4" role="alert">
               <p className="font-bold text-warning text-base uppercase tracking-wide mb-1">
                 ⚠ Safety Warnings Detected
@@ -345,7 +345,7 @@ function PlannerPageInner() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Avg Speed</p>
-                  <p className="text-xl font-bold">{(passagePlan.summary as any)?.averageSpeed || 'N/A'}</p>
+                  <p className="text-xl font-bold">{passagePlan.weatherRoute?.averageSpeed ?? passagePlan.summary.averageSpeed ?? 'N/A'}</p>
                 </div>
               </div>
             </CardContent>
@@ -359,8 +359,8 @@ function PlannerPageInner() {
                 2. Weather Conditions
             </CardTitle>
             {/* 3.1 — Weather data timestamp with staleness color coding */}
-            {(passagePlan.weather?.departure as any)?.issuedAt && (() => {
-              const issuedAt = new Date((passagePlan.weather.departure as any).issuedAt);
+            {passagePlan.weather?.departure?.issuedAt && (() => {
+              const issuedAt = new Date(passagePlan.weather.departure.issuedAt);
               const ageMs = Date.now() - issuedAt.getTime();
               const ageMin = Math.round(ageMs / 60000);
               const color = ageMs < 30 * 60 * 1000 ? 'text-success' : ageMs < 60 * 60 * 1000 ? 'text-warning' : 'text-destructive';
@@ -602,7 +602,7 @@ function PlannerPageInner() {
                           waypoints: passagePlan.route.waypoints,
                           departure: { name: formData.departure, latitude: formData.departureCoords.latitude, longitude: formData.departureCoords.longitude },
                           destination: { name: formData.destination, latitude: formData.destinationCoords.latitude, longitude: formData.destinationCoords.longitude }
-                        } as any)
+                        })
                         const blob = new Blob([gpx], { type: 'application/gpx+xml' })
                         const url = URL.createObjectURL(blob)
                         const a = document.createElement('a')
@@ -627,7 +627,7 @@ function PlannerPageInner() {
                           route: passagePlan.route,
                           weather: passagePlan.weather,
                           safety: passagePlan.safety
-                        } as any)
+                        })
                         toast.success('PDF export started')
                       }
                     }}
@@ -674,7 +674,7 @@ function PlannerPageInner() {
             
               <div className="pt-3 border-t text-xs text-muted-foreground">
                 <p><strong>Data Sources:</strong> Route (geolib), Weather (NOAA), Tidal (NOAA), Navigation Warnings, Safety Analysis, Port Information</p>
-                <p><strong>Generated:</strong> {(passagePlan as any).timestamp ? new Date((passagePlan as any).timestamp).toLocaleString() + ' (plan time)' : 'Unknown'}</p>
+                <p><strong>Generated:</strong> {passagePlan.timestamp ? new Date(passagePlan.timestamp).toLocaleString() + ' (plan time)' : 'Unknown'}</p>
               </div>
           </CardContent>
         </Card>

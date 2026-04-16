@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase-client'
+import { logger } from '../lib/logger'
 
 // Email validation helper
 function validateEmail(email: string): string | null {
@@ -96,7 +97,7 @@ export default function LoginPage() {
       await signIn(email, password)
       router.push('/dashboard')
     } catch (error: any) {
-      console.error('Login error:', error)
+      logger.error('login failed', { code: error?.code, status: error?.status })
       setError(error.message || 'Failed to sign in. Please check your credentials.')
       toast.error('Login failed', { description: error.message })
     } finally {
@@ -135,7 +136,7 @@ export default function LoginPage() {
       })
 
       if (error) {
-        console.error('Google OAuth error:', error)
+        logger.error('google oauth failed', { code: (error as any)?.code })
         throw error
       }
     } catch (error: any) {
@@ -164,7 +165,7 @@ export default function LoginPage() {
       })
 
       if (error) {
-        console.error('GitHub OAuth error:', error)
+        logger.error('github oauth failed', { code: (error as any)?.code })
         throw error
       }
     } catch (error: any) {

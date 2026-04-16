@@ -20,7 +20,10 @@ export async function GET(request: NextRequest) {
 
   // Handle OAuth errors
   if (error) {
-    console.error('OAuth callback error:', error, error_description);
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.error('OAuth callback error:', error, error_description);
+    }
     return NextResponse.redirect(
       `${requestUrl.origin}/login?error=${encodeURIComponent(error_description || error)}`
     );
@@ -50,7 +53,10 @@ export async function GET(request: NextRequest) {
       const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
 
       if (sessionError) {
-        console.error('Session exchange error:', sessionError);
+        if (process.env.NODE_ENV !== 'production') {
+          // eslint-disable-next-line no-console
+          console.error('Session exchange error:', sessionError);
+        }
         return NextResponse.redirect(
           `${requestUrl.origin}/login?error=${encodeURIComponent(sessionError.message)}`
         );
@@ -60,7 +66,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${requestUrl.origin}/dashboard`);
 
     } catch (error: any) {
-      console.error('Auth callback error:', error);
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.error('Auth callback error:', error);
+      }
       return NextResponse.redirect(
         `${requestUrl.origin}/login?error=${encodeURIComponent('Authentication failed. Please try again.')}`
       );
