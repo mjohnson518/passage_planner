@@ -24,6 +24,7 @@ Pre-launch production-readiness remediation.
 - Worst-case reconciliation in the weather aggregator when multiple forecasts disagree.
 - Duplicate-subscription guard in `/api/subscription/create-checkout-session` — users with an active Premium/Pro plan are redirected to the customer portal.
 - Frontend feature flags (`NEXT_PUBLIC_FEATURE_*`) gating fleet create/invite, weather overlay, GPX/PDF export, passage bulk operations.
+- Passage delete + bulk GPX export now wired end-to-end against existing orchestrator endpoints (`DELETE /api/passages/:id`, `POST /api/passages/export/bulk`); still feature-flagged off by default pending smoke-test.
 - Structured frontend logger (`app/lib/logger.ts`) that routes warn/error through Sentry and drops info/debug in production.
 - Coverage thresholds on `agents/safety` (90% across lines/branches/functions/statements).
 
