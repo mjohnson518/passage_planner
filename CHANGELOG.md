@@ -55,6 +55,7 @@ Pre-launch production-readiness remediation.
 - CSRF middleware hardened and logs no longer leak request bodies or tokens.
 - Security headers (HSTS, CSP, COEP/COOP) verified via `shared/src/middleware/SecurityHeaders.ts`.
 - Per-user rate limits on GDPR endpoints — data export 3/hour, account delete 3/day; fails closed in production when Redis is unavailable (503) so irreversible operations cannot bypass limits.
+- Test coverage for `RateLimiter.sensitiveOpsLimit` — pins fail-closed behavior, per-(action,user) namespacing, and 429-at-limit so a silent regression to fail-open or shared quotas fails CI.
 
 ### Deprecated
 
