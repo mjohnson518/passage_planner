@@ -47,6 +47,7 @@ Pre-launch production-readiness remediation.
 
 ### Removed
 
+- Dead frontend email code: `frontend/app/lib/email/service.ts`, `frontend/emails/{welcome,trial-ending,usage-report}.tsx`, and the `email:dev` script. The orchestrator's `EmailService.ts` is the only email surface — the frontend copy was unused and referenced `RESEND_API_KEY` as a client-side env. Drops `resend`, `react-email`, and `@react-email/components` from frontend deps; `npm audit` on frontend falls from 33 vulns to 21.
 - `backend/` workspace — orchestrator is the canonical server; vestigial duplicate deleted after diff-porting.
 - `/blog`, `/docs`, `/changelog` placeholder pages removed from nav and sitemap (will return when content exists).
 - `@ts-nocheck` from all `frontend/app/lib/export/*` files.
