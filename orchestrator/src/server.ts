@@ -1790,6 +1790,10 @@ export class HttpServer {
           const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
           if (error) throw error;
 
+          // Fire-and-forget receipt. The method internally swallows all errors
+          // so a Resend outage cannot block the user's right to erasure.
+          void emailService.sendAccountDeletionReceipt(userEmail, new Date());
+
           // Clear the auth cookie so the now-deleted session cannot be replayed.
           res.setHeader(
             "Set-Cookie",

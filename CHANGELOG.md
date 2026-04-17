@@ -16,6 +16,7 @@ Pre-launch production-readiness remediation.
 
 - GDPR endpoints: `POST /api/user/data-export` (JSON bundle of all user-owned data) and `POST /api/user/delete` (hard-delete via Supabase admin; requires email confirmation; compliance logged to `analytics_events` pre-deletion).
 - `/account/privacy` page — signed-in users can download their data or permanently delete their account. Privacy-policy §5 now links here.
+- GDPR account-deletion email receipt via `EmailService.sendAccountDeletionReceipt` — transactional send fired after the Supabase admin delete succeeds, no unsubscribe footer (account is gone), no `email_logs` row (FK would dangle), all errors swallowed so Resend issues cannot block the user's right to erasure.
 - "Privacy & Data" entry in the signed-in header dropdown and mobile menu so the GDPR page is reachable from anywhere in the app.
 - `RUNBOOK.md` with severity levels, rollback-first guidance, and seven incident playbooks (Stripe webhook, stale weather, safety audit-log write failure, Redis outage, Supabase outage, agent timeout, 5xx spike).
 - `.husky/pre-commit` + `lint-staged` — Prettier auto-formats staged files on commit.

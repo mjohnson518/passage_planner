@@ -1,28 +1,28 @@
-import { Resend } from 'resend'
-import { createClient } from '@supabase/supabase-js'
-import pino from 'pino'
+import { Resend } from "resend";
+import { createClient } from "@supabase/supabase-js";
+import pino from "pino";
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' })
+const resend = new Resend(process.env.RESEND_API_KEY);
+const logger = pino({ level: process.env.LOG_LEVEL || "info" });
 
 export class EmailService {
-  private supabase: any
-  private from: string
-  
+  private supabase: any;
+  private from: string;
+
   constructor() {
     this.supabase = createClient(
       process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
-    )
-    this.from = process.env.EMAIL_FROM || 'Helmwise <noreply@helmwise.co>'
+      process.env.SUPABASE_SERVICE_KEY!,
+    );
+    this.from = process.env.EMAIL_FROM || "Helmwise <noreply@helmwise.co>";
   }
 
   /**
    * CAN-SPAM compliant unsubscribe footer — required for all commercial emails
    */
   private getUnsubscribeFooter(email: string): string {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'
-    const unsubUrl = `${appUrl}/unsubscribe?email=${encodeURIComponent(email)}`
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://helmwise.co";
+    const unsubUrl = `${appUrl}/unsubscribe?email=${encodeURIComponent(email)}`;
     return `
       <div style="padding: 16px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; margin-top: 24px;">
         <p style="margin: 0 0 8px;">Helmwise, Inc. &bull; Maritime passage planning software</p>
@@ -31,105 +31,121 @@ export class EmailService {
           <a href="${unsubUrl}" style="color: #64748b;">Unsubscribe</a>
         </p>
       </div>
-    `
+    `;
   }
 
-  async sendWelcomeEmail(userId: string, email: string, userName?: string): Promise<void> {
+  async sendWelcomeEmail(
+    userId: string,
+    email: string,
+    userName?: string,
+  ): Promise<void> {
     try {
-      const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'}/unsubscribe?email=${encodeURIComponent(email)}`
+      const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://helmwise.co"}/unsubscribe?email=${encodeURIComponent(email)}`;
       await resend.emails.send({
         from: this.from,
         to: email,
-        subject: 'Welcome to Helmwise!',
-        html: this.getWelcomeEmailHtml(userName || 'Captain') + this.getUnsubscribeFooter(email),
+        subject: "Welcome to Helmwise!",
+        html:
+          this.getWelcomeEmailHtml(userName || "Captain") +
+          this.getUnsubscribeFooter(email),
         headers: {
-          'List-Unsubscribe': `<${unsubUrl}>`,
-          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          "List-Unsubscribe": `<${unsubUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         },
-      })
+      });
 
       // Log email sent
-      await this.logEmailSent(userId, 'welcome', email)
+      await this.logEmailSent(userId, "welcome", email);
     } catch (error) {
-      logger.error({ error, userId, email }, 'Failed to send welcome email')
-      throw error
+      logger.error({ error, userId, email }, "Failed to send welcome email");
+      throw error;
     }
   }
 
   async sendTrialEndingReminders(): Promise<void> {
     try {
       // Get users whose trials are ending in 3 days
-      const threeDaysFromNow = new Date()
-      threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3)
-      
-      const { data: users, error } = await this.supabase
-        .from('users')
-        .select('id, email, created_at')
-        .eq('subscription_tier', 'free')
-        .lte('created_at', new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString()) // 11 days ago
-        .gte('created_at', new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString()) // 12 days ago
+      const threeDaysFromNow = new Date();
+      threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
 
-      if (error) throw error
+      const { data: users, error } = await this.supabase
+        .from("users")
+        .select("id, email, created_at")
+        .eq("subscription_tier", "free")
+        .lte(
+          "created_at",
+          new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString(),
+        ) // 11 days ago
+        .gte(
+          "created_at",
+          new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(),
+        ); // 12 days ago
+
+      if (error) throw error;
 
       for (const user of users || []) {
-        const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'}/unsubscribe?email=${encodeURIComponent(user.email)}`
+        const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://helmwise.co"}/unsubscribe?email=${encodeURIComponent(user.email)}`;
         await resend.emails.send({
           from: this.from,
           to: user.email,
-          subject: 'Your Helmwise trial ends in 3 days',
-          html: this.getTrialEndingEmailHtml(3) + this.getUnsubscribeFooter(user.email),
+          subject: "Your Helmwise trial ends in 3 days",
+          html:
+            this.getTrialEndingEmailHtml(3) +
+            this.getUnsubscribeFooter(user.email),
           headers: {
-            'List-Unsubscribe': `<${unsubUrl}>`,
-            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            "List-Unsubscribe": `<${unsubUrl}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
           },
-        })
+        });
 
-        await this.logEmailSent(user.id, 'trial_ending', user.email)
+        await this.logEmailSent(user.id, "trial_ending", user.email);
       }
     } catch (error) {
-      logger.error({ error }, 'Failed to send trial ending reminders')
-      throw error
+      logger.error({ error }, "Failed to send trial ending reminders");
+      throw error;
     }
   }
 
   async sendMonthlyUsageReports(): Promise<void> {
     try {
-      const lastMonth = new Date()
-      lastMonth.setMonth(lastMonth.getMonth() - 1)
-      const monthName = lastMonth.toLocaleString('en-US', { month: 'long' })
-      const year = lastMonth.getFullYear()
+      const lastMonth = new Date();
+      lastMonth.setMonth(lastMonth.getMonth() - 1);
+      const monthName = lastMonth.toLocaleString("en-US", { month: "long" });
+      const year = lastMonth.getFullYear();
 
       // Get all active users
       const { data: users, error: usersError } = await this.supabase
-        .from('users')
-        .select('id, email')
-        .neq('subscription_status', 'canceled')
+        .from("users")
+        .select("id, email")
+        .neq("subscription_status", "canceled");
 
-      if (usersError) throw usersError
+      if (usersError) throw usersError;
 
       for (const user of users || []) {
         // Get usage stats for the user
-        const stats = await this.getUserMonthlyStats(user.id, lastMonth)
+        const stats = await this.getUserMonthlyStats(user.id, lastMonth);
 
         if (stats.passagesPlanned > 0) {
-          const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'}/unsubscribe?email=${encodeURIComponent(user.email)}`
+          const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://helmwise.co"}/unsubscribe?email=${encodeURIComponent(user.email)}`;
           await resend.emails.send({
             from: this.from,
             to: user.email,
             subject: `Your ${monthName} ${year} Helmwise Summary`,
-            html: this.getUsageReportEmailHtml(monthName, year, stats) + this.getUnsubscribeFooter(user.email),
+            html:
+              this.getUsageReportEmailHtml(monthName, year, stats) +
+              this.getUnsubscribeFooter(user.email),
             headers: {
-              'List-Unsubscribe': `<${unsubUrl}>`,
-              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+              "List-Unsubscribe": `<${unsubUrl}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
             },
-          })
+          });
 
-          await this.logEmailSent(user.id, 'usage_report', user.email)
+          await this.logEmailSent(user.id, "usage_report", user.email);
         }
       }
     } catch (error) {
-      logger.error({ error }, 'Failed to send monthly usage reports')
-      throw error
+      logger.error({ error }, "Failed to send monthly usage reports");
+      throw error;
     }
   }
 
@@ -137,25 +153,30 @@ export class EmailService {
     userId: string,
     email: string,
     userName: string,
-    tier: 'premium' | 'pro'
+    tier: "premium" | "pro",
   ): Promise<void> {
     try {
-      const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'}/unsubscribe?email=${encodeURIComponent(email)}`
+      const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://helmwise.co"}/unsubscribe?email=${encodeURIComponent(email)}`;
       await resend.emails.send({
         from: this.from,
         to: email,
-        subject: `Welcome to Helmwise ${tier === 'premium' ? 'Premium' : 'Pro'}!`,
-        html: this.getSubscriptionConfirmationHtml(userName, tier) + this.getUnsubscribeFooter(email),
+        subject: `Welcome to Helmwise ${tier === "premium" ? "Premium" : "Pro"}!`,
+        html:
+          this.getSubscriptionConfirmationHtml(userName, tier) +
+          this.getUnsubscribeFooter(email),
         headers: {
-          'List-Unsubscribe': `<${unsubUrl}>`,
-          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          "List-Unsubscribe": `<${unsubUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         },
-      })
+      });
 
-      await this.logEmailSent(userId, 'subscription_confirmation', email)
+      await this.logEmailSent(userId, "subscription_confirmation", email);
     } catch (error) {
-      logger.error({ error, userId, tier }, 'Failed to send subscription confirmation')
-      throw error
+      logger.error(
+        { error, userId, tier },
+        "Failed to send subscription confirmation",
+      );
+      throw error;
     }
   }
 
@@ -163,26 +184,97 @@ export class EmailService {
     userId: string,
     email: string,
     userName: string,
-    endDate: Date
+    endDate: Date,
   ): Promise<void> {
     try {
-      const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://helmwise.co'}/unsubscribe?email=${encodeURIComponent(email)}`
+      const unsubUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://helmwise.co"}/unsubscribe?email=${encodeURIComponent(email)}`;
       await resend.emails.send({
         from: this.from,
         to: email,
-        subject: 'Your Helmwise subscription has been cancelled',
-        html: this.getCancellationConfirmationHtml(userName, endDate) + this.getUnsubscribeFooter(email),
+        subject: "Your Helmwise subscription has been cancelled",
+        html:
+          this.getCancellationConfirmationHtml(userName, endDate) +
+          this.getUnsubscribeFooter(email),
         headers: {
-          'List-Unsubscribe': `<${unsubUrl}>`,
-          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          "List-Unsubscribe": `<${unsubUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         },
-      })
+      });
 
-      await this.logEmailSent(userId, 'cancellation_confirmation', email)
+      await this.logEmailSent(userId, "cancellation_confirmation", email);
     } catch (error) {
-      logger.error({ error, userId }, 'Failed to send cancellation confirmation')
-      throw error
+      logger.error(
+        { error, userId },
+        "Failed to send cancellation confirmation",
+      );
+      throw error;
     }
+  }
+
+  /**
+   * GDPR account-deletion receipt — sent after the Supabase admin delete
+   * succeeds. This is a transactional/informational email: no unsubscribe
+   * footer (the account is already gone), no email_logs entry (the user_id
+   * FK would dangle), and all errors are swallowed so a Resend outage can
+   * never block the user's right to erasure.
+   */
+  async sendAccountDeletionReceipt(
+    email: string,
+    deletedAt: Date,
+  ): Promise<void> {
+    try {
+      await resend.emails.send({
+        from: this.from,
+        to: email,
+        subject: "Your Helmwise account has been deleted",
+        html: this.getAccountDeletionReceiptHtml(deletedAt),
+      });
+      logger.info(
+        { email, deletedAt: deletedAt.toISOString() },
+        "Account deletion receipt sent",
+      );
+    } catch (error) {
+      // Swallow — deletion already succeeded; the receipt is a courtesy.
+      logger.error({ error, email }, "Failed to send account deletion receipt");
+    }
+  }
+
+  private getAccountDeletionReceiptHtml(deletedAt: Date): string {
+    const formatted = deletedAt.toUTCString();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://helmwise.co";
+    return `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b;">
+        <h1 style="font-size: 24px; margin-top: 0;">Account deletion confirmed</h1>
+        <p style="color: #475569; font-size: 16px; line-height: 24px;">
+          Your Helmwise account was permanently deleted on <strong>${formatted}</strong>.
+          This email is your record of the deletion — please keep it for your files.
+        </p>
+        <p style="color: #475569; font-size: 16px; line-height: 24px;">
+          The following data was removed from our production database:
+        </p>
+        <ul style="color: #475569; font-size: 16px; line-height: 24px;">
+          <li>Account and login credentials</li>
+          <li>Vessel profiles</li>
+          <li>Passage plans and checklists</li>
+          <li>Usage history and personal preferences</li>
+        </ul>
+        <p style="color: #475569; font-size: 16px; line-height: 24px;">
+          As described in our <a href="${appUrl}/privacy" style="color: #0ea5e9;">Privacy Policy</a>,
+          safety audit logs are retained in anonymized form for maritime compliance, and billing
+          records are retained for tax purposes. No personally identifying information about you
+          remains in those records.
+        </p>
+        <p style="color: #475569; font-size: 16px; line-height: 24px;">
+          <strong>Didn't request this?</strong> Contact
+          <a href="mailto:privacy@helmwise.co" style="color: #0ea5e9;">privacy@helmwise.co</a>
+          immediately.
+        </p>
+        <p style="color: #475569; font-size: 16px; line-height: 24px;">— The Helmwise team</p>
+        <div style="padding: 16px 0; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #e2e8f0; margin-top: 24px;">
+          Helmwise, Inc. &bull; Maritime passage planning software
+        </div>
+      </div>
+    `;
   }
 
   async sendFleetInvitationEmail(
@@ -191,22 +283,34 @@ export class EmailService {
     fleetName: string,
     inviterName: string,
     role: string,
-    invitationToken: string
+    invitationToken: string,
   ): Promise<void> {
     try {
-      const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL}/fleet/invite/${invitationToken}`
+      const acceptUrl = `${process.env.NEXT_PUBLIC_APP_URL}/fleet/invite/${invitationToken}`;
 
       await resend.emails.send({
         from: this.from,
         to: inviteeEmail,
         subject: `You've been invited to join ${fleetName} on Helmwise`,
-        html: this.getFleetInvitationHtml(inviteeName, fleetName, inviterName, role, acceptUrl),
-      })
+        html: this.getFleetInvitationHtml(
+          inviteeName,
+          fleetName,
+          inviterName,
+          role,
+          acceptUrl,
+        ),
+      });
 
-      logger.info({ email: inviteeEmail, fleetName, inviterName }, 'Fleet invitation email sent')
+      logger.info(
+        { email: inviteeEmail, fleetName, inviterName },
+        "Fleet invitation email sent",
+      );
     } catch (error) {
-      logger.error({ error, email: inviteeEmail, fleetName }, 'Failed to send fleet invitation email')
-      throw error
+      logger.error(
+        { error, email: inviteeEmail, fleetName },
+        "Failed to send fleet invitation email",
+      );
+      throw error;
     }
   }
 
@@ -215,9 +319,16 @@ export class EmailService {
     fleetName: string,
     inviterName: string,
     role: string,
-    acceptUrl: string
+    acceptUrl: string,
   ): string {
-    const roleLabel = role === 'admin' ? 'Administrator' : role === 'captain' ? 'Captain' : role === 'crew' ? 'Crew Member' : 'Viewer'
+    const roleLabel =
+      role === "admin"
+        ? "Administrator"
+        : role === "captain"
+          ? "Captain"
+          : role === "crew"
+            ? "Crew Member"
+            : "Viewer";
 
     return `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -245,48 +356,62 @@ export class EmailService {
           <p>If you don't want to join this fleet, you can safely ignore this email.</p>
         </div>
       </div>
-    `
+    `;
   }
 
   private async getUserMonthlyStats(userId: string, month: Date) {
-    const startOfMonth = new Date(month.getFullYear(), month.getMonth(), 1)
-    const endOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0)
+    const startOfMonth = new Date(month.getFullYear(), month.getMonth(), 1);
+    const endOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0);
 
     const { data: passages, error } = await this.supabase
-      .from('passages')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('created_at', startOfMonth.toISOString())
-      .lte('created_at', endOfMonth.toISOString())
+      .from("passages")
+      .select("*")
+      .eq("user_id", userId)
+      .gte("created_at", startOfMonth.toISOString())
+      .lte("created_at", endOfMonth.toISOString());
 
-    if (error) throw error
+    if (error) throw error;
 
     const stats = {
       passagesPlanned: passages?.length || 0,
-      totalDistance: passages?.reduce((sum: number, p: any) => sum + (p.distance_nm || 0), 0) || 0,
-      portsVisited: new Set(passages?.flatMap((p: any) => [p.start_port, p.end_port]) || []).size,
-      hoursAtSea: passages?.reduce((sum: number, p: any) => {
-        if (p.departure_time && p.arrival_time) {
-          const hours = (new Date(p.arrival_time).getTime() - new Date(p.departure_time).getTime()) / (1000 * 60 * 60)
-          return sum + hours
-        }
-        return sum
-      }, 0) || 0,
-    }
+      totalDistance:
+        passages?.reduce(
+          (sum: number, p: any) => sum + (p.distance_nm || 0),
+          0,
+        ) || 0,
+      portsVisited: new Set(
+        passages?.flatMap((p: any) => [p.start_port, p.end_port]) || [],
+      ).size,
+      hoursAtSea:
+        passages?.reduce((sum: number, p: any) => {
+          if (p.departure_time && p.arrival_time) {
+            const hours =
+              (new Date(p.arrival_time).getTime() -
+                new Date(p.departure_time).getTime()) /
+              (1000 * 60 * 60);
+            return sum + hours;
+          }
+          return sum;
+        }, 0) || 0,
+    };
 
-    return stats
+    return stats;
   }
 
-  private async logEmailSent(userId: string, type: string, recipient: string): Promise<void> {
+  private async logEmailSent(
+    userId: string,
+    type: string,
+    recipient: string,
+  ): Promise<void> {
     try {
-      await this.supabase.from('email_logs').insert({
+      await this.supabase.from("email_logs").insert({
         user_id: userId,
         type,
         recipient,
         sent_at: new Date().toISOString(),
-      })
+      });
     } catch (error) {
-      logger.error({ error, userId, type }, 'Failed to log email')
+      logger.error({ error, userId, type }, "Failed to log email");
     }
   }
 
@@ -304,7 +429,7 @@ export class EmailService {
           </a>
         </div>
       </div>
-    `
+    `;
   }
 
   private getTrialEndingEmailHtml(daysRemaining: number): string {
@@ -323,10 +448,14 @@ export class EmailService {
           </a>
         </div>
       </div>
-    `
+    `;
   }
 
-  private getUsageReportEmailHtml(month: string, year: number, stats: any): string {
+  private getUsageReportEmailHtml(
+    month: string,
+    year: number,
+    stats: any,
+  ): string {
     return `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #1e293b; font-size: 32px; text-align: center;">Your ${month} sailing summary</h1>
@@ -346,11 +475,14 @@ export class EmailService {
           </a>
         </div>
       </div>
-    `
+    `;
   }
 
-  private getSubscriptionConfirmationHtml(userName: string, tier: 'premium' | 'pro'): string {
-    const planName = tier === 'premium' ? 'Premium' : 'Pro'
+  private getSubscriptionConfirmationHtml(
+    userName: string,
+    tier: "premium" | "pro",
+  ): string {
+    const planName = tier === "premium" ? "Premium" : "Pro";
     return `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #1e293b; font-size: 24px;">Welcome to ${planName}, ${userName}!</h1>
@@ -363,16 +495,19 @@ export class EmailService {
           </a>
         </div>
       </div>
-    `
+    `;
   }
 
-  private getCancellationConfirmationHtml(userName: string, endDate: Date): string {
-    const formattedDate = endDate.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-    
+  private getCancellationConfirmationHtml(
+    userName: string,
+    endDate: Date,
+  ): string {
+    const formattedDate = endDate.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
     return `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #1e293b; font-size: 24px;">We're sorry to see you go, ${userName}</h1>
@@ -385,9 +520,9 @@ export class EmailService {
           </a>
         </div>
       </div>
-    `
+    `;
   }
 }
 
 // Export singleton instance
-export const emailService = new EmailService() 
+export const emailService = new EmailService();
