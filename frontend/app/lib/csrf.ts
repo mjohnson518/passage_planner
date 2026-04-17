@@ -5,20 +5,22 @@
  * Works with the CSRF middleware to implement double-submit cookie pattern.
  */
 
-const CSRF_COOKIE_NAME = 'csrf_token';
-const CSRF_HEADER_NAME = 'x-csrf-token';
+import { logger } from "./logger";
+
+const CSRF_COOKIE_NAME = "csrf_token";
+const CSRF_HEADER_NAME = "x-csrf-token";
 
 /**
  * Get the current CSRF token from cookies
  */
 export function getCsrfToken(): string | null {
-  if (typeof document === 'undefined') {
+  if (typeof document === "undefined") {
     return null;
   }
 
-  const cookies = document.cookie.split(';');
+  const cookies = document.cookie.split(";");
   for (const cookie of cookies) {
-    const [name, value] = cookie.trim().split('=');
+    const [name, value] = cookie.trim().split("=");
     if (name === CSRF_COOKIE_NAME) {
       return decodeURIComponent(value);
     }
@@ -33,7 +35,9 @@ export function getCsrfToken(): string | null {
 export function addCsrfHeader(headers: HeadersInit = {}): HeadersInit {
   const token = getCsrfToken();
   if (!token) {
-    console.warn('CSRF token not found. Ensure you have made a GET request first.');
+    logger.warn(
+      "CSRF token not found — issue a GET request first to receive the cookie.",
+    );
     return headers;
   }
 
@@ -58,17 +62,17 @@ export function addCsrfHeader(headers: HeadersInit = {}): HeadersInit {
  */
 export async function csrfFetch(
   url: string | URL,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<Response> {
-  const method = (options.method || 'GET').toUpperCase();
-  const needsCsrf = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+  const method = (options.method || "GET").toUpperCase();
+  const needsCsrf = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
 
   if (needsCsrf) {
     options.headers = addCsrfHeader(options.headers || {});
   }
 
   // Ensure credentials are included so cookies are sent
-  options.credentials = options.credentials || 'same-origin';
+  options.credentials = options.credentials || "same-origin";
 
   return fetch(url, options);
 }
@@ -81,9 +85,9 @@ export async function csrfFetch(
 export async function initializeCsrf(): Promise<void> {
   // Make a lightweight GET request to any API endpoint to receive the CSRF cookie
   try {
-    await fetch('/api/passages/recent', {
-      method: 'GET',
-      credentials: 'same-origin',
+    await fetch("/api/passages/recent", {
+      method: "GET",
+      credentials: "same-origin",
     });
   } catch {
     // Silently fail - CSRF token will be set on first successful API request
