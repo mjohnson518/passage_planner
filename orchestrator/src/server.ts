@@ -414,11 +414,9 @@ export class HttpServer {
         // Validate input
         const parsed = signupSchema.safeParse(req.body);
         if (!parsed.success) {
-          return res
-            .status(400)
-            .json({
-              error: parsed.error.errors[0]?.message || "Invalid input",
-            });
+          return res.status(400).json({
+            error: parsed.error.errors[0]?.message || "Invalid input",
+          });
         }
         const { email, password, displayName } = parsed.data;
 
@@ -646,12 +644,10 @@ export class HttpServer {
         });
         const profileParsed = profileSchema.safeParse(req.body);
         if (!profileParsed.success) {
-          return res
-            .status(400)
-            .json({
-              error: "Validation failed",
-              details: profileParsed.error.issues,
-            });
+          return res.status(400).json({
+            error: "Validation failed",
+            details: profileParsed.error.issues,
+          });
         }
         const userId = req.user!.id;
         const { full_name, company_name, phone, metadata } = req.body;
@@ -748,12 +744,10 @@ export class HttpServer {
         });
         const passagesParsed = passagesSchema.safeParse(req.body);
         if (!passagesParsed.success) {
-          return res
-            .status(400)
-            .json({
-              error: "Validation failed",
-              details: passagesParsed.error.issues,
-            });
+          return res.status(400).json({
+            error: "Validation failed",
+            details: passagesParsed.error.issues,
+          });
         }
         const userId = req.user.id;
         const passageData = req.body;
@@ -877,12 +871,10 @@ export class HttpServer {
           });
           const weatherCurrentParsed = weatherCurrentSchema.safeParse(req.body);
           if (!weatherCurrentParsed.success) {
-            return res
-              .status(400)
-              .json({
-                error: "Validation failed",
-                details: weatherCurrentParsed.error.issues,
-              });
+            return res.status(400).json({
+              error: "Validation failed",
+              details: weatherCurrentParsed.error.issues,
+            });
           }
           const { location, coordinates } = req.body;
 
@@ -1097,12 +1089,10 @@ export class HttpServer {
           });
           const checkoutParsed = checkoutSchema.safeParse(req.body);
           if (!checkoutParsed.success) {
-            return res
-              .status(400)
-              .json({
-                error: "Validation failed",
-                details: checkoutParsed.error.issues,
-              });
+            return res.status(400).json({
+              error: "Validation failed",
+              details: checkoutParsed.error.issues,
+            });
           }
           const {
             tier,
@@ -1176,12 +1166,10 @@ export class HttpServer {
           const schema = z.object({ pack: z.enum(["small", "large"]) });
           const parsed = schema.safeParse(req.body);
           if (!parsed.success) {
-            return res
-              .status(400)
-              .json({
-                error: "Validation failed",
-                details: parsed.error.issues,
-              });
+            return res.status(400).json({
+              error: "Validation failed",
+              details: parsed.error.issues,
+            });
           }
           const { pack } = parsed.data;
           const userId = req.user.id;
@@ -1266,12 +1254,10 @@ export class HttpServer {
           });
           const parsed = schema.safeParse(req.body);
           if (!parsed.success) {
-            return res
-              .status(400)
-              .json({
-                error: "Validation failed",
-                details: parsed.error.issues,
-              });
+            return res.status(400).json({
+              error: "Validation failed",
+              details: parsed.error.issues,
+            });
           }
           const { userId, whitelisted } = parsed.data;
           await this.postgres.query(
@@ -1301,12 +1287,10 @@ export class HttpServer {
           });
           const fleetCreateParsed = fleetCreateSchema.safeParse(req.body);
           if (!fleetCreateParsed.success) {
-            return res
-              .status(400)
-              .json({
-                error: "Validation failed",
-                details: fleetCreateParsed.error.issues,
-              });
+            return res.status(400).json({
+              error: "Validation failed",
+              details: fleetCreateParsed.error.issues,
+            });
           }
           const { name, description } = req.body;
           const userId = req.user!.id;
@@ -1392,12 +1376,10 @@ export class HttpServer {
           });
           const fleetVesselsParsed = fleetVesselsSchema.safeParse(req.body);
           if (!fleetVesselsParsed.success) {
-            return res
-              .status(400)
-              .json({
-                error: "Validation failed",
-                details: fleetVesselsParsed.error.issues,
-              });
+            return res.status(400).json({
+              error: "Validation failed",
+              details: fleetVesselsParsed.error.issues,
+            });
           }
           const { fleetId } = req.params;
           const userId = req.user!.id;
@@ -1680,6 +1662,7 @@ export class HttpServer {
     this.app.post(
       "/api/user/data-export",
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      this.rateLimiter!.sensitiveOpsLimit("data-export", 3, 60 * 60 * 1000),
       async (req, res) => {
         const userId = req.user!.id;
         try {
@@ -1755,6 +1738,11 @@ export class HttpServer {
     this.app.post(
       "/api/user/delete",
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      this.rateLimiter!.sensitiveOpsLimit(
+        "account-delete",
+        3,
+        24 * 60 * 60 * 1000,
+      ),
       async (req, res) => {
         const userId = req.user!.id;
         const userEmail = req.user!.email;
@@ -1913,12 +1901,10 @@ export class HttpServer {
           });
           const agentRegisterParsed = agentRegisterSchema.safeParse(req.body);
           if (!agentRegisterParsed.success) {
-            return res
-              .status(400)
-              .json({
-                error: "Validation failed",
-                details: agentRegisterParsed.error.issues,
-              });
+            return res.status(400).json({
+              error: "Validation failed",
+              details: agentRegisterParsed.error.issues,
+            });
           }
           // Check if user is admin
           const userResult = await this.postgres.query(
@@ -2106,12 +2092,9 @@ export class HttpServer {
               filename = `passages-export-${Date.now()}.csv`;
               break;
             default:
-              return res
-                .status(400)
-                .json({
-                  error:
-                    "Invalid export format. Use gpx or csv for bulk export",
-                });
+              return res.status(400).json({
+                error: "Invalid export format. Use gpx or csv for bulk export",
+              });
           }
 
           res.setHeader("Content-Type", contentType);
@@ -2185,12 +2168,10 @@ export class HttpServer {
           });
           const fleetInviteParsed = fleetInviteSchema.safeParse(req.body);
           if (!fleetInviteParsed.success) {
-            return res
-              .status(400)
-              .json({
-                error: "Validation failed",
-                details: fleetInviteParsed.error.issues,
-              });
+            return res.status(400).json({
+              error: "Validation failed",
+              details: fleetInviteParsed.error.issues,
+            });
           }
           const userId = req.user!.id;
           const { fleetId } = req.params;
@@ -2566,12 +2547,10 @@ export class HttpServer {
           });
           const weatherExportParsed = weatherExportSchema.safeParse(req.body);
           if (!weatherExportParsed.success) {
-            return res
-              .status(400)
-              .json({
-                error: "Validation failed",
-                details: weatherExportParsed.error.issues,
-              });
+            return res.status(400).json({
+              error: "Validation failed",
+              details: weatherExportParsed.error.issues,
+            });
           }
           const { region, format, layer } = req.body;
 

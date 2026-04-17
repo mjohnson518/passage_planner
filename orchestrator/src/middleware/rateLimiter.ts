@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
-import { RedisClientType } from 'redis';
-import { Logger } from 'pino';
+import { Request, Response, NextFunction } from "express";
+import { RedisClientType } from "redis";
+import { Logger } from "pino";
 
 interface RateLimitRequest extends Request {
   user?: {
@@ -45,25 +45,29 @@ export class RateLimiter {
 
   constructor(redis: RedisClientType | null, logger: Logger) {
     this.redis = redis;
-    this.logger = logger.child({ middleware: 'rateLimiter' });
+    this.logger = logger.child({ middleware: "rateLimiter" });
   }
 
   async limit(req: RateLimitRequest, res: Response, next: NextFunction) {
     if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return res.status(401).json({ error: "Authentication required" });
     }
 
     // In production use in-memory fallback when Redis is unavailable (degraded but not open)
     if (!this.redis) {
-      if (process.env.NODE_ENV === 'production') {
+      if (process.env.NODE_ENV === "production") {
         // Allow but log — in-memory counter not available so we degrade gracefully
-        this.logger.warn({ path: req.path }, 'Rate limiting degraded: Redis unavailable');
+        this.logger.warn(
+          { path: req.path },
+          "Rate limiting degraded: Redis unavailable",
+        );
       }
       return next();
     }
 
-    const tier = req.subscription?.tier || 'free';
-    const limits = this.LIMITS[tier as keyof typeof this.LIMITS] || this.LIMITS.free;
+    const tier = req.subscription?.tier || "free";
+    const limits =
+      this.LIMITS[tier as keyof typeof this.LIMITS] || this.LIMITS.free;
 
     // No limit for enterprise
     if (limits.maxRequests === -1) {
@@ -74,35 +78,46 @@ export class RateLimiter {
 
     try {
       const current = await this.redis.incr(key);
-      
+
       // Set expiry on first request
       if (current === 1) {
         await this.redis.expire(key, Math.ceil(limits.windowMs / 1000));
       }
 
       // Add rate limit headers
-      res.setHeader('X-RateLimit-Limit', limits.maxRequests.toString());
-      res.setHeader('X-RateLimit-Remaining', Math.max(0, limits.maxRequests - current).toString());
-      res.setHeader('X-RateLimit-Reset', new Date(Math.ceil(Date.now() / limits.windowMs) * limits.windowMs).toISOString());
+      res.setHeader("X-RateLimit-Limit", limits.maxRequests.toString());
+      res.setHeader(
+        "X-RateLimit-Remaining",
+        Math.max(0, limits.maxRequests - current).toString(),
+      );
+      res.setHeader(
+        "X-RateLimit-Reset",
+        new Date(
+          Math.ceil(Date.now() / limits.windowMs) * limits.windowMs,
+        ).toISOString(),
+      );
 
       if (current > limits.maxRequests) {
-        this.logger.warn({
-          userId: req.user.id,
-          tier,
-          requests: current,
-          limit: limits.maxRequests
-        }, 'Rate limit exceeded');
+        this.logger.warn(
+          {
+            userId: req.user.id,
+            tier,
+            requests: current,
+            limit: limits.maxRequests,
+          },
+          "Rate limit exceeded",
+        );
 
         return res.status(429).json({
-          error: 'Rate limit exceeded',
+          error: "Rate limit exceeded",
           retryAfter: Math.ceil(limits.windowMs / 1000),
-          upgradeUrl: '/pricing'
+          upgradeUrl: "/pricing",
         });
       }
 
       next();
     } catch (error) {
-      this.logger.error({ error }, 'Rate limiting failed');
+      this.logger.error({ error }, "Rate limiting failed");
       // Continue on error - don't block requests due to Redis issues
       next();
     }
@@ -116,16 +131,23 @@ export class RateLimiter {
   async authRateLimit(req: Request, res: Response, next: NextFunction) {
     // In production, auth endpoints fail closed when Redis is unavailable
     if (!this.redis) {
-      if (process.env.NODE_ENV === 'production') {
-        this.logger.error({ path: req.path }, 'Auth rate limiting unavailable: Redis down — returning 503');
-        return res.status(503).json({ error: 'Service temporarily unavailable. Please try again shortly.' });
+      if (process.env.NODE_ENV === "production") {
+        this.logger.error(
+          { path: req.path },
+          "Auth rate limiting unavailable: Redis down — returning 503",
+        );
+        return res
+          .status(503)
+          .json({
+            error: "Service temporarily unavailable. Please try again shortly.",
+          });
       }
       return next();
     }
 
     // Get client IP via req.ip which respects Express trust proxy setting,
     // preventing X-Forwarded-For spoofing attacks
-    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+    const clientIp = req.ip || req.socket.remoteAddress || "unknown";
 
     const windowKey = Math.floor(Date.now() / this.AUTH_LIMITS.windowMs);
     const attemptKey = `auth_rate:${clientIp}:${windowKey}`;
@@ -136,14 +158,17 @@ export class RateLimiter {
       const isBlocked = await this.redis.get(blockKey);
       if (isBlocked) {
         const ttl = await this.redis.ttl(blockKey);
-        this.logger.warn({
-          ip: clientIp,
-          endpoint: req.path,
-          remainingBlockTime: ttl
-        }, 'Blocked IP attempted auth request');
+        this.logger.warn(
+          {
+            ip: clientIp,
+            endpoint: req.path,
+            remainingBlockTime: ttl,
+          },
+          "Blocked IP attempted auth request",
+        );
 
         return res.status(429).json({
-          error: 'Too many authentication attempts. Please try again later.',
+          error: "Too many authentication attempts. Please try again later.",
           retryAfter: ttl,
         });
       }
@@ -153,44 +178,134 @@ export class RateLimiter {
 
       // Set expiry on first attempt
       if (attempts === 1) {
-        await this.redis.expire(attemptKey, Math.ceil(this.AUTH_LIMITS.windowMs / 1000));
+        await this.redis.expire(
+          attemptKey,
+          Math.ceil(this.AUTH_LIMITS.windowMs / 1000),
+        );
       }
 
       // Set rate limit headers
-      res.setHeader('X-RateLimit-Limit', this.AUTH_LIMITS.maxAttempts.toString());
-      res.setHeader('X-RateLimit-Remaining', Math.max(0, this.AUTH_LIMITS.maxAttempts - attempts).toString());
-      res.setHeader('X-RateLimit-Reset', new Date(
-        Math.ceil(Date.now() / this.AUTH_LIMITS.windowMs) * this.AUTH_LIMITS.windowMs
-      ).toISOString());
+      res.setHeader(
+        "X-RateLimit-Limit",
+        this.AUTH_LIMITS.maxAttempts.toString(),
+      );
+      res.setHeader(
+        "X-RateLimit-Remaining",
+        Math.max(0, this.AUTH_LIMITS.maxAttempts - attempts).toString(),
+      );
+      res.setHeader(
+        "X-RateLimit-Reset",
+        new Date(
+          Math.ceil(Date.now() / this.AUTH_LIMITS.windowMs) *
+            this.AUTH_LIMITS.windowMs,
+        ).toISOString(),
+      );
 
       if (attempts > this.AUTH_LIMITS.maxAttempts) {
         // Block the IP for an extended period
         await this.redis.setEx(
           blockKey,
           Math.ceil(this.AUTH_LIMITS.blockDurationMs / 1000),
-          'blocked'
+          "blocked",
         );
 
-        this.logger.warn({
-          ip: clientIp,
-          endpoint: req.path,
-          attempts,
-          limit: this.AUTH_LIMITS.maxAttempts
-        }, 'Auth rate limit exceeded - IP blocked');
+        this.logger.warn(
+          {
+            ip: clientIp,
+            endpoint: req.path,
+            attempts,
+            limit: this.AUTH_LIMITS.maxAttempts,
+          },
+          "Auth rate limit exceeded - IP blocked",
+        );
 
         return res.status(429).json({
-          error: 'Too many authentication attempts. Please try again later.',
+          error: "Too many authentication attempts. Please try again later.",
           retryAfter: Math.ceil(this.AUTH_LIMITS.blockDurationMs / 1000),
         });
       }
 
       next();
     } catch (error) {
-      this.logger.error({ error, ip: clientIp }, 'Auth rate limiting failed');
+      this.logger.error({ error, ip: clientIp }, "Auth rate limiting failed");
       // Continue on error - don't block requests due to Redis issues
       // but log for monitoring
       next();
     }
+  }
+
+  /**
+   * Rate limit for irreversible / high-impact per-user actions (GDPR export,
+   * account deletion, API key rotation, etc). Unlike `limit()` this is not
+   * tiered by subscription — everyone pays the same limit on sensitive ops —
+   * and it fails CLOSED in production when Redis is unreachable, because the
+   * cost of an unlogged export or double-deletion is higher than a 503.
+   */
+  sensitiveOpsLimit(action: string, maxRequests: number, windowMs: number) {
+    return async (req: RateLimitRequest, res: Response, next: NextFunction) => {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      if (!this.redis) {
+        if (process.env.NODE_ENV === "production") {
+          this.logger.error(
+            { action, userId: req.user.id },
+            "Sensitive op blocked: Redis unavailable",
+          );
+          return res
+            .status(503)
+            .json({ error: "Service temporarily unavailable" });
+        }
+        return next();
+      }
+
+      const windowKey = Math.floor(Date.now() / windowMs);
+      const key = `sensitive_ops:${action}:${req.user.id}:${windowKey}`;
+
+      try {
+        const current = await this.redis.incr(key);
+        if (current === 1) {
+          await this.redis.expire(key, Math.ceil(windowMs / 1000));
+        }
+
+        res.setHeader("X-RateLimit-Limit", maxRequests.toString());
+        res.setHeader(
+          "X-RateLimit-Remaining",
+          Math.max(0, maxRequests - current).toString(),
+        );
+
+        if (current > maxRequests) {
+          const ttl = await this.redis.ttl(key);
+          this.logger.warn(
+            {
+              userId: req.user.id,
+              action,
+              attempts: current,
+              limit: maxRequests,
+            },
+            "Sensitive op rate limit exceeded",
+          );
+          return res.status(429).json({
+            error: `Too many ${action} requests. Please try again later.`,
+            retryAfter: ttl > 0 ? ttl : Math.ceil(windowMs / 1000),
+          });
+        }
+
+        next();
+      } catch (error) {
+        this.logger.error(
+          { error, action },
+          "Sensitive op rate limit check failed",
+        );
+        // Fail closed — irreversible operations must not bypass limits on errors
+        if (process.env.NODE_ENV === "production") {
+          return res
+            .status(503)
+            .json({ error: "Service temporarily unavailable" });
+        }
+        next();
+      }
+    };
   }
 
   /**
@@ -200,15 +315,18 @@ export class RateLimiter {
   async recordFailedAuth(ip: string, email: string): Promise<void> {
     try {
       const key = `failed_auth:${ip}`;
-      await this.redis.lPush(key, JSON.stringify({
-        email,
-        timestamp: Date.now(),
-      }));
+      await this.redis.lPush(
+        key,
+        JSON.stringify({
+          email,
+          timestamp: Date.now(),
+        }),
+      );
       // Keep last 100 failed attempts per IP
       await this.redis.lTrim(key, 0, 99);
       await this.redis.expire(key, 24 * 60 * 60); // 24 hour retention
     } catch (error) {
-      this.logger.error({ error, ip, email }, 'Failed to record auth attempt');
+      this.logger.error({ error, ip, email }, "Failed to record auth attempt");
     }
   }
-} 
+}
