@@ -1,143 +1,181 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
-import { Menu, X, Anchor, LogOut, Settings, CreditCard, Moon, Sun, ChevronDown } from 'lucide-react'
-import { useTheme } from 'next-themes'
-import { useAuth } from '../../contexts/AuthContext'
-import { useSocket } from '../../contexts/SocketContext'
-import { Button } from '../ui/button'
-import { cn } from '../../lib/utils'
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
+import {
+  Menu,
+  X,
+  Anchor,
+  LogOut,
+  Settings,
+  CreditCard,
+  Moon,
+  Sun,
+  ChevronDown,
+  ShieldCheck,
+} from "lucide-react";
+import { useTheme } from "next-themes";
+import { useAuth } from "../../contexts/AuthContext";
+import { useSocket } from "../../contexts/SocketContext";
+import { Button } from "../ui/button";
+import { cn } from "../../lib/utils";
 
 export function Header() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [scrolled, setScrolled] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const [isDemoMode, setIsDemoMode] = useState(false)
-  const { theme, setTheme, resolvedTheme } = useTheme()
-  const { user, signOut } = useAuth()
-  const { connected, agentStatuses } = useSocket()
-  const pathname = usePathname()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { user, signOut } = useAuth();
+  const { connected, agentStatuses } = useSocket();
+  const pathname = usePathname();
 
   useEffect(() => {
-    setMounted(true)
+    setMounted(true);
     // Check demo mode
-    const demoMode = typeof window !== 'undefined' && localStorage.getItem('helmwise_demo_mode') === 'true'
-    setIsDemoMode(demoMode)
+    const demoMode =
+      typeof window !== "undefined" &&
+      localStorage.getItem("helmwise_demo_mode") === "true";
+    setIsDemoMode(demoMode);
 
     const handleScroll = () => {
-      setScrolled(window.scrollY > 20)
-    }
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Re-check demo mode when pathname changes
   useEffect(() => {
-    const demoMode = typeof window !== 'undefined' && localStorage.getItem('helmwise_demo_mode') === 'true'
-    setIsDemoMode(demoMode)
-  }, [pathname])
+    const demoMode =
+      typeof window !== "undefined" &&
+      localStorage.getItem("helmwise_demo_mode") === "true";
+    setIsDemoMode(demoMode);
+  }, [pathname]);
 
-  const isAuthenticated = user || isDemoMode
-  const isLandingPage = pathname === '/'
+  const isAuthenticated = user || isDemoMode;
+  const isLandingPage = pathname === "/";
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', requireAuth: true },
-    { name: 'Plan Passage', href: '/planner', requireAuth: true },
-    { name: 'My Passages', href: '/passages', requireAuth: true },
-    { name: 'Pricing', href: '/pricing', requireAuth: false },
-  ]
+    { name: "Dashboard", href: "/dashboard", requireAuth: true },
+    { name: "Plan Passage", href: "/planner", requireAuth: true },
+    { name: "My Passages", href: "/passages", requireAuth: true },
+    { name: "Pricing", href: "/pricing", requireAuth: false },
+  ];
 
   const landingAnchors = [
-    { name: 'Capabilities', href: '#capabilities' },
-    { name: 'Process', href: '#process' },
-    { name: 'Pricing', href: '#pricing' },
-  ]
+    { name: "Capabilities", href: "#capabilities" },
+    { name: "Process", href: "#process" },
+    { name: "Pricing", href: "#pricing" },
+  ];
 
-  const desktopNavItems = isLandingPage && !isAuthenticated
-    ? landingAnchors
-    : navigation.filter(item => !item.requireAuth || isAuthenticated)
+  const desktopNavItems =
+    isLandingPage && !isAuthenticated
+      ? landingAnchors
+      : navigation.filter((item) => !item.requireAuth || isAuthenticated);
 
-  const activeAgents = Object.keys(agentStatuses).length
-  const displayName = user?.email?.split('@')[0] || (isDemoMode ? 'Demo' : '')
+  const activeAgents = Object.keys(agentStatuses).length;
+  const displayName = user?.email?.split("@")[0] || (isDemoMode ? "Demo" : "");
 
   const handleSignOut = () => {
     if (isDemoMode) {
-      localStorage.removeItem('helmwise_demo_mode')
-      window.location.href = '/login'
+      localStorage.removeItem("helmwise_demo_mode");
+      window.location.href = "/login";
     } else {
-      signOut()
+      signOut();
     }
-  }
+  };
 
   const toggleTheme = () => {
-    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
-  }
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  };
 
   return (
-    <header className={cn(
-      'sticky top-0 z-50 w-full transition-all duration-300',
-      isLandingPage
-        ? scrolled
-          ? 'border-b border-white/[0.06]'
-          : ''
-        : scrolled
-          ? 'glass-heavy shadow-maritime'
-          : 'bg-background/80 backdrop-blur-sm'
-    )}
-    style={isLandingPage ? {
-      background: scrolled
-        ? 'rgba(5, 8, 15, 0.92)'
-        : 'rgba(5, 8, 15, 0.0)',
-      backdropFilter: scrolled ? 'blur(20px)' : 'none',
-      WebkitBackdropFilter: scrolled ? 'blur(20px)' : 'none',
-    } : undefined}
+    <header
+      className={cn(
+        "sticky top-0 z-50 w-full transition-all duration-300",
+        isLandingPage
+          ? scrolled
+            ? "border-b border-white/[0.06]"
+            : ""
+          : scrolled
+            ? "glass-heavy shadow-maritime"
+            : "bg-background/80 backdrop-blur-sm",
+      )}
+      style={
+        isLandingPage
+          ? {
+              background: scrolled
+                ? "rgba(5, 8, 15, 0.92)"
+                : "rgba(5, 8, 15, 0.0)",
+              backdropFilter: scrolled ? "blur(20px)" : "none",
+              WebkitBackdropFilter: scrolled ? "blur(20px)" : "none",
+            }
+          : undefined
+      }
     >
-      <nav data-testid="header-nav" className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-8">
+      <nav
+        data-testid="header-nav"
+        className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 lg:px-8"
+      >
         {/* Logo */}
         <div className="flex items-center gap-8">
-          <Link href="/" data-testid="header-logo" className="flex items-center gap-2.5 group">
+          <Link
+            href="/"
+            data-testid="header-logo"
+            className="flex items-center gap-2.5 group"
+          >
             <div className="relative">
-              <div className={cn(
-                'w-10 h-10 rounded-xl flex items-center justify-center transition-shadow',
-                isLandingPage
-                  ? 'bg-white/[0.08] border border-white/[0.12]'
-                  : 'bg-gradient-to-br from-primary to-ocean-deep shadow-maritime group-hover:shadow-maritime-lg'
-              )}>
-                <Anchor className={cn('h-5 w-5', isLandingPage ? 'text-seafoam' : 'text-primary-foreground')} />
+              <div
+                className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center transition-shadow",
+                  isLandingPage
+                    ? "bg-white/[0.08] border border-white/[0.12]"
+                    : "bg-gradient-to-br from-primary to-ocean-deep shadow-maritime group-hover:shadow-maritime-lg",
+                )}
+              >
+                <Anchor
+                  className={cn(
+                    "h-5 w-5",
+                    isLandingPage ? "text-seafoam" : "text-primary-foreground",
+                  )}
+                />
               </div>
               {isAuthenticated && connected && (
                 <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-success rounded-full border-2 border-background" />
               )}
             </div>
-            <span className={cn(
-              'font-display text-xl font-bold tracking-tight',
-              isLandingPage ? 'text-white' : ''
-            )}>Helmwise</span>
+            <span
+              className={cn(
+                "font-display text-xl font-bold tracking-tight",
+                isLandingPage ? "text-white" : "",
+              )}
+            >
+              Helmwise
+            </span>
           </Link>
 
           {/* Desktop Navigation */}
           <div className="hidden lg:flex lg:items-center lg:gap-1">
-            {desktopNavItems
-              .map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
-                    isLandingPage
-                      ? pathname === item.href
-                        ? 'text-seafoam bg-white/[0.06]'
-                        : 'text-white/60 hover:text-white/90 hover:bg-white/[0.05]'
-                      : pathname === item.href
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                  )}
-                >
-                  {item.name}
-                </Link>
-              ))}
+            {desktopNavItems.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                  isLandingPage
+                    ? pathname === item.href
+                      ? "text-seafoam bg-white/[0.06]"
+                      : "text-white/60 hover:text-white/90 hover:bg-white/[0.05]"
+                    : pathname === item.href
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                )}
+              >
+                {item.name}
+              </Link>
+            ))}
           </div>
         </div>
 
@@ -166,7 +204,11 @@ export function Header() {
               size="icon"
               onClick={toggleTheme}
               className="h-9 w-9 rounded-lg"
-              title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={
+                resolvedTheme === "dark"
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"
+              }
             >
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -175,14 +217,19 @@ export function Header() {
           )}
 
           {isAuthenticated ? (
-            <div data-testid="header-user-menu" className="relative group hidden lg:block">
+            <div
+              data-testid="header-user-menu"
+              className="relative group hidden lg:block"
+            >
               <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors">
-                <div className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center text-xs text-white font-semibold',
-                  isDemoMode
-                    ? 'bg-gradient-to-br from-brass-400 to-brass-600'
-                    : 'bg-gradient-to-br from-ocean-300 to-ocean-600'
-                )}>
+                <div
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center text-xs text-white font-semibold",
+                    isDemoMode
+                      ? "bg-gradient-to-br from-brass-400 to-brass-600"
+                      : "bg-gradient-to-br from-ocean-300 to-ocean-600",
+                  )}
+                >
                   {displayName.charAt(0).toUpperCase()}
                 </div>
                 <span className="text-sm font-medium max-w-[100px] truncate">
@@ -197,7 +244,7 @@ export function Header() {
                   <div className="px-3 py-2 mb-1">
                     <p className="text-sm font-medium">{displayName}</p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {isDemoMode ? 'Demo Account' : user?.email}
+                      {isDemoMode ? "Demo Account" : user?.email}
                     </p>
                   </div>
                   <hr className="my-1 border-border" />
@@ -217,6 +264,13 @@ export function Header() {
                         <CreditCard className="h-4 w-4 text-muted-foreground" />
                         <span>Billing</span>
                       </Link>
+                      <Link
+                        href="/account/privacy"
+                        className="flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-muted/50 transition-colors"
+                      >
+                        <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                        <span>Privacy &amp; Data</span>
+                      </Link>
                       <hr className="my-1 border-border" />
                     </>
                   )}
@@ -225,7 +279,7 @@ export function Header() {
                     className="flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-destructive/10 text-destructive w-full text-left transition-colors"
                   >
                     <LogOut className="h-4 w-4" />
-                    <span>{isDemoMode ? 'Exit Demo' : 'Sign Out'}</span>
+                    <span>{isDemoMode ? "Exit Demo" : "Sign Out"}</span>
                   </button>
                 </div>
               </div>
@@ -235,7 +289,11 @@ export function Header() {
               <Link href="/login">
                 <Button
                   variant="ghost"
-                  className={cn('h-9 px-4 text-sm', isLandingPage && 'text-white/70 hover:text-white hover:bg-white/[0.06]')}
+                  className={cn(
+                    "h-9 px-4 text-sm",
+                    isLandingPage &&
+                      "text-white/70 hover:text-white hover:bg-white/[0.06]",
+                  )}
                 >
                   Log In
                 </Button>
@@ -271,10 +329,12 @@ export function Header() {
       </nav>
 
       {/* Mobile menu */}
-      <div className={cn(
-        'lg:hidden overflow-hidden transition-all duration-300',
-        mobileMenuOpen ? 'max-h-screen' : 'max-h-0'
-      )}>
+      <div
+        className={cn(
+          "lg:hidden overflow-hidden transition-all duration-300",
+          mobileMenuOpen ? "max-h-screen" : "max-h-0",
+        )}
+      >
         <div className="glass-heavy border-t border-border px-4 py-6 space-y-4">
           {/* Demo Mode Banner Mobile */}
           {isDemoMode && (
@@ -285,16 +345,16 @@ export function Header() {
           )}
 
           {navigation
-            .filter(item => !item.requireAuth || isAuthenticated)
+            .filter((item) => !item.requireAuth || isAuthenticated)
             .map((item) => (
               <Link
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  'block px-4 py-3 rounded-lg text-base font-medium transition-colors',
+                  "block px-4 py-3 rounded-lg text-base font-medium transition-colors",
                   pathname === item.href
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
                 )}
                 onClick={() => setMobileMenuOpen(false)}
               >
@@ -310,8 +370,10 @@ export function Header() {
               onClick={toggleTheme}
               className="flex items-center justify-between w-full px-4 py-3 rounded-lg text-base font-medium hover:bg-muted/50 transition-colors"
             >
-              <span>{resolvedTheme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-              {resolvedTheme === 'dark' ? (
+              <span>
+                {resolvedTheme === "dark" ? "Light Mode" : "Dark Mode"}
+              </span>
+              {resolvedTheme === "dark" ? (
                 <Sun className="h-5 w-5" />
               ) : (
                 <Moon className="h-5 w-5" />
@@ -322,22 +384,31 @@ export function Header() {
           {isAuthenticated ? (
             <>
               {!isDemoMode && (
-                <Link
-                  href="/profile"
-                  className="block px-4 py-3 rounded-lg text-base font-medium hover:bg-muted/50 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Profile
-                </Link>
+                <>
+                  <Link
+                    href="/profile"
+                    className="block px-4 py-3 rounded-lg text-base font-medium hover:bg-muted/50 transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Profile
+                  </Link>
+                  <Link
+                    href="/account/privacy"
+                    className="block px-4 py-3 rounded-lg text-base font-medium hover:bg-muted/50 transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Privacy &amp; Data
+                  </Link>
+                </>
               )}
               <button
                 onClick={() => {
-                  handleSignOut()
-                  setMobileMenuOpen(false)
+                  handleSignOut();
+                  setMobileMenuOpen(false);
                 }}
                 className="block w-full text-left px-4 py-3 rounded-lg text-base font-medium text-destructive hover:bg-destructive/10 transition-colors"
               >
-                {isDemoMode ? 'Exit Demo' : 'Sign Out'}
+                {isDemoMode ? "Exit Demo" : "Sign Out"}
               </button>
             </>
           ) : (
@@ -357,5 +428,5 @@ export function Header() {
         </div>
       </div>
     </header>
-  )
+  );
 }
