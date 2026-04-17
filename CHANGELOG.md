@@ -29,6 +29,7 @@ Pre-launch production-readiness remediation.
 
 ### Changed
 
+- Privacy Policy §4 now includes a concrete data-retention table with windows for each category (account/vessel data until deletion, safety audit logs 7y anonymized, billing 7y, analytics 25m, server logs 30d, backups 35d rolling, inactive accounts 3y + 30d notice). §5 replaces the "within 30 days" language to reflect that `/account/privacy` deletion is synchronous.
 - Bumped safety-critical test coverage: safety agent 75% → 92%+, weather agent raised with stale-data rejection tests, tidal/route agents gained stale-data and multi-waypoint tests (full 90% CI gate still pending).
 - JWT access-token TTL reduced from 7 days to 1 hour; refresh-token rotation in place.
 - Redis client reconnect strategy replaced single-connection `maxRetriesPerRequest: 1` with exponential backoff.
