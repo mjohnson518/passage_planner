@@ -27,12 +27,13 @@ Pre-launch production-readiness remediation.
 - Frontend feature flags (`NEXT_PUBLIC_FEATURE_*`) gating fleet create/invite, weather overlay, GPX/PDF export, passage bulk operations.
 - Passage delete + bulk GPX export now wired end-to-end against existing orchestrator endpoints (`DELETE /api/passages/:id`, `POST /api/passages/export/bulk`); still feature-flagged off by default pending smoke-test.
 - Structured frontend logger (`app/lib/logger.ts`) that routes warn/error through Sentry and drops info/debug in production.
-- Coverage thresholds on `agents/safety` (90% across lines/branches/functions/statements).
+- Coverage-regression gate on all four safety-critical agents (`safety`, `weather`, `route`, `tidal`). Thresholds set two points below current measured coverage as a flake buffer (safety 78/70/79/78, weather 76/55/80/82, route 52/44/51/53, tidal 46/27/45/58 — statements/branches/lines/functions). Jest fails any PR that drops below the floor; floors ratchet up as new tests land. The stale-data rejection and worst-case reconciliation tests are now structurally protected from silent deletion. A `test:coverage` script is available in each safety-critical agent for local checks.
 
 ### Changed
 
 - Privacy Policy §4 now includes a concrete data-retention table with windows for each category (account/vessel data until deletion, safety audit logs 7y anonymized, billing 7y, analytics 25m, server logs 30d, backups 35d rolling, inactive accounts 3y + 30d notice). §5 replaces the "within 30 days" language to reflect that `/account/privacy` deletion is synchronous.
-- Bumped safety-critical test coverage: safety agent 75% → 92%+, weather agent raised with stale-data rejection tests, tidal/route agents gained stale-data and multi-waypoint tests (full 90% CI gate still pending).
+- Bumped safety-critical test coverage: safety agent 75% → 80/73/81/81 (statements/branches/lines/functions), weather agent raised with stale-data rejection tests, tidal/route agents gained stale-data and multi-waypoint tests. All four agents now have Jest coverage floors wired so a regression fails CI; reaching the 90%-across-the-board target remains a future milestone.
+- Broken weather integration test fixed — `'0.5deg'` assertion on the NOMADS GRIB URL corrected to `'filter_gfs_0p50_deg.pl'` (NOMADS uses `0p25`/`0p50`/`1p00` tokens, not `0.5deg`).
 - JWT access-token TTL reduced from 7 days to 1 hour; refresh-token rotation in place.
 - Redis client reconnect strategy replaced single-connection `maxRetriesPerRequest: 1` with exponential backoff.
 - `frontend/app/lib/export/{gpx,kml,csv,pdf}.ts` — removed `@ts-nocheck`, typed public surface as `PassageExport`.
