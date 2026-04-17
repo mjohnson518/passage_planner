@@ -15,6 +15,7 @@ Pre-launch production-readiness remediation.
 ### Added
 
 - GDPR endpoints: `POST /api/user/data-export` (JSON bundle of all user-owned data) and `POST /api/user/delete` (hard-delete via Supabase admin; requires email confirmation; compliance logged to `analytics_events` pre-deletion).
+- `/account/privacy` page — signed-in users can download their data or permanently delete their account. Privacy-policy §5 now links here.
 - `RUNBOOK.md` with severity levels, rollback-first guidance, and seven incident playbooks (Stripe webhook, stale weather, safety audit-log write failure, Redis outage, Supabase outage, agent timeout, 5xx spike).
 - `.husky/pre-commit` + `lint-staged` — Prettier auto-formats staged files on commit.
 - Client-side auth gate (`RequireAuth`) on `/planner`, `/fleet`, `/passages`, `/passages/[id]`.
