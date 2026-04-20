@@ -1,60 +1,72 @@
 module.exports = {
-  preset: 'ts-jest',
-  testEnvironment: 'node',
-  roots: ['<rootDir>/src'],
-  testMatch: ['**/__tests__/**/*.test.ts', '**/*.test.ts'],
-  coverageDirectory: 'coverage',
+  preset: "ts-jest",
+  testEnvironment: "node",
+  roots: ["<rootDir>/src"],
+  testMatch: ["**/__tests__/**/*.test.ts", "**/*.test.ts"],
+  coverageDirectory: "coverage",
   collectCoverageFrom: [
-    'src/**/*.ts',
-    '!src/**/*.d.ts',
-    '!src/**/index.ts', // Exclude barrel exports
-    '!src/testing/**', // Exclude test utilities
+    "src/**/*.ts",
+    "!src/**/*.d.ts",
+    "!src/**/index.ts", // Exclude barrel exports
+    "!src/testing/**", // Exclude test utilities
   ],
   coverageThreshold: {
     global: {
       statements: 85,
       branches: 85,
       functions: 85,
-      lines: 85
+      lines: 85,
     },
     // Stricter thresholds for critical services
-    './src/services/NOAAWeatherService.ts': {
+    "./src/services/NOAAWeatherService.ts": {
       statements: 90,
       branches: 90,
       functions: 90,
-      lines: 90
+      lines: 90,
     },
-    './src/services/NOAATidalService.ts': {
+    "./src/services/NOAATidalService.ts": {
       statements: 90,
       branches: 90,
       functions: 90,
-      lines: 90
+      lines: 90,
     },
-    './src/services/noaa-api-client.ts': {
+    "./src/services/noaa-api-client.ts": {
       statements: 90,
       branches: 90,
       functions: 90,
-      lines: 90
-    }
+      lines: 90,
+    },
   },
   moduleNameMapper: {
-    '^@passage-planner/shared$': '<rootDir>/src/index.ts',
-    '^@passage-planner/shared/(.*)$': '<rootDir>/src/$1',
+    "^@passage-planner/shared$": "<rootDir>/src/index.ts",
+    "^@passage-planner/shared/(.*)$": "<rootDir>/src/$1",
   },
-  setupFilesAfterEnv: ['<rootDir>/src/testing/jest.setup.ts'],
+  // Prefer .ts sources over stale compiled .js siblings that exist in src/
+  // (historical accidentally-committed build output). Without this, bare
+  // imports like `../StripeService` resolve to a stale .js file.
+  moduleFileExtensions: [
+    "ts",
+    "tsx",
+    "js",
+    "mjs",
+    "cjs",
+    "jsx",
+    "json",
+    "node",
+  ],
+  setupFilesAfterEnv: ["<rootDir>/src/testing/jest.setup.ts"],
   testTimeout: 10000,
   verbose: true,
   clearMocks: true,
   resetMocks: true,
   restoreMocks: true,
   globals: {
-    'ts-jest': {
+    "ts-jest": {
       isolatedModules: true,
       tsconfig: {
         esModuleInterop: true,
-        allowSyntheticDefaultImports: true
-      }
-    }
-  }
+        allowSyntheticDefaultImports: true,
+      },
+    },
+  },
 };
-
