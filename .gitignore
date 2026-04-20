@@ -45,6 +45,8 @@ docker-compose.override.yml
 *.d.ts
 *.d.ts.map
 *.js.map
+# Hand-written ambient declarations (not compile output)
+!frontend/app/types/*.d.ts
 
 # Compiled agent files (keep config JS files)
 agents/**/*.js

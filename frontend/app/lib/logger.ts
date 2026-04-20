@@ -15,17 +15,22 @@
 
 type LogPayload = Record<string, unknown> | undefined;
 
-const isProd = typeof process !== 'undefined' && process.env.NODE_ENV === 'production';
+const isProd =
+  typeof process !== "undefined" && process.env.NODE_ENV === "production";
 
-function sendToSentry(level: 'warn' | 'error', message: string, context?: LogPayload) {
-  if (typeof window === 'undefined') return;
-  const sentry = (window as any).Sentry;
+function sendToSentry(
+  level: "warn" | "error",
+  message: string,
+  context?: LogPayload,
+) {
+  if (typeof window === "undefined") return;
+  const sentry = window.Sentry;
   if (!sentry) return;
   try {
-    if (level === 'error') {
+    if (level === "error") {
       sentry.captureException(new Error(message), { extra: context });
     } else {
-      sentry.captureMessage(message, { level: 'warning', extra: context });
+      sentry.captureMessage(message, { level: "warning", extra: context });
     }
   } catch {
     // never let telemetry crash the app
@@ -36,27 +41,27 @@ export const logger = {
   debug(message: string, context?: LogPayload) {
     if (isProd) return;
     // eslint-disable-next-line no-console
-    console.debug(`[debug] ${message}`, context ?? '');
+    console.debug(`[debug] ${message}`, context ?? "");
   },
   info(message: string, context?: LogPayload) {
     if (isProd) return;
     // eslint-disable-next-line no-console
-    console.info(`[info] ${message}`, context ?? '');
+    console.info(`[info] ${message}`, context ?? "");
   },
   warn(message: string, context?: LogPayload) {
     if (isProd) {
-      sendToSentry('warn', message, context);
+      sendToSentry("warn", message, context);
       return;
     }
     // eslint-disable-next-line no-console
-    console.warn(`[warn] ${message}`, context ?? '');
+    console.warn(`[warn] ${message}`, context ?? "");
   },
   error(message: string, context?: LogPayload) {
     if (isProd) {
-      sendToSentry('error', message, context);
+      sendToSentry("error", message, context);
       return;
     }
     // eslint-disable-next-line no-console
-    console.error(`[error] ${message}`, context ?? '');
+    console.error(`[error] ${message}`, context ?? "");
   },
 };

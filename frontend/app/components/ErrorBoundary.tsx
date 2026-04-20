@@ -1,14 +1,14 @@
 /**
  * Error Boundary Component
- * 
+ *
  * Catches React errors and displays user-friendly error messages.
  * Prevents entire app crash when component errors occur.
  */
 
-'use client';
+"use client";
 
-import React, { Component, ReactNode } from 'react';
-import { AlertCircle, RefreshCw, Home } from 'lucide-react';
+import React, { Component, ReactNode } from "react";
+import { AlertCircle, RefreshCw, Home } from "lucide-react";
 
 interface Props {
   children: ReactNode;
@@ -41,8 +41,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Log error to console in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Error Boundary caught error:', error, errorInfo);
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error Boundary caught error:", error, errorInfo);
     }
 
     // Call optional error handler
@@ -51,7 +51,7 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     // Update error count
-    this.setState(prevState => ({
+    this.setState((prevState) => ({
       errorInfo,
       errorCount: prevState.errorCount + 1,
     }));
@@ -63,24 +63,24 @@ export class ErrorBoundary extends Component<Props, State> {
   private async logErrorToService(error: Error, errorInfo: React.ErrorInfo) {
     try {
       // Log to Sentry (client-side)
-      if (typeof window !== 'undefined' && (window as any).Sentry) {
-        (window as any).Sentry.captureException(error, {
+      if (typeof window !== "undefined" && window.Sentry) {
+        window.Sentry.captureException(error, {
           tags: {
-            source: 'ErrorBoundary',
-            errorCount: this.state.errorCount.toString()
+            source: "ErrorBoundary",
+            errorCount: this.state.errorCount.toString(),
           },
           extra: {
             componentStack: errorInfo.componentStack,
-            errorInfo
-          }
+            errorInfo,
+          },
         });
       }
-      
+
       // Also send to backend error logging endpoint
-      await fetch('/api/errors/log', {
-        method: 'POST',
+      await fetch("/api/errors/log", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           error: {
@@ -91,12 +91,13 @@ export class ErrorBoundary extends Component<Props, State> {
             componentStack: errorInfo.componentStack,
           },
           timestamp: new Date().toISOString(),
-          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-          url: typeof window !== 'undefined' ? window.location.href : undefined,
+          userAgent:
+            typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+          url: typeof window !== "undefined" ? window.location.href : undefined,
         }),
       });
     } catch (loggingError) {
-      console.error('Failed to log error to service:', loggingError);
+      console.error("Failed to log error to service:", loggingError);
     }
   }
 
@@ -113,7 +114,7 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleGoHome = () => {
-    window.location.href = '/';
+    window.location.href = "/";
   };
 
   render() {
@@ -140,7 +141,7 @@ export class ErrorBoundary extends Component<Props, State> {
               Our team has been notified and is working to fix the issue.
             </p>
 
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {process.env.NODE_ENV === "development" && this.state.error && (
               <div className="mt-4 p-3 bg-muted rounded border border-border">
                 <p className="text-xs font-semibold text-foreground mb-1">
                   Error Details (Development Only):
@@ -164,8 +165,8 @@ export class ErrorBoundary extends Component<Props, State> {
             {this.state.errorCount > 2 && (
               <div className="mt-4 p-3 bg-warning/5 border border-warning/20 rounded">
                 <p className="text-xs text-warning">
-                  This error has occurred {this.state.errorCount} times.
-                  Please refresh the page or contact support if the problem persists.
+                  This error has occurred {this.state.errorCount} times. Please
+                  refresh the page or contact support if the problem persists.
                 </p>
               </div>
             )}
@@ -226,7 +227,8 @@ export function FeatureErrorBoundary({
             Error loading {featureName}
           </h3>
           <p className="mt-1 text-sm text-destructive/80">
-            This feature is temporarily unavailable. Please try refreshing the page.
+            This feature is temporarily unavailable. Please try refreshing the
+            page.
           </p>
           <button
             onClick={() => window.location.reload()}
@@ -251,4 +253,3 @@ export function FeatureErrorBoundary({
     </ErrorBoundary>
   );
 }
-

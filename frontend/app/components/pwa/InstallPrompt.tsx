@@ -1,70 +1,77 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { Card, CardContent } from '../ui/card'
-import { Button } from '../ui/button'
-import { Download, X } from 'lucide-react'
+import { useEffect, useState } from "react";
+import { Card, CardContent } from "../ui/card";
+import { Button } from "../ui/button";
+import { Download, X } from "lucide-react";
 
 export function InstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
-  const [showPrompt, setShowPrompt] = useState(false)
-  const [isIOS, setIsIOS] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    
+    if (typeof window === "undefined") return;
+
     // Check if iOS
-    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
-    setIsIOS(isIOSDevice)
+    const isIOSDevice =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    setIsIOS(isIOSDevice);
 
     // Check if already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      return
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      return;
     }
 
     // Listen for the beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault()
-      setDeferredPrompt(e)
-      
+      e.preventDefault();
+      setDeferredPrompt(e);
+
       // Show prompt after a delay
       setTimeout(() => {
-        if (!localStorage.getItem('pwa-prompt-dismissed')) {
-          setShowPrompt(true)
+        if (!localStorage.getItem("pwa-prompt-dismissed")) {
+          setShowPrompt(true);
         }
-      }, 30000) // Show after 30 seconds
-    }
+      }, 30000); // Show after 30 seconds
+    };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 
     // iOS doesn't support beforeinstallprompt, show custom prompt
-    if (isIOSDevice && !localStorage.getItem('pwa-prompt-dismissed-ios')) {
+    if (isIOSDevice && !localStorage.getItem("pwa-prompt-dismissed-ios")) {
       setTimeout(() => {
-        setShowPrompt(true)
-      }, 30000)
+        setShowPrompt(true);
+      }, 30000);
     }
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-    }
-  }, [])
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt,
+      );
+    };
+  }, []);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return
+    if (!deferredPrompt) return;
 
-    deferredPrompt.prompt()
-    const { outcome } = await deferredPrompt.userChoice
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
 
-    setDeferredPrompt(null)
-    setShowPrompt(false)
-  }
+    setDeferredPrompt(null);
+    setShowPrompt(false);
+  };
 
   const handleDismiss = () => {
-    setShowPrompt(false)
-    localStorage.setItem(isIOS ? 'pwa-prompt-dismissed-ios' : 'pwa-prompt-dismissed', 'true')
-  }
+    setShowPrompt(false);
+    localStorage.setItem(
+      isIOS ? "pwa-prompt-dismissed-ios" : "pwa-prompt-dismissed",
+      "true",
+    );
+  };
 
-  if (!showPrompt) return null
+  if (!showPrompt) return null;
 
   return (
     <div className="fixed bottom-24 left-4 right-4 z-50 sm:left-auto sm:right-4 sm:w-96">
@@ -77,15 +84,19 @@ export function InstallPrompt() {
             <div className="flex-1">
               <h3 className="font-semibold mb-1">Install Helmwise</h3>
               <p className="text-sm text-muted-foreground mb-3">
-                {isIOS 
-                  ? 'Add to your home screen for quick access and offline features'
-                  : 'Install our app for the best experience with offline access'
-                }
+                {isIOS
+                  ? "Add to your home screen for quick access and offline features"
+                  : "Install our app for the best experience with offline access"}
               </p>
-              
+
               {isIOS ? (
                 <div className="text-sm text-muted-foreground space-y-1">
-                  <p>1. Tap the share button <span className="inline-block w-4 h-4 align-middle">⬆️</span></p>
+                  <p>
+                    1. Tap the share button{" "}
+                    <span className="inline-block w-4 h-4 align-middle">
+                      ⬆️
+                    </span>
+                  </p>
                   <p>2. Scroll down and tap "Add to Home Screen"</p>
                   <p>3. Tap "Add" to install</p>
                 </div>
@@ -112,5 +123,5 @@ export function InstallPrompt() {
         </CardContent>
       </Card>
     </div>
-  )
-} 
+  );
+}

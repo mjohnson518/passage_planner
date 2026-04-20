@@ -39,6 +39,7 @@ Pre-launch production-readiness remediation.
 - `frontend/app/lib/export/{gpx,kml,csv,pdf}.ts` — removed `@ts-nocheck`, typed public surface as `PassageExport`.
 - `frontend/app/planner/page.tsx` — removed `as any` casts on API responses; typed against shared contract.
 - First batch of frontend `console.*` calls routed through the structured `logger` shim: `lib/analytics.ts`, `lib/csrf.ts`, `lib/supabase-client.ts`, `hooks/useAnalytics.ts`, `hooks/usePassagePlanner.ts`. In production these now go to Sentry instead of the browser devtools console, closing the information-leak vector the audit flagged. Remaining `console.*` call sites (hooks/useServiceWorker, admin/, fleet/, weather/, Stripe Edge routes) are the follow-up batch.
+- Replaced all 15 `(window as any)` casts with a typed `Window` interface augmentation at `frontend/app/types/globals.d.ts` (Sentry, mixpanel, posthog, gtag, MSStream). Affects `ErrorBoundary`, `InstallPrompt`, `hooks/useAnalytics`, and `lib/logger`. A future signature drift in any of those vendor globals now fails the type-check instead of blowing up at runtime. `.gitignore` carves `frontend/app/types/*.d.ts` out of the blanket `*.d.ts` ignore so hand-written ambient declarations are tracked (compile-output `.d.ts` files remain ignored).
 - `uuid` pinned to `^11.1.0` workspace-wide via root `overrides`; removed conflicting `^9` and `^13` ranges from `shared` and `agents/safety`.
 - `AUDIT_REPORT.md` headline corrected to reflect the actual weighted score (90/100) and the B-class findings gate.
 

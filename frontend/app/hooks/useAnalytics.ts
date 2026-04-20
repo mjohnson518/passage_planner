@@ -113,21 +113,21 @@ export function useAnalytics() {
         // Also send to client-side analytics if available
         if (typeof window !== "undefined") {
           // Mixpanel
-          if ((window as any).mixpanel) {
-            (window as any).mixpanel.track(eventName, {
+          if (window.mixpanel) {
+            window.mixpanel.track(eventName, {
               ...properties,
               distinct_id: user?.id,
             });
           }
 
           // PostHog
-          if ((window as any).posthog) {
-            (window as any).posthog.capture(eventName, properties);
+          if (window.posthog) {
+            window.posthog.capture(eventName, properties);
           }
 
           // Google Analytics
-          if ((window as any).gtag) {
-            (window as any).gtag("event", eventName, properties);
+          if (window.gtag) {
+            window.gtag("event", eventName, properties);
           }
         }
       } catch (error) {
@@ -143,16 +143,16 @@ export function useAnalytics() {
       if (typeof window === "undefined") return;
 
       // Mixpanel
-      if ((window as any).mixpanel) {
-        (window as any).mixpanel.identify(userId);
+      if (window.mixpanel) {
+        window.mixpanel.identify(userId);
         if (traits) {
-          (window as any).mixpanel.people.set(traits);
+          window.mixpanel.people.set(traits);
         }
       }
 
       // PostHog
-      if ((window as any).posthog) {
-        (window as any).posthog.identify(userId, traits);
+      if (window.posthog) {
+        window.posthog.identify(userId, traits);
       }
 
       // Track identification event
