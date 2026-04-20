@@ -17,10 +17,10 @@ Dependencies scanned: 1,904 (1,080 prod, 803 dev, 27 optional, 1 peer).
 
 ## Critical — immediate attention
 
-| Package      | Where it bites us                                                                                                                                                                 | Fix available? |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `handlebars` | JavaScript injection via `@partial-block` AST type confusion. Likely transitive via email-template tooling — any template rendered from user-influenced input is a RCE risk.      | yes            |
-| `jspdf`      | Local file inclusion / path traversal. Used for passage PDF export — an attacker-crafted export target could be abused to read local files if any server-side render path exists. | yes            |
+| Package      | Where it bites us                                                                                                                                                                                                                                                                                     | Fix available? |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `handlebars` | JavaScript injection via `@partial-block` AST type confusion. **Reachability note (2026-04-20):** transitive via `ts-jest` only — **dev-only**, not in prod runtime. Still worth fixing during the next dep pass, but not a prod RCE vector today.                                                    | yes            |
+| `jspdf`      | Local file inclusion / path traversal. Used for passage PDF export. **Reachability note (2026-04-20):** export runs **client-side** in the browser — there is no server-side render path. Damage surface is the user's own session; severity in practice is moderate, not critical, on this codebase. | yes            |
 
 ## High — fix before production
 
@@ -59,6 +59,23 @@ Two of the high-severity items have **no automatic fix**. Both are reachable in 
 4. **Re-snapshot** after each pass and diff against this file.
 
 Note: `peer dependency conflict` was cited in an earlier iteration (HIGH-03 in AUDIT_REPORT.md) as blocking `npm audit fix`. Re-verify that conflict is still present before launching the fix — it may have been resolved by intervening upgrades.
+
+### 2026-04-20 re-verification
+
+`npm audit fix --dry-run` at repo root **still fails** with `ERESOLVE`:
+
+```
+Found: next@15.5.15
+Could not resolve dependency:
+peer next@">=14.3.0 && <=15.5.2" from @cloudflare/next-on-pages@1.13.16
+```
+
+No newer `@cloudflare/next-on-pages` release lifts that upper bound (latest is 1.13.16 with the same `<=15.5.2` ceiling). Two viable paths:
+
+1. **Targeted per-workspace upgrades** for non-`next` transitive issues (socket.io-parser, path-to-regexp, picomatch, rollup, qs, body-parser, @hono/node-server, express-rate-limit direct pin, axios). Each should be a separately reviewable commit cycle with test verification — not a batched `audit fix`.
+2. **Deliberate `next` downgrade to 15.5.2** to unblock root-level `audit fix`, _or_ pin `@cloudflare/next-on-pages` compatibility if the deployment target is Vercel (not Cloudflare Pages) — in which case the dev-only peer dep can be removed entirely.
+
+Both paths are behavior-affecting on a life-safety product and should not be run silently. The "safe pass" described above is therefore **queued, not executed**, pending an explicit review window.
 
 ## Non-actions
 
