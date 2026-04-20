@@ -97,8 +97,8 @@ export function InstallPrompt() {
                       ⬆️
                     </span>
                   </p>
-                  <p>2. Scroll down and tap "Add to Home Screen"</p>
-                  <p>3. Tap "Add" to install</p>
+                  <p>2. Scroll down and tap &quot;Add to Home Screen&quot;</p>
+                  <p>3. Tap &quot;Add&quot; to install</p>
                 </div>
               ) : (
                 <div className="flex gap-2">

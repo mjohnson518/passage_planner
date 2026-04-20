@@ -1,28 +1,47 @@
-'use client'
+"use client";
 
-import { Label } from '../../ui/label'
-import { Slider } from '../../ui/slider'
-import { Switch } from '../../ui/switch'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card'
-import { Wind, Waves, Moon, Bell, AlertTriangle, Mail, Shield } from 'lucide-react'
+import { Label } from "../../ui/label";
+import { Slider } from "../../ui/slider";
+import { Switch } from "../../ui/switch";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../ui/card";
+import {
+  Wind,
+  Waves,
+  Moon,
+  Bell,
+  AlertTriangle,
+  Mail,
+  Shield,
+} from "lucide-react";
 
 interface PreferencesStepProps {
-  data: any
-  onUpdate: (data: any) => void
-  onNext?: () => void
-  onPrevious?: () => void
-  boatType?: string
+  data: any;
+  onUpdate: (data: any) => void;
+  onNext?: () => void;
+  onPrevious?: () => void;
+  boatType?: string;
 }
 
-export function PreferencesStep({ data, onUpdate, onNext, onPrevious }: PreferencesStepProps) {
+export function PreferencesStep({
+  data,
+  onUpdate,
+  onNext,
+  onPrevious,
+}: PreferencesStepProps) {
   const updatePreference = (key: string, value: any) => {
     onUpdate({
       preferences: {
         ...data.preferences,
         [key]: value,
       },
-    })
-  }
+    });
+  };
 
   const updateNotification = (key: string, value: boolean) => {
     onUpdate({
@@ -33,15 +52,17 @@ export function PreferencesStep({ data, onUpdate, onNext, onPrevious }: Preferen
           [key]: value,
         },
       },
-    })
-  }
+    });
+  };
 
   return (
     <div className="space-y-6">
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold mb-2">Set your sailing preferences</h2>
+        <h2 className="text-2xl font-bold mb-2">
+          Set your sailing preferences
+        </h2>
         <p className="text-muted-foreground">
-          We'll use these to suggest safer and more comfortable passages
+          We&apos;ll use these to suggest safer and more comfortable passages
         </p>
       </div>
 
@@ -66,7 +87,7 @@ export function PreferencesStep({ data, onUpdate, onNext, onPrevious }: Preferen
               id="night-sailing"
               checked={data.preferences.avoidNightSailing}
               onCheckedChange={(checked) =>
-                updatePreference('avoidNightSailing', checked)
+                updatePreference("avoidNightSailing", checked)
               }
             />
           </div>
@@ -84,7 +105,9 @@ export function PreferencesStep({ data, onUpdate, onNext, onPrevious }: Preferen
             </div>
             <Slider
               value={[data.preferences.maxWindSpeed]}
-              onValueChange={([value]) => updatePreference('maxWindSpeed', value)}
+              onValueChange={([value]) =>
+                updatePreference("maxWindSpeed", value)
+              }
               min={10}
               max={40}
               step={5}
@@ -110,7 +133,9 @@ export function PreferencesStep({ data, onUpdate, onNext, onPrevious }: Preferen
             </div>
             <Slider
               value={[data.preferences.maxWaveHeight]}
-              onValueChange={([value]) => updatePreference('maxWaveHeight', value)}
+              onValueChange={([value]) =>
+                updatePreference("maxWaveHeight", value)
+              }
               min={2}
               max={12}
               step={1}
@@ -130,7 +155,7 @@ export function PreferencesStep({ data, onUpdate, onNext, onPrevious }: Preferen
         <CardHeader>
           <CardTitle>Notifications</CardTitle>
           <CardDescription>
-            Choose what updates you'd like to receive
+            Choose what updates you&apos;d like to receive
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -150,7 +175,7 @@ export function PreferencesStep({ data, onUpdate, onNext, onPrevious }: Preferen
               id="weather-alerts"
               checked={data.preferences.notificationPreferences.weatherAlerts}
               onCheckedChange={(checked) =>
-                updateNotification('weatherAlerts', checked)
+                updateNotification("weatherAlerts", checked)
               }
             />
           </div>
@@ -169,9 +194,11 @@ export function PreferencesStep({ data, onUpdate, onNext, onPrevious }: Preferen
             </div>
             <Switch
               id="passage-reminders"
-              checked={data.preferences.notificationPreferences.passageReminders}
+              checked={
+                data.preferences.notificationPreferences.passageReminders
+              }
               onCheckedChange={(checked) =>
-                updateNotification('passageReminders', checked)
+                updateNotification("passageReminders", checked)
               }
             />
           </div>
@@ -192,7 +219,7 @@ export function PreferencesStep({ data, onUpdate, onNext, onPrevious }: Preferen
               id="safety-updates"
               checked={data.preferences.notificationPreferences.safetyUpdates}
               onCheckedChange={(checked) =>
-                updateNotification('safetyUpdates', checked)
+                updateNotification("safetyUpdates", checked)
               }
             />
           </div>
@@ -213,7 +240,7 @@ export function PreferencesStep({ data, onUpdate, onNext, onPrevious }: Preferen
               id="marketing"
               checked={data.preferences.notificationPreferences.marketing}
               onCheckedChange={(checked) =>
-                updateNotification('marketing', checked)
+                updateNotification("marketing", checked)
               }
             />
           </div>
@@ -222,10 +249,22 @@ export function PreferencesStep({ data, onUpdate, onNext, onPrevious }: Preferen
 
       {(onPrevious || onNext) && (
         <div className="flex justify-between pt-4">
-          <button className="btn btn-outline" onClick={onPrevious} disabled={!onPrevious}>Back</button>
-          <button className="btn btn-primary" onClick={onNext} disabled={!onNext}>Continue</button>
+          <button
+            className="btn btn-outline"
+            onClick={onPrevious}
+            disabled={!onPrevious}
+          >
+            Back
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={onNext}
+            disabled={!onNext}
+          >
+            Continue
+          </button>
         </div>
       )}
     </div>
-  )
-} 
+  );
+}

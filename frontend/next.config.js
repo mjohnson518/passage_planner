@@ -94,4 +94,17 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+// Wrap with Sentry so Next picks up sentry.client.config.ts, uploads
+// source maps, and injects the tunnel route. Disable source-map upload
+// noise locally by leaving SENTRY_AUTH_TOKEN unset — the plugin then
+// skips the upload step but still wires the runtime configs.
+const { withSentryConfig } = require("@sentry/nextjs");
+
+module.exports = withSentryConfig(nextConfig, {
+  silent: !process.env.CI,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: true,
+  hideSourceMaps: true,
+});

@@ -1,35 +1,39 @@
-import { Button } from '../../ui/button'
-import { Card } from '../../ui/card'
-import { Sailboat, Compass, MapPin, Wind, Anchor } from 'lucide-react'
+import { Button } from "../../ui/button";
+import { Card } from "../../ui/card";
+import { Sailboat, Compass, MapPin, Wind, Anchor } from "lucide-react";
 
 interface WelcomeStepProps {
-  onNext?: () => void
-  userName?: string
+  onNext?: () => void;
+  userName?: string;
 }
 
 export function WelcomeStep({ onNext }: WelcomeStepProps) {
   const features = [
     {
       icon: Compass,
-      title: 'Intelligent Route Planning',
-      description: 'AI-powered route optimization considering weather, tides, and your preferences'
+      title: "Intelligent Route Planning",
+      description:
+        "AI-powered route optimization considering weather, tides, and your preferences",
     },
     {
       icon: Wind,
-      title: 'Real-time Weather',
-      description: 'Up-to-date forecasts from multiple sources for safe passage planning'
+      title: "Real-time Weather",
+      description:
+        "Up-to-date forecasts from multiple sources for safe passage planning",
     },
     {
       icon: MapPin,
-      title: 'Port Information',
-      description: 'Detailed information about marinas, anchorages, and facilities'
+      title: "Port Information",
+      description:
+        "Detailed information about marinas, anchorages, and facilities",
     },
     {
       icon: Anchor,
-      title: 'Safety First',
-      description: 'Navigation warnings, emergency contacts, and safety checklists'
-    }
-  ]
+      title: "Safety First",
+      description:
+        "Navigation warnings, emergency contacts, and safety checklists",
+    },
+  ];
 
   return (
     <Card className="p-8">
@@ -37,7 +41,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         <Sailboat className="h-16 w-16 mx-auto mb-4 text-primary" />
         <h2 className="text-2xl font-bold mb-2">Welcome aboard! ⛵</h2>
         <p className="text-muted-foreground">
-          Let's get you set up for safe and enjoyable passage planning
+          Let&apos;s get you set up for safe and enjoyable passage planning
         </p>
       </div>
 
@@ -49,7 +53,9 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
             </div>
             <div>
               <h3 className="font-semibold">{feature.title}</h3>
-              <p className="text-sm text-muted-foreground">{feature.description}</p>
+              <p className="text-sm text-muted-foreground">
+                {feature.description}
+              </p>
             </div>
           </div>
         ))}
@@ -70,8 +76,8 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
       </div>
 
       <Button onClick={onNext} className="w-full" size="lg">
-        Let's Get Started
+        Let&apos;s Get Started
       </Button>
     </Card>
-  )
-} 
+  );
+}

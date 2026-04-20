@@ -245,7 +245,8 @@ function PlannerPageInner() {
           Plan New Passage
         </h1>
         <p className="text-muted-foreground mt-1">
-          Enter your route details and we'll create a comprehensive passage plan
+          Enter your route details and we&apos;ll create a comprehensive passage
+          plan
         </p>
       </div>
 

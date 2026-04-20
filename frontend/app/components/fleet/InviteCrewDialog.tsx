@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,136 +8,65 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../ui/dialog'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Label } from '../ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Checkbox } from '../ui/checkbox'
-import { Loader2, Plus, X } from 'lucide-react'
-import { toast } from 'sonner'
-import type { CrewMember, FleetVessel } from '@/types/shared'
+} from "../ui/dialog";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { Checkbox } from "../ui/checkbox";
+import { Loader2, Plus, X } from "lucide-react";
+import { toast } from "sonner";
+import type { CrewMember, FleetVessel } from "@/types/shared";
 
 interface InviteCrewDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  fleetId?: string
-  vessels: any[]
-  onSubmit?: (email: string, role: string, vesselIds?: string[]) => Promise<void>
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fleetId?: string;
+  vessels: any[];
+  onSubmit?: (
+    email: string,
+    role: string,
+    vesselIds?: string[],
+  ) => Promise<void>;
 }
 
-export function InviteCrewDialog({ open, onOpenChange, fleetId, vessels }: InviteCrewDialogProps) {
-  const [loading, setLoading] = useState(false)
-  const [invites, setInvites] = useState([{
-    email: '',
-    name: '',
-    role: 'crew' as CrewMember['role'],
-    vessels: [] as string[],
-    permissions: {
-      canViewPassages: true,
-      canCreatePassages: false,
-      canEditPassages: false,
-      canManageVessels: false,
-      canInviteCrew: false,
-      canViewFleetAnalytics: false
-    }
-  }])
-
-  const addInvite = () => {
-    setInvites([...invites, {
-      email: '',
-      name: '',
-      role: 'crew' as CrewMember['role'],
-      vessels: [],
+export function InviteCrewDialog({
+  open,
+  onOpenChange,
+  fleetId,
+  vessels,
+}: InviteCrewDialogProps) {
+  const [loading, setLoading] = useState(false);
+  const [invites, setInvites] = useState([
+    {
+      email: "",
+      name: "",
+      role: "crew" as CrewMember["role"],
+      vessels: [] as string[],
       permissions: {
         canViewPassages: true,
         canCreatePassages: false,
         canEditPassages: false,
         canManageVessels: false,
         canInviteCrew: false,
-        canViewFleetAnalytics: false
-      }
-    }])
-  }
+        canViewFleetAnalytics: false,
+      },
+    },
+  ]);
 
-  const removeInvite = (index: number) => {
-    setInvites(invites.filter((_, i) => i !== index))
-  }
-
-  const updateInvite = (index: number, updates: any) => {
-    const newInvites = [...invites]
-    newInvites[index] = { ...newInvites[index], ...updates }
-    
-    // Auto-set permissions based on role
-    if (updates.role) {
-      switch (updates.role) {
-        case 'captain':
-          newInvites[index].permissions = {
-            canViewPassages: true,
-            canCreatePassages: true,
-            canEditPassages: true,
-            canManageVessels: true,
-            canInviteCrew: true,
-            canViewFleetAnalytics: true
-          }
-          break
-        case 'skipper':
-          newInvites[index].permissions = {
-            canViewPassages: true,
-            canCreatePassages: true,
-            canEditPassages: true,
-            canManageVessels: false,
-            canInviteCrew: false,
-            canViewFleetAnalytics: true
-          }
-          break
-        case 'crew':
-          newInvites[index].permissions = {
-            canViewPassages: true,
-            canCreatePassages: false,
-            canEditPassages: false,
-            canManageVessels: false,
-            canInviteCrew: false,
-            canViewFleetAnalytics: false
-          }
-          break
-        case 'guest':
-          newInvites[index].permissions = {
-            canViewPassages: true,
-            canCreatePassages: false,
-            canEditPassages: false,
-            canManageVessels: false,
-            canInviteCrew: false,
-            canViewFleetAnalytics: false
-          }
-          break
-      }
-    }
-    
-    setInvites(newInvites)
-  }
-
-  const handleSubmit = async () => {
-    // Validate
-    const validInvites = invites.filter(invite => invite.email && invite.name)
-    if (validInvites.length === 0) {
-      toast.error('Please fill in at least one invitation')
-      return
-    }
-
-    setLoading(true)
-    try {
-      // TODO: Call API to send invitations
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      toast.success(`${validInvites.length} invitation${validInvites.length > 1 ? 's' : ''} sent!`)
-      onOpenChange(false)
-      
-      // Reset form
-      setInvites([{
-        email: '',
-        name: '',
-        role: 'crew' as CrewMember['role'],
+  const addInvite = () => {
+    setInvites([
+      ...invites,
+      {
+        email: "",
+        name: "",
+        role: "crew" as CrewMember["role"],
         vessels: [],
         permissions: {
           canViewPassages: true,
@@ -145,15 +74,112 @@ export function InviteCrewDialog({ open, onOpenChange, fleetId, vessels }: Invit
           canEditPassages: false,
           canManageVessels: false,
           canInviteCrew: false,
-          canViewFleetAnalytics: false
-        }
-      }])
-    } catch (error) {
-      toast.error('Failed to send invitations')
-    } finally {
-      setLoading(false)
+          canViewFleetAnalytics: false,
+        },
+      },
+    ]);
+  };
+
+  const removeInvite = (index: number) => {
+    setInvites(invites.filter((_, i) => i !== index));
+  };
+
+  const updateInvite = (index: number, updates: any) => {
+    const newInvites = [...invites];
+    newInvites[index] = { ...newInvites[index], ...updates };
+
+    // Auto-set permissions based on role
+    if (updates.role) {
+      switch (updates.role) {
+        case "captain":
+          newInvites[index].permissions = {
+            canViewPassages: true,
+            canCreatePassages: true,
+            canEditPassages: true,
+            canManageVessels: true,
+            canInviteCrew: true,
+            canViewFleetAnalytics: true,
+          };
+          break;
+        case "skipper":
+          newInvites[index].permissions = {
+            canViewPassages: true,
+            canCreatePassages: true,
+            canEditPassages: true,
+            canManageVessels: false,
+            canInviteCrew: false,
+            canViewFleetAnalytics: true,
+          };
+          break;
+        case "crew":
+          newInvites[index].permissions = {
+            canViewPassages: true,
+            canCreatePassages: false,
+            canEditPassages: false,
+            canManageVessels: false,
+            canInviteCrew: false,
+            canViewFleetAnalytics: false,
+          };
+          break;
+        case "guest":
+          newInvites[index].permissions = {
+            canViewPassages: true,
+            canCreatePassages: false,
+            canEditPassages: false,
+            canManageVessels: false,
+            canInviteCrew: false,
+            canViewFleetAnalytics: false,
+          };
+          break;
+      }
     }
-  }
+
+    setInvites(newInvites);
+  };
+
+  const handleSubmit = async () => {
+    // Validate
+    const validInvites = invites.filter(
+      (invite) => invite.email && invite.name,
+    );
+    if (validInvites.length === 0) {
+      toast.error("Please fill in at least one invitation");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // TODO: Call API to send invitations
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      toast.success(
+        `${validInvites.length} invitation${validInvites.length > 1 ? "s" : ""} sent!`,
+      );
+      onOpenChange(false);
+
+      // Reset form
+      setInvites([
+        {
+          email: "",
+          name: "",
+          role: "crew" as CrewMember["role"],
+          vessels: [],
+          permissions: {
+            canViewPassages: true,
+            canCreatePassages: false,
+            canEditPassages: false,
+            canManageVessels: false,
+            canInviteCrew: false,
+            canViewFleetAnalytics: false,
+          },
+        },
+      ]);
+    } catch (error) {
+      toast.error("Failed to send invitations");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -161,7 +187,8 @@ export function InviteCrewDialog({ open, onOpenChange, fleetId, vessels }: Invit
         <DialogHeader>
           <DialogTitle>Invite Crew Members</DialogTitle>
           <DialogDescription>
-            Send invitations to join your fleet. They'll receive an email with instructions.
+            Send invitations to join your fleet. They&apos;ll receive an email
+            with instructions.
           </DialogDescription>
         </DialogHeader>
 
@@ -189,7 +216,9 @@ export function InviteCrewDialog({ open, onOpenChange, fleetId, vessels }: Invit
                     type="email"
                     placeholder="crew@example.com"
                     value={invite.email}
-                    onChange={(e) => updateInvite(index, { email: e.target.value })}
+                    onChange={(e) =>
+                      updateInvite(index, { email: e.target.value })
+                    }
                     disabled={loading}
                   />
                 </div>
@@ -199,7 +228,9 @@ export function InviteCrewDialog({ open, onOpenChange, fleetId, vessels }: Invit
                   <Input
                     placeholder="John Doe"
                     value={invite.name}
-                    onChange={(e) => updateInvite(index, { name: e.target.value })}
+                    onChange={(e) =>
+                      updateInvite(index, { name: e.target.value })
+                    }
                     disabled={loading}
                   />
                 </div>
@@ -207,9 +238,11 @@ export function InviteCrewDialog({ open, onOpenChange, fleetId, vessels }: Invit
 
               <div className="space-y-2">
                 <Label>Role</Label>
-                <Select 
-                  value={invite.role} 
-                  onValueChange={(value) => updateInvite(index, { role: value })}
+                <Select
+                  value={invite.role}
+                  onValueChange={(value) =>
+                    updateInvite(index, { role: value })
+                  }
                   disabled={loading}
                 >
                   <SelectTrigger>
@@ -229,19 +262,22 @@ export function InviteCrewDialog({ open, onOpenChange, fleetId, vessels }: Invit
                   <Label>Vessel Access</Label>
                   <div className="space-y-2">
                     {vessels.map((vessel) => (
-                      <div key={vessel.id} className="flex items-center space-x-2">
+                      <div
+                        key={vessel.id}
+                        className="flex items-center space-x-2"
+                      >
                         <Checkbox
                           id={`vessel-${vessel.id}-${index}`}
                           checked={invite.vessels.includes(vessel.id)}
                           onCheckedChange={(checked) => {
                             const newVessels = checked
                               ? [...invite.vessels, vessel.id]
-                              : invite.vessels.filter(v => v !== vessel.id)
-                            updateInvite(index, { vessels: newVessels })
+                              : invite.vessels.filter((v) => v !== vessel.id);
+                            updateInvite(index, { vessels: newVessels });
                           }}
                           disabled={loading}
                         />
-                        <Label 
+                        <Label
                           htmlFor={`vessel-${vessel.id}-${index}`}
                           className="font-normal cursor-pointer"
                         >
@@ -283,11 +319,11 @@ export function InviteCrewDialog({ open, onOpenChange, fleetId, vessels }: Invit
                 Sending...
               </>
             ) : (
-              'Send Invitations'
+              "Send Invitations"
             )}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-} 
+  );
+}

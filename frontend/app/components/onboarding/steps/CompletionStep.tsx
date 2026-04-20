@@ -1,28 +1,44 @@
-'use client'
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card'
-import { Badge } from '../../ui/badge'
-import { CheckCircle2, Sailboat, Compass, Settings, Sparkles } from 'lucide-react'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../ui/card";
+import { Badge } from "../../ui/badge";
+import {
+  CheckCircle2,
+  Sailboat,
+  Compass,
+  Settings,
+  Sparkles,
+} from "lucide-react";
 
 interface CompletionStepProps {
-  data: any
-  onComplete?: () => void
-  onPrevious?: () => void
+  data: any;
+  onComplete?: () => void;
+  onPrevious?: () => void;
 }
 
-export function CompletionStep({ data, onComplete, onPrevious }: CompletionStepProps) {
+export function CompletionStep({
+  data,
+  onComplete,
+  onPrevious,
+}: CompletionStepProps) {
   const experienceLabels = {
-    beginner: 'Beginner Sailor',
-    intermediate: 'Intermediate Sailor',
-    advanced: 'Advanced Sailor',
-    professional: 'Professional Captain',
-  }
+    beginner: "Beginner Sailor",
+    intermediate: "Intermediate Sailor",
+    advanced: "Advanced Sailor",
+    professional: "Professional Captain",
+  };
 
   const boatTypeIcons = {
-    sailboat: '⛵',
-    powerboat: '🚤',
-    catamaran: '⛵',
-  }
+    sailboat: "⛵",
+    powerboat: "🚤",
+    catamaran: "⛵",
+  };
 
   return (
     <div className="space-y-6">
@@ -30,9 +46,9 @@ export function CompletionStep({ data, onComplete, onPrevious }: CompletionStepP
         <div className="inline-flex p-3 bg-success/10 rounded-full mb-4">
           <CheckCircle2 className="h-12 w-12 text-success" />
         </div>
-        <h2 className="text-2xl font-bold mb-2">You're all set!</h2>
+        <h2 className="text-2xl font-bold mb-2">You&apos;re all set!</h2>
         <p className="text-muted-foreground">
-          Here's your profile summary
+          Here&apos;s your profile summary
         </p>
       </div>
 
@@ -49,7 +65,8 @@ export function CompletionStep({ data, onComplete, onPrevious }: CompletionStepP
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Name</span>
               <span className="font-medium">
-                {boatTypeIcons[data.boatType as keyof typeof boatTypeIcons]} {data.boatName}
+                {boatTypeIcons[data.boatType as keyof typeof boatTypeIcons]}{" "}
+                {data.boatName}
               </span>
             </div>
           )}
@@ -88,22 +105,34 @@ export function CompletionStep({ data, onComplete, onPrevious }: CompletionStepP
           {data.sailingExperience && (
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Experience Level</span>
-              <Badge>{experienceLabels[data.sailingExperience as keyof typeof experienceLabels]}</Badge>
+              <Badge>
+                {
+                  experienceLabels[
+                    data.sailingExperience as keyof typeof experienceLabels
+                  ]
+                }
+              </Badge>
             </div>
           )}
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Night Sailing</span>
             <span className="font-medium">
-              {data.preferences.avoidNightSailing ? 'Prefer to avoid' : 'Comfortable with'}
+              {data.preferences.avoidNightSailing
+                ? "Prefer to avoid"
+                : "Comfortable with"}
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Max Wind</span>
-            <span className="font-medium">{data.preferences.maxWindSpeed} knots</span>
+            <span className="font-medium">
+              {data.preferences.maxWindSpeed} knots
+            </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Max Waves</span>
-            <span className="font-medium">{data.preferences.maxWaveHeight} feet</span>
+            <span className="font-medium">
+              {data.preferences.maxWaveHeight} feet
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -115,9 +144,7 @@ export function CompletionStep({ data, onComplete, onPrevious }: CompletionStepP
             <Settings className="h-5 w-5" />
             Notifications
           </CardTitle>
-          <CardDescription>
-            You'll receive these updates
-          </CardDescription>
+          <CardDescription>You&apos;ll receive these updates</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
@@ -147,15 +174,28 @@ export function CompletionStep({ data, onComplete, onPrevious }: CompletionStepP
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Click "Start Planning" below to create your first passage plan. 
-            Our AI agents are standing by to help you plan the perfect voyage!
+            Click &quot;Start Planning&quot; below to create your first passage
+            plan. Our AI agents are standing by to help you plan the perfect
+            voyage!
           </p>
           <div className="flex justify-between pt-4">
-            <button className="btn btn-outline" onClick={onPrevious} disabled={!onPrevious}>Back</button>
-            <button className="btn btn-primary" onClick={onComplete} disabled={!onComplete}>Start Planning</button>
+            <button
+              className="btn btn-outline"
+              onClick={onPrevious}
+              disabled={!onPrevious}
+            >
+              Back
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={onComplete}
+              disabled={!onComplete}
+            >
+              Start Planning
+            </button>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
-} 
+  );
+}

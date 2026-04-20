@@ -1,179 +1,196 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { Anchor, Mail, Lock, Eye, EyeOff, AlertTriangle, ArrowRight } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useAuth } from '@/contexts/AuthContext'
-import { toast } from 'sonner'
-import { getSupabase, isSupabaseConfigured } from '../lib/supabase-client'
-import { logger } from '../lib/logger'
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Anchor,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+  ArrowRight,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { getSupabase, isSupabaseConfigured } from "../lib/supabase-client";
+import { logger } from "../lib/logger";
 
 // Email validation helper
 function validateEmail(email: string): string | null {
-  if (!email || email.trim() === '') {
-    return 'Email is required'
+  if (!email || email.trim() === "") {
+    return "Email is required";
   }
   // RFC 5322 simplified email regex
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
-    return 'Please enter a valid email address'
+    return "Please enter a valid email address";
   }
-  return null
+  return null;
 }
 
 // Password validation helper
 function validatePassword(password: string): string | null {
-  if (!password || password.trim() === '') {
-    return 'Password is required'
+  if (!password || password.trim() === "") {
+    return "Password is required";
   }
   if (password.length < 6) {
-    return 'Password must be at least 6 characters'
+    return "Password must be at least 6 characters";
   }
-  return null
+  return null;
 }
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [emailError, setEmailError] = useState<string | null>(null)
-  const [passwordError, setPasswordError] = useState<string | null>(null)
-  const { signIn } = useAuth()
-  const router = useRouter()
-  const supabase = getSupabase()
-  const supabaseConfigured = isSupabaseConfigured()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const { signIn } = useAuth();
+  const router = useRouter();
+  const supabase = getSupabase();
+  const supabaseConfigured = isSupabaseConfigured();
 
   // Handle OAuth callback errors and demo param using window.location
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const callbackError = params.get('error')
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const callbackError = params.get("error");
       if (callbackError) {
-        setError(decodeURIComponent(callbackError))
-        toast.error('Authentication failed', { description: callbackError })
+        setError(decodeURIComponent(callbackError));
+        toast.error("Authentication failed", { description: callbackError });
       }
 
       // Auto-trigger demo mode if ?demo=true is in URL
-      const demoParam = params.get('demo')
-      if (demoParam === 'true') {
-        localStorage.setItem('helmwise_demo_mode', 'true')
-        toast.success('Demo mode activated', { description: 'Exploring Helmwise as a demo user' })
-        router.push('/dashboard')
+      const demoParam = params.get("demo");
+      if (demoParam === "true") {
+        localStorage.setItem("helmwise_demo_mode", "true");
+        toast.success("Demo mode activated", {
+          description: "Exploring Helmwise as a demo user",
+        });
+        router.push("/dashboard");
       }
     }
-  }, [router])
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     // Clear previous errors
-    setError(null)
-    setEmailError(null)
-    setPasswordError(null)
+    setError(null);
+    setEmailError(null);
+    setPasswordError(null);
 
     // Validate inputs
-    const emailValidation = validateEmail(email)
-    const passwordValidation = validatePassword(password)
+    const emailValidation = validateEmail(email);
+    const passwordValidation = validatePassword(password);
 
     if (emailValidation) {
-      setEmailError(emailValidation)
-      return
+      setEmailError(emailValidation);
+      return;
     }
 
     if (passwordValidation) {
-      setPasswordError(passwordValidation)
-      return
+      setPasswordError(passwordValidation);
+      return;
     }
 
-    setLoading(true)
+    setLoading(true);
 
     try {
-      await signIn(email, password)
-      router.push('/dashboard')
+      await signIn(email, password);
+      router.push("/dashboard");
     } catch (error: any) {
-      logger.error('login failed', { code: error?.code, status: error?.status })
-      setError(error.message || 'Failed to sign in. Please check your credentials.')
-      toast.error('Login failed', { description: error.message })
+      logger.error("login failed", {
+        code: error?.code,
+        status: error?.status,
+      });
+      setError(
+        error.message || "Failed to sign in. Please check your credentials.",
+      );
+      toast.error("Login failed", { description: error.message });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDemoLogin = () => {
     // Store demo mode in localStorage and redirect to dashboard
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('helmwise_demo_mode', 'true')
-      toast.success('Demo mode activated', { description: 'Exploring Helmwise as a demo user' })
-      router.push('/dashboard')
+    if (typeof window !== "undefined") {
+      localStorage.setItem("helmwise_demo_mode", "true");
+      toast.success("Demo mode activated", {
+        description: "Exploring Helmwise as a demo user",
+      });
+      router.push("/dashboard");
     }
-  }
+  };
 
   const handleGoogleSignIn = async () => {
     if (!supabase) {
-      toast.error('Authentication not available')
-      return
+      toast.error("Authentication not available");
+      return;
     }
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
+        provider: "google",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
+            access_type: "offline",
+            prompt: "consent",
           },
         },
-      })
+      });
 
       if (error) {
-        logger.error('google oauth failed', { code: (error as any)?.code })
-        throw error
+        logger.error("google oauth failed", { code: (error as any)?.code });
+        throw error;
       }
     } catch (error: any) {
-      setError('Failed to sign in with Google. Please try again.')
-      toast.error('Google Sign-In failed', { description: error.message })
-      setLoading(false)
+      setError("Failed to sign in with Google. Please try again.");
+      toast.error("Google Sign-In failed", { description: error.message });
+      setLoading(false);
     }
-  }
+  };
 
   const handleGitHubSignIn = async () => {
     if (!supabase) {
-      toast.error('Authentication not available')
-      return
+      toast.error("Authentication not available");
+      return;
     }
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'github',
+        provider: "github",
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
-          scopes: 'read:user user:email',
+          scopes: "read:user user:email",
         },
-      })
+      });
 
       if (error) {
-        logger.error('github oauth failed', { code: (error as any)?.code })
-        throw error
+        logger.error("github oauth failed", { code: (error as any)?.code });
+        throw error;
       }
     } catch (error: any) {
-      setError('Failed to sign in with GitHub. Please try again.')
-      toast.error('GitHub Sign-In failed', { description: error.message })
-      setLoading(false)
+      setError("Failed to sign in with GitHub. Please try again.");
+      toast.error("GitHub Sign-In failed", { description: error.message });
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex">
@@ -187,13 +204,43 @@ export default function LoginPage() {
           className="absolute right-0 top-1/2 -translate-y-1/2 w-[500px] h-[500px] text-white opacity-[0.08] -mr-32 animate-compass-needle"
           fill="none"
         >
-          <circle cx="100" cy="100" r="95" stroke="currentColor" strokeWidth="1" />
-          <circle cx="100" cy="100" r="80" stroke="currentColor" strokeWidth="0.5" />
-          <circle cx="100" cy="100" r="60" stroke="currentColor" strokeWidth="0.5" />
+          <circle
+            cx="100"
+            cy="100"
+            r="95"
+            stroke="currentColor"
+            strokeWidth="1"
+          />
+          <circle
+            cx="100"
+            cy="100"
+            r="80"
+            stroke="currentColor"
+            strokeWidth="0.5"
+          />
+          <circle
+            cx="100"
+            cy="100"
+            r="60"
+            stroke="currentColor"
+            strokeWidth="0.5"
+          />
           <path d="M100 5 L103 40 L100 35 L97 40 Z" fill="currentColor" />
-          <path d="M100 195 L103 160 L100 165 L97 160 Z" fill="currentColor" opacity="0.5" />
-          <path d="M5 100 L40 103 L35 100 L40 97 Z" fill="currentColor" opacity="0.5" />
-          <path d="M195 100 L160 103 L165 100 L160 97 Z" fill="currentColor" opacity="0.5" />
+          <path
+            d="M100 195 L103 160 L100 165 L97 160 Z"
+            fill="currentColor"
+            opacity="0.5"
+          />
+          <path
+            d="M5 100 L40 103 L35 100 L40 97 Z"
+            fill="currentColor"
+            opacity="0.5"
+          />
+          <path
+            d="M195 100 L160 103 L165 100 L160 97 Z"
+            fill="currentColor"
+            opacity="0.5"
+          />
           <circle cx="100" cy="100" r="5" fill="currentColor" />
         </svg>
 
@@ -202,23 +249,27 @@ export default function LoginPage() {
             <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur">
               <Anchor className="h-6 w-6 text-white" />
             </div>
-            <span className="font-display text-2xl font-bold text-white">Helmwise</span>
+            <span className="font-display text-2xl font-bold text-white">
+              Helmwise
+            </span>
           </Link>
 
           <h2 className="font-display text-4xl lg:text-5xl text-white leading-tight mb-6">
-            Navigate with<br />
+            Navigate with
+            <br />
             <span className="text-brass-300">Confidence</span>
           </h2>
 
           <p className="text-lg text-white/80 max-w-md">
-            AI-powered passage planning with real-time weather, tidal predictions, and comprehensive safety analysis.
+            AI-powered passage planning with real-time weather, tidal
+            predictions, and comprehensive safety analysis.
           </p>
 
           <div className="mt-12 space-y-4">
             {[
-              'Real-time weather routing',
-              'Tidal predictions',
-              '6 specialized AI agents',
+              "Real-time weather routing",
+              "Tidal predictions",
+              "6 specialized AI agents",
             ].map((feature, i) => (
               <div key={i} className="flex items-center gap-3 text-white/90">
                 <div className="w-2 h-2 rounded-full bg-brass-400" />
@@ -234,7 +285,10 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
-            <Link href="/" className="inline-flex items-center justify-center gap-2">
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center gap-2"
+            >
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-ocean-deep flex items-center justify-center">
                 <Anchor className="h-5 w-5 text-primary-foreground" />
               </div>
@@ -243,7 +297,9 @@ export default function LoginPage() {
           </div>
 
           <div className="text-center mb-8">
-            <h1 className="font-display text-3xl font-bold mb-2">Welcome Back</h1>
+            <h1 className="font-display text-3xl font-bold mb-2">
+              Welcome Back
+            </h1>
             <p className="text-muted-foreground">
               Sign in to your account to continue
             </p>
@@ -264,7 +320,10 @@ export default function LoginPage() {
             )}
 
             {error && (
-              <div data-testid="login-error" className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+              <div
+                data-testid="login-error"
+                className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-lg"
+              >
                 <p className="text-destructive text-sm">{error}</p>
               </div>
             )}
@@ -281,16 +340,19 @@ export default function LoginPage() {
                     placeholder="captain@example.com"
                     value={email}
                     onChange={(e) => {
-                      setEmail(e.target.value)
-                      if (emailError) setEmailError(null)
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError(null);
                     }}
-                    className={`pl-10 h-12 ${emailError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                    className={`pl-10 h-12 ${emailError ? "border-destructive focus-visible:ring-destructive" : ""}`}
                     aria-invalid={!!emailError}
-                    aria-describedby={emailError ? 'email-error' : undefined}
+                    aria-describedby={emailError ? "email-error" : undefined}
                   />
                 </div>
                 {emailError && (
-                  <p id="email-error" className="text-sm text-destructive flex items-center gap-1">
+                  <p
+                    id="email-error"
+                    className="text-sm text-destructive flex items-center gap-1"
+                  >
                     <AlertTriangle className="h-3 w-3" />
                     {emailError}
                   </p>
@@ -300,7 +362,11 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <Link href="/reset-password" data-testid="login-forgot-password" className="text-sm text-primary hover:underline">
+                  <Link
+                    href="/reset-password"
+                    data-testid="login-forgot-password"
+                    className="text-sm text-primary hover:underline"
+                  >
                     Forgot password?
                   </Link>
                 </div>
@@ -309,16 +375,18 @@ export default function LoginPage() {
                   <Input
                     id="password"
                     data-testid="login-password"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => {
-                      setPassword(e.target.value)
-                      if (passwordError) setPasswordError(null)
+                      setPassword(e.target.value);
+                      if (passwordError) setPasswordError(null);
                     }}
-                    className={`pl-10 pr-10 h-12 ${passwordError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                    className={`pl-10 pr-10 h-12 ${passwordError ? "border-destructive focus-visible:ring-destructive" : ""}`}
                     aria-invalid={!!passwordError}
-                    aria-describedby={passwordError ? 'password-error' : undefined}
+                    aria-describedby={
+                      passwordError ? "password-error" : undefined
+                    }
                   />
                   <button
                     type="button"
@@ -333,7 +401,10 @@ export default function LoginPage() {
                   </button>
                 </div>
                 {passwordError && (
-                  <p id="password-error" className="text-sm text-destructive flex items-center gap-1">
+                  <p
+                    id="password-error"
+                    className="text-sm text-destructive flex items-center gap-1"
+                  >
                     <AlertTriangle className="h-3 w-3" />
                     {passwordError}
                   </p>
@@ -353,7 +424,7 @@ export default function LoginPage() {
                     Signing in...
                   </span>
                 ) : (
-                  'Sign In'
+                  "Sign In"
                 )}
               </Button>
             </form>
@@ -424,7 +495,11 @@ export default function LoginPage() {
                       disabled={loading}
                       className="h-11"
                     >
-                      <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                      <svg
+                        className="h-5 w-5 mr-2"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
                         <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
                       </svg>
                       GitHub
@@ -435,8 +510,12 @@ export default function LoginPage() {
             )}
 
             <p className="mt-6 text-center text-sm text-muted-foreground">
-              Don't have an account?{' '}
-              <Link href="/signup" data-testid="login-signup-link" className="text-primary hover:underline font-medium">
+              Don&apos;t have an account?{" "}
+              <Link
+                href="/signup"
+                data-testid="login-signup-link"
+                className="text-primary hover:underline font-medium"
+              >
                 Sign up for free
               </Link>
             </p>
@@ -444,5 +523,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

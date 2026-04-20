@@ -8,6 +8,7 @@
 "use client";
 
 import React, { Component, ReactNode } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { AlertCircle, RefreshCw, Home } from "lucide-react";
 import { logger } from "../lib/logger";
 
@@ -65,19 +66,16 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private async logErrorToService(error: Error, errorInfo: React.ErrorInfo) {
     try {
-      // Log to Sentry (client-side)
-      if (typeof window !== "undefined" && window.Sentry) {
-        window.Sentry.captureException(error, {
-          tags: {
-            source: "ErrorBoundary",
-            errorCount: this.state.errorCount.toString(),
-          },
-          extra: {
-            componentStack: errorInfo.componentStack,
-            errorInfo,
-          },
-        });
-      }
+      Sentry.captureException(error, {
+        tags: {
+          source: "ErrorBoundary",
+          errorCount: this.state.errorCount.toString(),
+        },
+        extra: {
+          componentStack: errorInfo.componentStack,
+          errorInfo,
+        },
+      });
 
       // Also send to backend error logging endpoint
       await fetch("/api/errors/log", {

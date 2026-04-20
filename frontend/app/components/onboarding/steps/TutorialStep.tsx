@@ -1,50 +1,69 @@
-'use client'
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card'
-import { Map, MessageSquare, FileDown, Users, BarChart3, Zap } from 'lucide-react'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../ui/card";
+import {
+  Map,
+  MessageSquare,
+  FileDown,
+  Users,
+  BarChart3,
+  Zap,
+} from "lucide-react";
 
 const features = [
   {
     icon: MessageSquare,
-    title: 'Natural Language Planning',
-    description: 'Simply describe your sailing plans in plain English, and our AI agents will handle the rest.',
+    title: "Natural Language Planning",
+    description:
+      "Simply describe your sailing plans in plain English, and our AI agents will handle the rest.",
     example: '"Plan a passage from Boston to Portland next Tuesday"',
   },
   {
     icon: Map,
-    title: 'Interactive Route Map',
-    description: 'View your planned route on an interactive map with weather overlays and waypoint details.',
-    example: 'Drag waypoints to adjust your route',
+    title: "Interactive Route Map",
+    description:
+      "View your planned route on an interactive map with weather overlays and waypoint details.",
+    example: "Drag waypoints to adjust your route",
   },
   {
     icon: FileDown,
-    title: 'Export to Navigation Apps',
-    description: 'Download your passage plan as GPX or KML files for use in chartplotters and navigation apps.',
-    example: 'Compatible with Navionics, OpenCPN, and more',
+    title: "Export to Navigation Apps",
+    description:
+      "Download your passage plan as GPX or KML files for use in chartplotters and navigation apps.",
+    example: "Compatible with Navionics, OpenCPN, and more",
   },
   {
     icon: Users,
-    title: 'Fleet Management (Pro)',
-    description: 'Manage multiple vessels and share passage plans with your crew.',
-    example: 'Perfect for sailing clubs and charter companies',
+    title: "Fleet Management (Pro)",
+    description:
+      "Manage multiple vessels and share passage plans with your crew.",
+    example: "Perfect for sailing clubs and charter companies",
   },
   {
     icon: BarChart3,
-    title: 'Weather Analytics',
-    description: 'Get detailed weather forecasts with wind, wave, and current predictions.',
-    example: '7-day forecasts with 3-hour intervals',
+    title: "Weather Analytics",
+    description:
+      "Get detailed weather forecasts with wind, wave, and current predictions.",
+    example: "7-day forecasts with 3-hour intervals",
   },
   {
     icon: Zap,
-    title: 'Real-time Updates',
-    description: 'Receive alerts about weather changes and safety notices for your planned routes.',
-    example: 'Push notifications for significant changes',
+    title: "Real-time Updates",
+    description:
+      "Receive alerts about weather changes and safety notices for your planned routes.",
+    example: "Push notifications for significant changes",
   },
-]
+];
 
 interface TutorialStepProps {
-  onNext?: () => void
-  onPrevious?: () => void
+  onNext?: () => void;
+  onPrevious?: () => void;
 }
 
 export function TutorialStep({ onNext, onPrevious }: TutorialStepProps) {
@@ -53,13 +72,13 @@ export function TutorialStep({ onNext, onPrevious }: TutorialStepProps) {
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold mb-2">Key Features</h2>
         <p className="text-muted-foreground">
-          Here's what you can do with Helmwise
+          Here&apos;s what you can do with Helmwise
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         {features.map((feature, index) => {
-          const Icon = feature.icon
+          const Icon = feature.icon;
           return (
             <Card key={index} className="hover:shadow-lg transition-shadow">
               <CardHeader>
@@ -79,7 +98,7 @@ export function TutorialStep({ onNext, onPrevious }: TutorialStepProps) {
                 </p>
               </CardContent>
             </Card>
-          )
+          );
         })}
       </div>
 
@@ -89,17 +108,30 @@ export function TutorialStep({ onNext, onPrevious }: TutorialStepProps) {
         </CardHeader>
         <CardContent>
           <p className="text-center text-sm">
-            Start by planning a familiar route to see how the AI agents work together 
-            to create your perfect passage plan. You can always adjust the suggestions!
+            Start by planning a familiar route to see how the AI agents work
+            together to create your perfect passage plan. You can always adjust
+            the suggestions!
           </p>
         </CardContent>
       </Card>
       {(onPrevious || onNext) && (
         <div className="flex justify-between pt-4">
-          <button className="btn btn-outline" onClick={onPrevious} disabled={!onPrevious}>Back</button>
-          <button className="btn btn-primary" onClick={onNext} disabled={!onNext}>Continue</button>
+          <button
+            className="btn btn-outline"
+            onClick={onPrevious}
+            disabled={!onPrevious}
+          >
+            Back
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={onNext}
+            disabled={!onNext}
+          >
+            Continue
+          </button>
         </div>
       )}
     </div>
-  )
-} 
+  );
+}

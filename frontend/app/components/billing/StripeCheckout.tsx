@@ -76,7 +76,7 @@ export default function StripeCheckout({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-muted-foreground">
-          You'll be redirected to our secure payment processor (Stripe) to
+          You&apos;ll be redirected to our secure payment processor (Stripe) to
           complete your {tier} {period} subscription.
         </p>
 

@@ -4,14 +4,17 @@
  * SECURITY: Raw console.* calls leak to production devtools, can be
  * scraped by page-injected scripts, and (per audit) were being used to
  * log request bodies / auth errors. This shim:
- *   - silences `debug` and `log` in production
- *   - forwards `warn` / `error` to Sentry when available (via window.Sentry
- *     installed by the bootstrap script) so we don't lose error signal
+ *   - silences `debug` and `info` in production
+ *   - forwards `warn` / `error` to Sentry via the `@sentry/nextjs` SDK
+ *     directly (not via `window.Sentry`, which is never populated by the
+ *     SDK and was silently dropping signal in prod)
  *   - keeps the browser console output in development for DX
  *
  * Do NOT log tokens, passwords, cookies, or full request/response bodies —
  * even through this logger. Log an identifier + a category + a short message.
  */
+
+import * as Sentry from "@sentry/nextjs";
 
 type LogPayload = Record<string, unknown> | undefined;
 
@@ -23,14 +26,11 @@ function sendToSentry(
   message: string,
   context?: LogPayload,
 ) {
-  if (typeof window === "undefined") return;
-  const sentry = window.Sentry;
-  if (!sentry) return;
   try {
     if (level === "error") {
-      sentry.captureException(new Error(message), { extra: context });
+      Sentry.captureException(new Error(message), { extra: context });
     } else {
-      sentry.captureMessage(message, { level: "warning", extra: context });
+      Sentry.captureMessage(message, { level: "warning", extra: context });
     }
   } catch {
     // never let telemetry crash the app

@@ -22,7 +22,7 @@ export default function DashboardError({
     <div className="container mx-auto px-4 py-12 max-w-xl text-center">
       <h1 className="text-2xl font-bold mb-2">Dashboard unavailable</h1>
       <p className="text-muted-foreground mb-6">
-        We couldn't load your dashboard. Please try again.
+        We couldn&apos;t load your dashboard. Please try again.
       </p>
       <div className="flex gap-3 justify-center">
         <Button onClick={reset} variant="default">
