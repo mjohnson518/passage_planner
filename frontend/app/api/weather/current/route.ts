@@ -1,39 +1,48 @@
-export const runtime = 'edge'
+export const runtime = "edge";
 
-import { NextResponse } from 'next/server'
-import { headers } from 'next/headers'
+import { NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { serverLogger } from "../../../lib/server-logger";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    const headersList = await headers()
-    const authorization = headersList.get('authorization')
-    
+    const body = await request.json();
+    const headersList = await headers();
+    const authorization = headersList.get("authorization");
+
     if (!authorization) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { location, coordinates } = body
-    
+    const { location, coordinates } = body;
+
     // Forward to orchestrator's weather service
-    const response = await fetch(`${process.env.ORCHESTRATOR_URL || 'http://localhost:8080'}/api/weather/current`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authorization
+    const response = await fetch(
+      `${process.env.ORCHESTRATOR_URL || "http://localhost:8080"}/api/weather/current`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authorization,
+        },
+        body: JSON.stringify({ location, coordinates }),
       },
-      body: JSON.stringify({ location, coordinates })
-    })
+    );
 
     if (!response.ok) {
-      const error = await response.text()
-      return NextResponse.json({ error }, { status: response.status })
+      const error = await response.text();
+      return NextResponse.json({ error }, { status: response.status });
     }
 
-    const weatherData = await response.json()
-    return NextResponse.json(weatherData)
+    const weatherData = await response.json();
+    return NextResponse.json(weatherData);
   } catch (error) {
-    console.error('Failed to fetch weather data:', error)
-    return NextResponse.json({ error: 'Failed to fetch weather data' }, { status: 500 })
+    serverLogger.error("Failed to fetch weather data", {
+      error: String(error),
+    });
+    return NextResponse.json(
+      { error: "Failed to fetch weather data" },
+      { status: 500 },
+    );
   }
 }
