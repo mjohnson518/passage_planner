@@ -1,32 +1,55 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import dynamic from 'next/dynamic'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '../contexts/AuthContext'
-import { Button } from '../components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
-import { FleetVesselCard } from '../components/fleet/FleetVesselCard'
-import { CrewList } from '../components/fleet/CrewList'
-import { LazyFleetAnalytics } from '../components/LazyComponents'
+import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { useAuth } from "../contexts/AuthContext";
+import { Button } from "../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
+import { FleetVesselCard } from "../components/fleet/FleetVesselCard";
+import { CrewList } from "../components/fleet/CrewList";
+import { LazyFleetAnalytics } from "../components/LazyComponents";
 
 const CreateFleetDialog = dynamic(
-  () => import('../components/fleet/CreateFleetDialog').then(m => ({ default: m.CreateFleetDialog })),
-  { ssr: false }
-)
+  () =>
+    import("../components/fleet/CreateFleetDialog").then((m) => ({
+      default: m.CreateFleetDialog,
+    })),
+  { ssr: false },
+);
 const AddVesselDialog = dynamic(
-  () => import('../components/fleet/AddVesselDialog').then(m => ({ default: m.AddVesselDialog })),
-  { ssr: false }
-)
+  () =>
+    import("../components/fleet/AddVesselDialog").then((m) => ({
+      default: m.AddVesselDialog,
+    })),
+  { ssr: false },
+);
 const InviteCrewDialog = dynamic(
-  () => import('../components/fleet/InviteCrewDialog').then(m => ({ default: m.InviteCrewDialog })),
-  { ssr: false }
-)
+  () =>
+    import("../components/fleet/InviteCrewDialog").then((m) => ({
+      default: m.InviteCrewDialog,
+    })),
+  { ssr: false },
+);
 const SharePassageDialog = dynamic(
-  () => import('../components/fleet/SharePassageDialog').then(m => ({ default: m.SharePassageDialog })),
-  { ssr: false }
-)
+  () =>
+    import("../components/fleet/SharePassageDialog").then((m) => ({
+      default: m.SharePassageDialog,
+    })),
+  { ssr: false },
+);
 import {
   Anchor,
   Ship,
@@ -35,40 +58,41 @@ import {
   Plus,
   Settings,
   Share2,
-  AlertCircle
-} from 'lucide-react'
-import { toast } from 'sonner'
-import RequireAuth from '../components/auth/RequireAuth'
-import { features } from '../lib/features'
+  AlertCircle,
+} from "lucide-react";
+import { toast } from "sonner";
+import RequireAuth from "../components/auth/RequireAuth";
+import { features } from "../lib/features";
+import { logger } from "../lib/logger";
 
 // Fleet types (TODO: Import from shared package when available)
 interface Fleet {
-  id: string
-  name: string
-  description?: string
-  owner_id: string
-  created_at: string
-  updated_at: string
-  role?: 'owner' | 'admin' | 'captain' | 'member' | 'viewer'
+  id: string;
+  name: string;
+  description?: string;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+  role?: "owner" | "admin" | "captain" | "member" | "viewer";
 }
 
 interface FleetMember {
-  id: string
-  fleet_id: string
-  user_id: string
-  role: 'owner' | 'admin' | 'member' | 'viewer'
-  joined_at: string
+  id: string;
+  fleet_id: string;
+  user_id: string;
+  role: "owner" | "admin" | "member" | "viewer";
+  joined_at: string;
 }
 
 interface FleetVessel {
-  id: string
-  fleet_id: string
-  vessel_id: string
-  added_at: string
+  id: string;
+  fleet_id: string;
+  vessel_id: string;
+  added_at: string;
 }
 
 function FleetPageInner() {
-  const router = useRouter()
+  const router = useRouter();
 
   if (!features.fleet) {
     return (
@@ -77,194 +101,209 @@ function FleetPageInner() {
           <Card>
             <CardHeader className="text-center">
               <Anchor className="h-16 w-16 text-primary mx-auto mb-4" />
-              <CardTitle className="text-2xl">Fleet Management Coming Soon</CardTitle>
+              <CardTitle className="text-2xl">
+                Fleet Management Coming Soon
+              </CardTitle>
               <CardDescription>
                 Multi-vessel coordination and crew management are on the way.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-muted-foreground mb-6">
-                We&apos;re building the fleet experience end-to-end before we ship it.
-                In the meantime, you can plan passages for any individual vessel from the planner.
+                We&apos;re building the fleet experience end-to-end before we
+                ship it. In the meantime, you can plan passages for any
+                individual vessel from the planner.
               </p>
-              <Button size="lg" onClick={() => router.push('/planner')}>
+              <Button size="lg" onClick={() => router.push("/planner")}>
                 Go to Planner
               </Button>
             </CardContent>
           </Card>
         </div>
       </div>
-    )
+    );
   }
 
-  return <FleetPageContent />
+  return <FleetPageContent />;
 }
 
 function FleetPageContent() {
-  const { user } = useAuth()
-  const router = useRouter()
-  const [fleet, setFleet] = useState<Fleet | null>(null)
-  const [vessels, setVessels] = useState<FleetVessel[]>([])
-  const [members, setMembers] = useState<FleetMember[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [showInviteDialog, setShowInviteDialog] = useState(false)
-  const [showAddVesselDialog, setShowAddVesselDialog] = useState(false)
-  const [showShareDialog, setShowShareDialog] = useState(false)
-  const [activeTab, setActiveTab] = useState('vessels')
+  const { user } = useAuth();
+  const router = useRouter();
+  const [fleet, setFleet] = useState<Fleet | null>(null);
+  const [vessels, setVessels] = useState<FleetVessel[]>([]);
+  const [members, setMembers] = useState<FleetMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [showAddVesselDialog, setShowAddVesselDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState("vessels");
 
   useEffect(() => {
     if (!user) {
-      router.push('/login')
-      return
+      router.push("/login");
+      return;
     }
 
     // Check if user is Pro tier
-    const userTier = (user as any)?.subscription_tier || (user as any)?.user_metadata?.subscription_tier
-    if (userTier !== 'pro' && userTier !== 'enterprise') {
-      router.push('/pricing?upgrade=fleet')
-      return
+    const userTier =
+      (user as any)?.subscription_tier ||
+      (user as any)?.user_metadata?.subscription_tier;
+    if (userTier !== "pro" && userTier !== "enterprise") {
+      router.push("/pricing?upgrade=fleet");
+      return;
     }
 
-    fetchFleet()
-  }, [user, router])
+    fetchFleet();
+  }, [user, router]);
 
   const fetchFleet = async () => {
     try {
-      const response = await fetch('/api/fleet', {
-        credentials: 'include',
-      })
+      const response = await fetch("/api/fleet", {
+        credentials: "include",
+      });
 
       if (response.status === 404) {
         // No fleet exists yet
-        setLoading(false)
-        return
+        setLoading(false);
+        return;
       }
 
       if (!response.ok) {
-        throw new Error('Failed to fetch fleet')
+        throw new Error("Failed to fetch fleet");
       }
 
-      const fleetData = await response.json()
-      setFleet(fleetData)
-      
+      const fleetData = await response.json();
+      setFleet(fleetData);
+
       // Fetch vessels and members
       await Promise.all([
         fetchVessels(fleetData.id),
-        fetchMembers(fleetData.id)
-      ])
+        fetchMembers(fleetData.id),
+      ]);
     } catch (error) {
-      console.error('Failed to fetch fleet:', error)
-      toast.error('Failed to load fleet data')
+      logger.error("Failed to fetch fleet", { error: String(error) });
+      toast.error("Failed to load fleet data");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const fetchVessels = async (fleetId: string) => {
     try {
       const response = await fetch(`/api/fleet/${fleetId}/vessels`, {
-        credentials: 'include',
-      })
+        credentials: "include",
+      });
 
       if (response.ok) {
-        const vesselsData = await response.json()
-        setVessels(vesselsData)
+        const vesselsData = await response.json();
+        setVessels(vesselsData);
       }
     } catch (error) {
-      console.error('Failed to fetch vessels:', error)
+      logger.error("Failed to fetch fleet vessels", {
+        error: String(error),
+        fleetId,
+      });
     }
-  }
+  };
 
   const fetchMembers = async (fleetId: string) => {
     try {
       const response = await fetch(`/api/fleet/${fleetId}/members`, {
-        credentials: 'include',
-      })
+        credentials: "include",
+      });
 
       if (response.ok) {
-        const membersData = await response.json()
-        setMembers(membersData)
+        const membersData = await response.json();
+        setMembers(membersData);
       }
     } catch (error) {
-      console.error('Failed to fetch members:', error)
+      logger.error("Failed to fetch fleet members", {
+        error: String(error),
+        fleetId,
+      });
     }
-  }
+  };
 
   const handleCreateFleet = async (name: string, description?: string) => {
     try {
-      const response = await fetch('/api/fleet/create', {
-        method: 'POST',
-        credentials: 'include',
+      const response = await fetch("/api/fleet/create", {
+        method: "POST",
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, description })
-      })
+        body: JSON.stringify({ name, description }),
+      });
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to create fleet')
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create fleet");
       }
 
-      const newFleet = await response.json()
-      setFleet(newFleet)
-      setShowCreateDialog(false)
-      toast.success('Fleet created successfully!')
+      const newFleet = await response.json();
+      setFleet(newFleet);
+      setShowCreateDialog(false);
+      toast.success("Fleet created successfully!");
     } catch (error: any) {
-      toast.error(error.message)
+      toast.error(error.message);
     }
-  }
+  };
 
   const handleAddVessel = async (vesselData: any) => {
-    if (!fleet) return
+    if (!fleet) return;
 
     try {
       const response = await fetch(`/api/fleet/${fleet.id}/vessels`, {
-        method: 'POST',
-        credentials: 'include',
+        method: "POST",
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(vesselData)
-      })
+        body: JSON.stringify(vesselData),
+      });
 
       if (!response.ok) {
-        throw new Error('Failed to add vessel')
+        throw new Error("Failed to add vessel");
       }
 
-      const newVessel = await response.json()
-      setVessels([...vessels, newVessel])
-      setShowAddVesselDialog(false)
-      toast.success('Vessel added successfully!')
+      const newVessel = await response.json();
+      setVessels([...vessels, newVessel]);
+      setShowAddVesselDialog(false);
+      toast.success("Vessel added successfully!");
     } catch (error) {
-      toast.error('Failed to add vessel')
+      toast.error("Failed to add vessel");
     }
-  }
+  };
 
-  const handleInviteCrew = async (email: string, role: string, vesselIds?: string[]) => {
-    if (!fleet) return
+  const handleInviteCrew = async (
+    email: string,
+    role: string,
+    vesselIds?: string[],
+  ) => {
+    if (!fleet) return;
 
     try {
       const response = await fetch(`/api/fleet/${fleet.id}/invite`, {
-        method: 'POST',
-        credentials: 'include',
+        method: "POST",
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, role, vesselIds })
-      })
+        body: JSON.stringify({ email, role, vesselIds }),
+      });
 
       if (!response.ok) {
-        throw new Error('Failed to send invitation')
+        throw new Error("Failed to send invitation");
       }
 
-      setShowInviteDialog(false)
-      toast.success('Invitation sent successfully!')
+      setShowInviteDialog(false);
+      toast.success("Invitation sent successfully!");
     } catch (error) {
-      toast.error('Failed to send invitation')
+      toast.error("Failed to send invitation");
     }
-  }
+  };
 
   if (!user || loading) {
     return (
@@ -274,7 +313,7 @@ function FleetPageContent() {
           <p className="text-muted-foreground">Loading fleet...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (!fleet) {
@@ -291,7 +330,8 @@ function FleetPageContent() {
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-muted-foreground mb-6">
-                Set up your fleet to track vessels, invite crew members, and share passage plans.
+                Set up your fleet to track vessels, invite crew members, and
+                share passage plans.
               </p>
               <Button size="lg" onClick={() => setShowCreateDialog(true)}>
                 <Plus className="mr-2 h-5 w-5" />
@@ -305,17 +345,17 @@ function FleetPageContent() {
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
           onSuccess={(fleet) => {
-            setFleet(fleet)
-            setShowCreateDialog(false)
-            toast.success('Fleet created successfully')
+            setFleet(fleet);
+            setShowCreateDialog(false);
+            toast.success("Fleet created successfully");
           }}
         />
       </div>
-    )
+    );
   }
 
-  const isAdmin = fleet.role === 'admin'
-  const canManage = fleet.role === 'admin' || fleet.role === 'captain'
+  const isAdmin = fleet.role === "admin";
+  const canManage = fleet.role === "admin" || fleet.role === "captain";
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -326,7 +366,7 @@ function FleetPageContent() {
             <p className="text-muted-foreground">{fleet.description}</p>
           )}
         </div>
-        
+
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowShareDialog(true)}>
             <Share2 className="mr-2 h-4 w-4" />
@@ -372,7 +412,9 @@ function FleetPageContent() {
             <Card>
               <CardContent className="text-center py-8">
                 <Ship className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground mb-4">No vessels in your fleet yet</p>
+                <p className="text-muted-foreground mb-4">
+                  No vessels in your fleet yet
+                </p>
                 {canManage && (
                   <Button onClick={() => setShowAddVesselDialog(true)}>
                     Add Your First Vessel
@@ -443,7 +485,7 @@ function FleetPageContent() {
         members={members}
       />
     </div>
-  )
+  );
 }
 
 export default function FleetPage() {
@@ -451,5 +493,5 @@ export default function FleetPage() {
     <RequireAuth>
       <FleetPageInner />
     </RequireAuth>
-  )
+  );
 }

@@ -1,20 +1,37 @@
-'use client'
+"use client";
 
-import { Suspense, lazy, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Button } from '../components/ui/button'
-import { ResponsiveCard } from '../components/ui/responsive-card'
-import { Skeleton } from '../components/ui/skeleton'
-import { Map, Calendar, Wind, Anchor, TrendingUp, Plus } from 'lucide-react'
-import { useAuth } from '../contexts/AuthContext'
-import { useAnalytics, ANALYTICS_EVENTS } from '../hooks/useAnalytics'
-import { preloadCriticalResources, deduplicatedFetch } from '../lib/performance'
+import { Suspense, lazy, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { ResponsiveCard } from "../components/ui/responsive-card";
+import { Skeleton } from "../components/ui/skeleton";
+import { Map, Calendar, Wind, Anchor, TrendingUp, Plus } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { useAnalytics, ANALYTICS_EVENTS } from "../hooks/useAnalytics";
+import {
+  preloadCriticalResources,
+  deduplicatedFetch,
+} from "../lib/performance";
+import { logger } from "../lib/logger";
 
 // Lazy load heavy components
-const DemoPassage = lazy(async () => ({ default: (await import('../components/demo/DemoPassage')).DemoPassage }))
-const WeatherWidget = lazy(async () => ({ default: (await import('../components/weather/WeatherWidget')).WeatherWidget }))
-const RecentPassages = lazy(async () => ({ default: (await import('../components/passages/RecentPassages')).RecentPassages }))
+const DemoPassage = lazy(async () => ({
+  default: (await import("../components/demo/DemoPassage")).DemoPassage,
+}));
+const WeatherWidget = lazy(async () => ({
+  default: (await import("../components/weather/WeatherWidget")).WeatherWidget,
+}));
+const RecentPassages = lazy(async () => ({
+  default: (await import("../components/passages/RecentPassages"))
+    .RecentPassages,
+}));
 
 // Loading skeletons
 function DemoPassageSkeleton() {
@@ -28,7 +45,7 @@ function DemoPassageSkeleton() {
         <Skeleton className="h-64 w-full" />
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function StatsSkeleton() {
@@ -43,61 +60,61 @@ function StatsSkeleton() {
         </Card>
       ))}
     </div>
-  )
+  );
 }
 
 export default function OptimizedDashboardPage() {
-  const { user, session } = useAuth()
-  const router = useRouter()
-  const { track, trackFeature } = useAnalytics()
-  const [stats, setStats] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const { user, session } = useAuth();
+  const router = useRouter();
+  const { track, trackFeature } = useAnalytics();
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
-      router.push('/login')
-      return
+      router.push("/login");
+      return;
     }
 
     // Track page view
-    track('page_view', { page: 'dashboard' })
-    
+    track("page_view", { page: "dashboard" });
+
     // Preload critical resources
-    preloadCriticalResources()
-    
+    preloadCriticalResources();
+
     // Load stats with deduplication
-    loadDashboardStats()
-  }, [user])
+    loadDashboardStats();
+  }, [user]);
 
   const loadDashboardStats = async () => {
     try {
       const data = await deduplicatedFetch(
         `dashboard-stats-${user?.id}`,
         async () => {
-          const response = await fetch('/api/dashboard/stats', {
+          const response = await fetch("/api/dashboard/stats", {
             headers: {
-              'Authorization': `Bearer ${session?.access_token}`
-            }
-          })
-          return response.json()
+              Authorization: `Bearer ${session?.access_token}`,
+            },
+          });
+          return response.json();
         },
-        60000 // Cache for 1 minute
-      )
-      
-      setStats(data)
+        60000, // Cache for 1 minute
+      );
+
+      setStats(data);
     } catch (error) {
-      console.error('Failed to load stats:', error)
+      logger.error("Failed to load dashboard stats", { error: String(error) });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleNewPassage = () => {
-    trackFeature('new_passage_clicked', { source: 'dashboard' })
-    router.push('/planner')
-  }
+    trackFeature("new_passage_clicked", { source: "dashboard" });
+    router.push("/planner");
+  };
 
-  if (!user) return null
+  if (!user) return null;
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6 pb-20 md:pb-8">
@@ -116,20 +133,26 @@ export default function OptimizedDashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <ResponsiveCard>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Passages</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Total Passages
+              </CardTitle>
               <Map className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalPassages || 0}</div>
+              <div className="text-2xl font-bold">
+                {stats?.totalPassages || 0}
+              </div>
               <p className="text-xs text-muted-foreground">
                 {stats?.monthlyPassages || 0} this month
               </p>
             </CardContent>
           </ResponsiveCard>
-          
+
           <ResponsiveCard>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Miles Planned</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Miles Planned
+              </CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -139,27 +162,35 @@ export default function OptimizedDashboardPage() {
               </p>
             </CardContent>
           </ResponsiveCard>
-          
+
           <ResponsiveCard>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Favorite Port</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Favorite Port
+              </CardTitle>
               <Anchor className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.favoritePort || 'N/A'}</div>
+              <div className="text-2xl font-bold">
+                {stats?.favoritePort || "N/A"}
+              </div>
               <p className="text-xs text-muted-foreground">
                 Most visited destination
               </p>
             </CardContent>
           </ResponsiveCard>
-          
+
           <ResponsiveCard>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Weather Score</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Weather Score
+              </CardTitle>
               <Wind className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.weatherScore || 0}%</div>
+              <div className="text-2xl font-bold">
+                {stats?.weatherScore || 0}%
+              </div>
               <p className="text-xs text-muted-foreground">
                 Favorable conditions
               </p>
@@ -170,7 +201,10 @@ export default function OptimizedDashboardPage() {
 
       {/* Quick Actions */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={handleNewPassage}>
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={handleNewPassage}
+        >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Map className="h-5 w-5" />
@@ -181,8 +215,11 @@ export default function OptimizedDashboardPage() {
             </CardDescription>
           </CardHeader>
         </Card>
-        
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push('/passages')}>
+
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => router.push("/passages")}
+        >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
@@ -193,8 +230,11 @@ export default function OptimizedDashboardPage() {
             </CardDescription>
           </CardHeader>
         </Card>
-        
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push('/weather')}>
+
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => router.push("/weather")}
+        >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Wind className="h-5 w-5" />
@@ -231,5 +271,5 @@ export default function OptimizedDashboardPage() {
         <Plus className="h-6 w-6" />
       </Button>
     </div>
-  )
-} 
+  );
+}

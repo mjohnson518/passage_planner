@@ -1,180 +1,215 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import dynamic from 'next/dynamic'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
-import { Button } from '../../components/ui/button'
-import { Badge } from '../../components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs'
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../../components/ui/tabs";
 
 const ExportDialog = dynamic(
-  () => import('../../components/export/ExportDialog').then(m => ({ default: m.ExportDialog })),
-  { ssr: false }
-)
-import { 
-  MapPin, 
-  Navigation, 
-  Clock, 
-  Download, 
+  () =>
+    import("../../components/export/ExportDialog").then((m) => ({
+      default: m.ExportDialog,
+    })),
+  { ssr: false },
+);
+import {
+  MapPin,
+  Navigation,
+  Clock,
+  Download,
   Share2,
   Wind,
   Waves,
   Calendar,
   AlertTriangle,
-  Anchor
-} from 'lucide-react'
-import type { Passage } from '@/types/shared'
+  Anchor,
+} from "lucide-react";
+import type { Passage } from "@/types/shared";
+import { logger } from "../../lib/logger";
 
 // Helper function to convert degrees to compass direction
 function degreesToCompass(degrees: number): string {
-  const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
-  const index = Math.round(degrees / 22.5) % 16
-  return directions[index]
+  const directions = [
+    "N",
+    "NNE",
+    "NE",
+    "ENE",
+    "E",
+    "ESE",
+    "SE",
+    "SSE",
+    "S",
+    "SSW",
+    "SW",
+    "WSW",
+    "W",
+    "WNW",
+    "NW",
+    "NNW",
+  ];
+  const index = Math.round(degrees / 22.5) % 16;
+  return directions[index];
 }
 
 // Helper to format time for display
 function formatTime(date: Date): string {
-  return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return new Date(date).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 // Mock data for demonstration
 const mockPassage: Passage = {
-  id: '1',
-  userId: 'user1',
-  boatId: 'boat1',
-  name: 'Boston to Portland Summer Cruise',
+  id: "1",
+  userId: "user1",
+  boatId: "boat1",
+  name: "Boston to Portland Summer Cruise",
   departure: {
-    name: 'Boston Harbor',
+    name: "Boston Harbor",
     coordinates: { lat: 42.3601, lng: -71.0589 },
-    facilities: ['fuel', 'water', 'provisions'],
-    vhfChannel: 16
+    facilities: ["fuel", "water", "provisions"],
+    vhfChannel: 16,
   },
   destination: {
-    name: 'Portland Harbor',
+    name: "Portland Harbor",
     coordinates: { lat: 43.6591, lng: -70.2568 },
-    facilities: ['fuel', 'water', 'customs'],
-    vhfChannel: 16
+    facilities: ["fuel", "water", "customs"],
+    vhfChannel: 16,
   },
   waypoints: [
     {
-      id: '1',
-      name: 'Gloucester',
-      coordinates: { lat: 42.6159, lng: -70.6620 },
-      type: 'marina'
+      id: "1",
+      name: "Gloucester",
+      coordinates: { lat: 42.6159, lng: -70.662 },
+      type: "marina",
     },
     {
-      id: '2',
-      name: 'Isles of Shoals',
+      id: "2",
+      name: "Isles of Shoals",
       coordinates: { lat: 42.9869, lng: -70.6231 },
-      type: 'anchorage'
-    }
+      type: "anchorage",
+    },
   ],
-  departureTime: new Date('2024-07-15T08:00:00'),
-  estimatedArrivalTime: new Date('2024-07-16T00:00:00'),
+  departureTime: new Date("2024-07-15T08:00:00"),
+  estimatedArrivalTime: new Date("2024-07-16T00:00:00"),
   distance: 98,
   estimatedDuration: 16,
   weather: [
     {
-      startTime: new Date('2024-07-15T08:00:00'),
-      endTime: new Date('2024-07-15T14:00:00'),
+      startTime: new Date("2024-07-15T08:00:00"),
+      endTime: new Date("2024-07-15T14:00:00"),
       location: { lat: 42.45, lng: -70.85 },
       wind: { direction: 225, speed: 12, gusts: 18 },
       waves: { height: 1.2, period: 6, direction: 200 },
       visibility: 10,
       precipitation: 0,
       pressure: 1018,
-      temperature: 22
+      temperature: 22,
     },
     {
-      startTime: new Date('2024-07-15T14:00:00'),
-      endTime: new Date('2024-07-15T20:00:00'),
-      location: { lat: 42.80, lng: -70.65 },
+      startTime: new Date("2024-07-15T14:00:00"),
+      endTime: new Date("2024-07-15T20:00:00"),
+      location: { lat: 42.8, lng: -70.65 },
       wind: { direction: 240, speed: 15, gusts: 22 },
       waves: { height: 1.5, period: 7, direction: 210 },
       visibility: 8,
       precipitation: 0,
       pressure: 1016,
-      temperature: 24
+      temperature: 24,
     },
     {
-      startTime: new Date('2024-07-15T20:00:00'),
-      endTime: new Date('2024-07-16T00:00:00'),
-      location: { lat: 43.30, lng: -70.45 },
+      startTime: new Date("2024-07-15T20:00:00"),
+      endTime: new Date("2024-07-16T00:00:00"),
+      location: { lat: 43.3, lng: -70.45 },
       wind: { direction: 250, speed: 10, gusts: 15 },
       waves: { height: 1.0, period: 5, direction: 220 },
       visibility: 12,
       precipitation: 0,
       pressure: 1017,
-      temperature: 20
-    }
+      temperature: 20,
+    },
   ],
   tides: [
     {
-      location: 'Boston Harbor',
+      location: "Boston Harbor",
       coordinates: { lat: 42.3601, lng: -71.0589 },
-      type: 'high',
-      time: new Date('2024-07-15T06:30:00'),
+      type: "high",
+      time: new Date("2024-07-15T06:30:00"),
       height: 3.2,
-      current: { speed: 0.5, direction: 45 }
+      current: { speed: 0.5, direction: 45 },
     },
     {
-      location: 'Boston Harbor',
+      location: "Boston Harbor",
       coordinates: { lat: 42.3601, lng: -71.0589 },
-      type: 'low',
-      time: new Date('2024-07-15T12:45:00'),
+      type: "low",
+      time: new Date("2024-07-15T12:45:00"),
       height: 0.3,
-      current: { speed: 1.2, direction: 225 }
+      current: { speed: 1.2, direction: 225 },
     },
     {
-      location: 'Portsmouth Harbor',
+      location: "Portsmouth Harbor",
       coordinates: { lat: 43.0718, lng: -70.7626 },
-      type: 'high',
-      time: new Date('2024-07-15T07:15:00'),
+      type: "high",
+      time: new Date("2024-07-15T07:15:00"),
       height: 2.9,
-      current: { speed: 0.8, direction: 60 }
+      current: { speed: 0.8, direction: 60 },
     },
     {
-      location: 'Portsmouth Harbor',
+      location: "Portsmouth Harbor",
       coordinates: { lat: 43.0718, lng: -70.7626 },
-      type: 'low',
-      time: new Date('2024-07-15T13:30:00'),
+      type: "low",
+      time: new Date("2024-07-15T13:30:00"),
       height: 0.4,
-      current: { speed: 1.5, direction: 240 }
+      current: { speed: 1.5, direction: 240 },
     },
     {
-      location: 'Portland Harbor',
+      location: "Portland Harbor",
       coordinates: { lat: 43.6591, lng: -70.2568 },
-      type: 'high',
-      time: new Date('2024-07-15T07:45:00'),
+      type: "high",
+      time: new Date("2024-07-15T07:45:00"),
       height: 3.0,
-      current: { speed: 0.6, direction: 50 }
+      current: { speed: 0.6, direction: 50 },
     },
     {
-      location: 'Portland Harbor',
+      location: "Portland Harbor",
       coordinates: { lat: 43.6591, lng: -70.2568 },
-      type: 'low',
-      time: new Date('2024-07-15T14:00:00'),
+      type: "low",
+      time: new Date("2024-07-15T14:00:00"),
       height: 0.2,
-      current: { speed: 1.0, direction: 230 }
-    }
+      current: { speed: 1.0, direction: 230 },
+    },
   ],
   route: [
     {
       from: { lat: 42.3601, lng: -71.0589 },
-      to: { lat: 42.6159, lng: -70.6620 },
+      to: { lat: 42.6159, lng: -70.662 },
       bearing: 45,
       distance: 26,
       estimatedSpeed: 6,
-      estimatedTime: 4.3
+      estimatedTime: 4.3,
     },
     {
-      from: { lat: 42.6159, lng: -70.6620 },
+      from: { lat: 42.6159, lng: -70.662 },
       to: { lat: 42.9869, lng: -70.6231 },
       bearing: 15,
       distance: 25,
       estimatedSpeed: 6,
-      estimatedTime: 4.2
+      estimatedTime: 4.2,
     },
     {
       from: { lat: 42.9869, lng: -70.6231 },
@@ -182,57 +217,61 @@ const mockPassage: Passage = {
       bearing: 5,
       distance: 47,
       estimatedSpeed: 6,
-      estimatedTime: 7.8
-    }
+      estimatedTime: 7.8,
+    },
   ],
   safety: {
     vhfChannels: [16, 9, 13],
     emergencyContacts: [],
     nearestSafeHarbors: [],
-    navigationWarnings: ['Lobster pots near Isles of Shoals']
+    navigationWarnings: ["Lobster pots near Isles of Shoals"],
   },
   preferences: {
     maxWindSpeed: 25,
     maxWaveHeight: 2,
     avoidNight: true,
     preferMotoring: false,
-    comfortLevel: 'cruising'
+    comfortLevel: "cruising",
   },
-  status: 'planned',
+  status: "planned",
   createdAt: new Date(),
-  updatedAt: new Date()
-}
+  updatedAt: new Date(),
+};
 
 export default function PassageDetailPage() {
-  const params = useParams()
-  const router = useRouter()
-  const [passage, setPassage] = useState<Passage | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showExportDialog, setShowExportDialog] = useState(false)
+  const params = useParams();
+  const router = useRouter();
+  const [passage, setPassage] = useState<Passage | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showExportDialog, setShowExportDialog] = useState(false);
 
   useEffect(() => {
     const fetchPassage = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-        const response = await fetch(`${apiUrl}/api/passages/${params.id}`)
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch passage')
-        }
-        
-        const data = await response.json()
-        setPassage(data)
-      } catch (error) {
-        console.error('Error fetching passage:', error)
-        // Fallback to mock data for now
-        setPassage(mockPassage)
-      } finally {
-        setLoading(false)
-      }
-    }
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+        const response = await fetch(`${apiUrl}/api/passages/${params.id}`);
 
-    fetchPassage()
-  }, [params.id])
+        if (!response.ok) {
+          throw new Error("Failed to fetch passage");
+        }
+
+        const data = await response.json();
+        setPassage(data);
+      } catch (error) {
+        logger.error("Failed to fetch passage detail", {
+          error: String(error),
+          passageId: String(params.id),
+        });
+        // Fallback to mock data for now
+        setPassage(mockPassage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPassage();
+  }, [params.id]);
 
   if (loading) {
     return (
@@ -242,7 +281,7 @@ export default function PassageDetailPage() {
           <p className="text-muted-foreground">Loading passage...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (!passage) {
@@ -250,7 +289,7 @@ export default function PassageDetailPage() {
       <div className="container mx-auto px-4 py-8">
         <p>Passage not found</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -262,13 +301,19 @@ export default function PassageDetailPage() {
             <h1 className="text-2xl lg:text-3xl font-bold">{passage.name}</h1>
             <div className="flex items-center gap-2 mt-2 text-muted-foreground">
               <MapPin className="h-4 w-4" />
-              <span>{passage.departure.name} → {passage.destination.name}</span>
-              <Badge variant={passage.status === 'completed' ? 'secondary' : 'default'}>
+              <span>
+                {passage.departure.name} → {passage.destination.name}
+              </span>
+              <Badge
+                variant={
+                  passage.status === "completed" ? "secondary" : "default"
+                }
+              >
                 {passage.status}
               </Badge>
             </div>
           </div>
-          
+
           <div className="flex gap-2">
             <Button variant="outline" size="sm">
               <Share2 className="h-4 w-4 mr-2" />
@@ -302,7 +347,9 @@ export default function PassageDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{passage.estimatedDuration}h</div>
+            <div className="text-2xl font-bold">
+              {passage.estimatedDuration}h
+            </div>
           </CardContent>
         </Card>
 
@@ -329,7 +376,9 @@ export default function PassageDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{passage.waypoints.length + 2}</div>
+            <div className="text-2xl font-bold">
+              {passage.waypoints.length + 2}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -361,25 +410,29 @@ export default function PassageDetailPage() {
                   <div className="flex-1">
                     <h4 className="font-medium">{passage.departure.name}</h4>
                     <p className="text-sm text-muted-foreground">
-                      {passage.departure.coordinates.lat.toFixed(4)}°N, 
+                      {passage.departure.coordinates.lat.toFixed(4)}°N,
                       {Math.abs(passage.departure.coordinates.lng).toFixed(4)}°W
                     </p>
                     <p className="text-sm mt-1">
-                      Departure: {new Date(passage.departureTime).toLocaleString()}
+                      Departure:{" "}
+                      {new Date(passage.departureTime).toLocaleString()}
                     </p>
                   </div>
                 </div>
 
                 {/* Waypoints */}
                 {passage.waypoints.map((waypoint: any, index: number) => (
-                  <div key={waypoint.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                  <div
+                    key={waypoint.id}
+                    className="flex items-start gap-3 p-3 rounded-lg bg-muted/30"
+                  >
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-sm">
                       {index + 1}
                     </div>
                     <div className="flex-1">
                       <h4 className="font-medium">{waypoint.name}</h4>
                       <p className="text-sm text-muted-foreground">
-                        {waypoint.coordinates.lat.toFixed(4)}°N, 
+                        {waypoint.coordinates.lat.toFixed(4)}°N,
                         {Math.abs(waypoint.coordinates.lng).toFixed(4)}°W
                       </p>
                       {waypoint.type && (
@@ -407,11 +460,13 @@ export default function PassageDetailPage() {
                   <div className="flex-1">
                     <h4 className="font-medium">{passage.destination.name}</h4>
                     <p className="text-sm text-muted-foreground">
-                      {passage.destination.coordinates.lat.toFixed(4)}°N, 
-                      {Math.abs(passage.destination.coordinates.lng).toFixed(4)}°W
+                      {passage.destination.coordinates.lat.toFixed(4)}°N,
+                      {Math.abs(passage.destination.coordinates.lng).toFixed(4)}
+                      °W
                     </p>
                     <p className="text-sm mt-1">
-                      ETA: {new Date(passage.estimatedArrivalTime).toLocaleString()}
+                      ETA:{" "}
+                      {new Date(passage.estimatedArrivalTime).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -439,14 +494,17 @@ export default function PassageDetailPage() {
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <h4 className="font-semibold">
-                            {formatTime(segment.startTime)} - {formatTime(segment.endTime)}
+                            {formatTime(segment.startTime)} -{" "}
+                            {formatTime(segment.endTime)}
                           </h4>
                           <p className="text-sm text-muted-foreground">
                             {new Date(segment.startTime).toLocaleDateString()}
                           </p>
                         </div>
                         {segment.temperature && (
-                          <Badge variant="secondary">{segment.temperature}°C</Badge>
+                          <Badge variant="secondary">
+                            {segment.temperature}°C
+                          </Badge>
                         )}
                       </div>
 
@@ -456,8 +514,10 @@ export default function PassageDetailPage() {
                           <div>
                             <p className="text-sm font-medium">Wind</p>
                             <p className="text-sm text-muted-foreground">
-                              {segment.wind.speed} kts {degreesToCompass(segment.wind.direction)}
-                              {segment.wind.gusts && ` (G${segment.wind.gusts})`}
+                              {segment.wind.speed} kts{" "}
+                              {degreesToCompass(segment.wind.direction)}
+                              {segment.wind.gusts &&
+                                ` (G${segment.wind.gusts})`}
                             </p>
                           </div>
                         </div>
@@ -475,14 +535,18 @@ export default function PassageDetailPage() {
                         {segment.visibility && (
                           <div>
                             <p className="text-sm font-medium">Visibility</p>
-                            <p className="text-sm text-muted-foreground">{segment.visibility} nm</p>
+                            <p className="text-sm text-muted-foreground">
+                              {segment.visibility} nm
+                            </p>
                           </div>
                         )}
 
                         {segment.pressure && (
                           <div>
                             <p className="text-sm font-medium">Pressure</p>
-                            <p className="text-sm text-muted-foreground">{segment.pressure} hPa</p>
+                            <p className="text-sm text-muted-foreground">
+                              {segment.pressure} hPa
+                            </p>
                           </div>
                         )}
                       </div>
@@ -492,7 +556,8 @@ export default function PassageDetailPage() {
                         <div className="mt-3 p-2 bg-warning/5 border border-warning/20 rounded flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-warning" />
                           <span className="text-sm text-warning">
-                            Strong winds expected - consider timing or alternate route
+                            Strong winds expected - consider timing or alternate
+                            route
                           </span>
                         </div>
                       )}
@@ -500,7 +565,8 @@ export default function PassageDetailPage() {
                         <div className="mt-3 p-2 bg-destructive/5 border border-destructive/20 rounded flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-destructive" />
                           <span className="text-sm text-destructive">
-                            Significant wave height - may affect comfort and safety
+                            Significant wave height - may affect comfort and
+                            safety
                           </span>
                         </div>
                       )}
@@ -510,7 +576,9 @@ export default function PassageDetailPage() {
               ) : (
                 <div className="text-center py-8">
                   <Wind className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No weather data available</p>
+                  <p className="text-muted-foreground">
+                    No weather data available
+                  </p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Weather forecast will be fetched when the passage is planned
                   </p>
@@ -535,7 +603,11 @@ export default function PassageDetailPage() {
               {passage.tides && passage.tides.length > 0 ? (
                 <div className="space-y-6">
                   {/* Group tides by location */}
-                  {(Array.from(new Set(passage.tides.map((t: any) => t.location))) as string[]).map((location) => (
+                  {(
+                    Array.from(
+                      new Set(passage.tides.map((t: any) => t.location)),
+                    ) as string[]
+                  ).map((location) => (
                     <div key={location} className="space-y-3">
                       <h4 className="font-semibold flex items-center gap-2">
                         <MapPin className="h-4 w-4" />
@@ -544,38 +616,52 @@ export default function PassageDetailPage() {
                       <div className="grid gap-3">
                         {passage.tides
                           .filter((t: any) => t.location === location)
-                          .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime())
+                          .sort(
+                            (a: any, b: any) =>
+                              new Date(a.time).getTime() -
+                              new Date(b.time).getTime(),
+                          )
                           .map((tide: any, index: number) => (
                             <div
                               key={index}
                               className={`p-3 rounded-lg border flex items-center justify-between ${
-                                tide.type === 'high'
-                                  ? 'bg-primary/5 border-primary/20'
-                                  : 'bg-muted/50 border-border'
+                                tide.type === "high"
+                                  ? "bg-primary/5 border-primary/20"
+                                  : "bg-muted/50 border-border"
                               }`}
                             >
                               <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-full ${
-                                  tide.type === 'high' ? 'bg-primary/10' : 'bg-muted'
-                                }`}>
-                                  {tide.type === 'high' ? (
+                                <div
+                                  className={`p-2 rounded-full ${
+                                    tide.type === "high"
+                                      ? "bg-primary/10"
+                                      : "bg-muted"
+                                  }`}
+                                >
+                                  {tide.type === "high" ? (
                                     <Waves className="h-4 w-4 text-primary" />
                                   ) : (
                                     <Anchor className="h-4 w-4 text-muted-foreground" />
                                   )}
                                 </div>
                                 <div>
-                                  <p className="font-medium capitalize">{tide.type} Tide</p>
+                                  <p className="font-medium capitalize">
+                                    {tide.type} Tide
+                                  </p>
                                   <p className="text-sm text-muted-foreground">
-                                    {formatTime(tide.time)} - {new Date(tide.time).toLocaleDateString()}
+                                    {formatTime(tide.time)} -{" "}
+                                    {new Date(tide.time).toLocaleDateString()}
                                   </p>
                                 </div>
                               </div>
                               <div className="text-right">
-                                <p className="font-semibold">{tide.height.toFixed(1)}m</p>
+                                <p className="font-semibold">
+                                  {tide.height.toFixed(1)}m
+                                </p>
                                 {tide.current && (
                                   <p className="text-sm text-muted-foreground">
-                                    Current: {tide.current.speed.toFixed(1)} kts {degreesToCompass(tide.current.direction)}
+                                    Current: {tide.current.speed.toFixed(1)} kts{" "}
+                                    {degreesToCompass(tide.current.direction)}
                                   </p>
                                 )}
                               </div>
@@ -586,13 +672,19 @@ export default function PassageDetailPage() {
                   ))}
 
                   {/* Tidal current warning */}
-                  {passage.tides.some((t: any) => t.current && t.current.speed > 1.5) && (
+                  {passage.tides.some(
+                    (t: any) => t.current && t.current.speed > 1.5,
+                  ) && (
                     <div className="p-3 bg-warning/5 border border-warning/20 rounded-lg flex items-start gap-2">
                       <AlertTriangle className="h-5 w-5 text-warning mt-0.5" />
                       <div>
-                        <p className="font-medium text-warning">Strong Tidal Currents</p>
+                        <p className="font-medium text-warning">
+                          Strong Tidal Currents
+                        </p>
                         <p className="text-sm text-warning/80">
-                          Some locations have currents exceeding 1.5 knots. Plan your departure time to use favorable currents and avoid opposing strong flows.
+                          Some locations have currents exceeding 1.5 knots. Plan
+                          your departure time to use favorable currents and
+                          avoid opposing strong flows.
                         </p>
                       </div>
                     </div>
@@ -601,7 +693,9 @@ export default function PassageDetailPage() {
               ) : (
                 <div className="text-center py-8">
                   <Anchor className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No tidal data available</p>
+                  <p className="text-muted-foreground">
+                    No tidal data available
+                  </p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Tide predictions will be fetched when the passage is planned
                   </p>
@@ -631,17 +725,19 @@ export default function PassageDetailPage() {
                     ))}
                   </div>
                 </div>
-                
+
                 {passage.safety.navigationWarnings.length > 0 && (
                   <div>
                     <h4 className="font-medium mb-2">Navigation Warnings</h4>
                     <div className="space-y-2">
-                      {passage.safety.navigationWarnings.map((warning: any, index: number) => (
-                        <div key={index} className="flex items-start gap-2">
-                          <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
-                          <p className="text-sm">{warning}</p>
-                        </div>
-                      ))}
+                      {passage.safety.navigationWarnings.map(
+                        (warning: any, index: number) => (
+                          <div key={index} className="flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
+                            <p className="text-sm">{warning}</p>
+                          </div>
+                        ),
+                      )}
                     </div>
                   </div>
                 )}
@@ -660,5 +756,5 @@ export default function PassageDetailPage() {
         />
       )}
     </div>
-  )
-} 
+  );
+}

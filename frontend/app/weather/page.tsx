@@ -1,18 +1,34 @@
+"use client";
 
-'use client'
-
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Button } from '../components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
-import { Badge } from '../components/ui/badge'
-import { Slider } from '../components/ui/slider'
-import { Skeleton } from '../components/ui/skeleton'
-import { 
-  Cloud, 
-  Wind, 
-  Waves, 
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
+import { Badge } from "../components/ui/badge";
+import { Slider } from "../components/ui/slider";
+import { Skeleton } from "../components/ui/skeleton";
+import {
+  Cloud,
+  Wind,
+  Waves,
   Eye,
   AlertTriangle,
   MapPin,
@@ -21,120 +37,121 @@ import {
   Info,
   Navigation,
   Droplets,
-  ThermometerSun
-} from 'lucide-react'
-import { useAuth } from '../contexts/AuthContext'
-import { useAnalytics } from '../hooks/useAnalytics'
-import { features } from '../lib/features'
+  ThermometerSun,
+} from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { useAnalytics } from "../hooks/useAnalytics";
+import { features } from "../lib/features";
+import { logger } from "../lib/logger";
 
 interface WeatherLayer {
-  id: string
-  name: string
-  icon: React.ReactNode
-  description: string
-  available: boolean
+  id: string;
+  name: string;
+  icon: React.ReactNode;
+  description: string;
+  available: boolean;
 }
 
 interface WeatherData {
-  windSpeed: number
-  windDirection: number
-  waveHeight: number
-  wavePeriod: number
-  precipitation: number
-  temperature: number
-  pressure: number
-  visibility: number
+  windSpeed: number;
+  windDirection: number;
+  waveHeight: number;
+  wavePeriod: number;
+  precipitation: number;
+  temperature: number;
+  pressure: number;
+  visibility: number;
 }
 
 interface MarineWarning {
-  id: string
-  type: 'gale' | 'storm' | 'hurricane' | 'small-craft'
-  severity: 'watch' | 'warning'
-  area: string
-  description: string
-  validFrom: string
-  validUntil: string
+  id: string;
+  type: "gale" | "storm" | "hurricane" | "small-craft";
+  severity: "watch" | "warning";
+  area: string;
+  description: string;
+  validFrom: string;
+  validUntil: string;
 }
 
 export default function WeatherPage() {
-  const { user } = useAuth()
-  const { track, trackFeature } = useAnalytics()
-  const [selectedLayer, setSelectedLayer] = useState('wind')
-  const [region, setRegion] = useState('northeast-atlantic')
-  const [forecastHour, setForecastHour] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [weatherData, setWeatherData] = useState<WeatherData | null>(null)
-  const [warnings, setWarnings] = useState<MarineWarning[]>([])
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const { user } = useAuth();
+  const { track, trackFeature } = useAnalytics();
+  const [selectedLayer, setSelectedLayer] = useState("wind");
+  const [region, setRegion] = useState("northeast-atlantic");
+  const [forecastHour, setForecastHour] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+  const [warnings, setWarnings] = useState<MarineWarning[]>([]);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   const weatherLayers: WeatherLayer[] = [
     {
-      id: 'wind',
-      name: 'Wind',
+      id: "wind",
+      name: "Wind",
       icon: <Wind className="h-4 w-4" />,
-      description: 'Wind speed and direction',
-      available: true
+      description: "Wind speed and direction",
+      available: true,
     },
     {
-      id: 'waves',
-      name: 'Waves',
+      id: "waves",
+      name: "Waves",
       icon: <Waves className="h-4 w-4" />,
-      description: 'Wave height and period',
-      available: true
+      description: "Wave height and period",
+      available: true,
     },
     {
-      id: 'precipitation',
-      name: 'Precipitation',
+      id: "precipitation",
+      name: "Precipitation",
       icon: <Droplets className="h-4 w-4" />,
-      description: 'Rain and snow forecast',
-      available: true
+      description: "Rain and snow forecast",
+      available: true,
     },
     {
-      id: 'temperature',
-      name: 'Temperature',
+      id: "temperature",
+      name: "Temperature",
       icon: <ThermometerSun className="h-4 w-4" />,
-      description: 'Air and sea temperature',
-      available: true
+      description: "Air and sea temperature",
+      available: true,
     },
     {
-      id: 'pressure',
-      name: 'Pressure',
+      id: "pressure",
+      name: "Pressure",
       icon: <Cloud className="h-4 w-4" />,
-      description: 'Atmospheric pressure',
-      available: true
+      description: "Atmospheric pressure",
+      available: true,
     },
     {
-      id: 'visibility',
-      name: 'Visibility',
+      id: "visibility",
+      name: "Visibility",
       icon: <Eye className="h-4 w-4" />,
-      description: 'Visibility conditions',
-      available: false
-    }
-  ]
+      description: "Visibility conditions",
+      available: false,
+    },
+  ];
 
   const regions = [
-    { value: 'northeast-atlantic', label: 'Northeast Atlantic' },
-    { value: 'northwest-atlantic', label: 'Northwest Atlantic' },
-    { value: 'caribbean', label: 'Caribbean' },
-    { value: 'mediterranean', label: 'Mediterranean' },
-    { value: 'north-pacific', label: 'North Pacific' },
-    { value: 'south-pacific', label: 'South Pacific' }
-  ]
+    { value: "northeast-atlantic", label: "Northeast Atlantic" },
+    { value: "northwest-atlantic", label: "Northwest Atlantic" },
+    { value: "caribbean", label: "Caribbean" },
+    { value: "mediterranean", label: "Mediterranean" },
+    { value: "north-pacific", label: "North Pacific" },
+    { value: "south-pacific", label: "South Pacific" },
+  ];
 
   useEffect(() => {
-    track('page_view', { page: 'weather' })
-    loadWeatherData()
-    loadWarnings()
-  }, [])
+    track("page_view", { page: "weather" });
+    loadWeatherData();
+    loadWarnings();
+  }, []);
 
   useEffect(() => {
     if (selectedLayer || region) {
-      loadWeatherData()
+      loadWeatherData();
     }
-  }, [selectedLayer, region, forecastHour])
+  }, [selectedLayer, region, forecastHour]);
 
   const loadWeatherData = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       // Mock weather data - in production this would call the weather API
       const mockData: WeatherData = {
@@ -145,72 +162,83 @@ export default function WeatherPage() {
         precipitation: Math.random() * 10,
         temperature: 65 + Math.random() * 15,
         pressure: 1010 + Math.random() * 20,
-        visibility: 8 + Math.random() * 2
-      }
-      
-      setWeatherData(mockData)
-      setLastUpdate(new Date())
-      
-      trackFeature('weather_layer_viewed', { 
-        layer: selectedLayer, 
-        region, 
-        forecastHour 
-      })
+        visibility: 8 + Math.random() * 2,
+      };
+
+      setWeatherData(mockData);
+      setLastUpdate(new Date());
+
+      trackFeature("weather_layer_viewed", {
+        layer: selectedLayer,
+        region,
+        forecastHour,
+      });
     } catch (error) {
-      console.error('Failed to load weather data:', error)
+      logger.error("Failed to load weather data", {
+        error: String(error),
+        region,
+        selectedLayer,
+        forecastHour,
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const loadWarnings = async () => {
     try {
       // Mock warnings data
       const mockWarnings: MarineWarning[] = [
         {
-          id: '1',
-          type: 'small-craft',
-          severity: 'warning',
-          area: 'Cape Cod to Maine',
-          description: 'Small craft advisory for hazardous seas',
+          id: "1",
+          type: "small-craft",
+          severity: "warning",
+          area: "Cape Cod to Maine",
+          description: "Small craft advisory for hazardous seas",
           validFrom: new Date().toISOString(),
-          validUntil: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          validUntil: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         },
         {
-          id: '2',
-          type: 'gale',
-          severity: 'watch',
-          area: 'Georges Bank',
-          description: 'Gale watch for increasing winds',
+          id: "2",
+          type: "gale",
+          severity: "watch",
+          area: "Georges Bank",
+          description: "Gale watch for increasing winds",
           validFrom: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-          validUntil: new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString()
-        }
-      ]
-      
-      setWarnings(mockWarnings)
+          validUntil: new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString(),
+        },
+      ];
+
+      setWarnings(mockWarnings);
     } catch (error) {
-      console.error('Failed to load warnings:', error)
+      logger.error("Failed to load marine warnings", {
+        error: String(error),
+        region,
+      });
     }
-  }
+  };
 
   const handleExport = () => {
-    trackFeature('weather_map_exported', { layer: selectedLayer, region })
+    trackFeature("weather_map_exported", { layer: selectedLayer, region });
     // TODO: Implement export functionality
-  }
+  };
 
   const getWarningColor = (type: string, severity: string) => {
-    if (severity === 'warning') {
-      return type === 'hurricane' ? 'destructive' : 'default'
+    if (severity === "warning") {
+      return type === "hurricane" ? "destructive" : "default";
     }
-    return 'secondary'
-  }
+    return "secondary";
+  };
 
   const formatForecastTime = (hours: number) => {
-    const date = new Date(Date.now() + hours * 60 * 60 * 1000)
-    if (hours === 0) return 'Now'
-    if (hours < 24) return `+${hours}h`
-    return date.toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric' })
-  }
+    const date = new Date(Date.now() + hours * 60 * 60 * 1000);
+    if (hours === 0) return "Now";
+    if (hours < 24) return `+${hours}h`;
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      hour: "numeric",
+    });
+  };
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
@@ -222,8 +250,14 @@ export default function WeatherPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={loadWeatherData} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          <Button
+            variant="outline"
+            onClick={loadWeatherData}
+            disabled={loading}
+          >
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
           {features.weatherExport && (
@@ -247,15 +281,23 @@ export default function WeatherPage() {
           <CardContent>
             <div className="space-y-2">
               {warnings.map((warning) => (
-                <div key={warning.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted">
-                  <Badge variant={getWarningColor(warning.type, warning.severity)}>
-                    {warning.type.replace('-', ' ').toUpperCase()}
+                <div
+                  key={warning.id}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-muted"
+                >
+                  <Badge
+                    variant={getWarningColor(warning.type, warning.severity)}
+                  >
+                    {warning.type.replace("-", " ").toUpperCase()}
                   </Badge>
                   <div className="flex-1">
                     <p className="font-medium">{warning.area}</p>
-                    <p className="text-sm text-muted-foreground">{warning.description}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {warning.description}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Valid until {new Date(warning.validUntil).toLocaleDateString()}
+                      Valid until{" "}
+                      {new Date(warning.validUntil).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
@@ -284,26 +326,30 @@ export default function WeatherPage() {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div>
-              <label className="text-sm font-medium mb-2 block">Weather Layer</label>
+              <label className="text-sm font-medium mb-2 block">
+                Weather Layer
+              </label>
               <Select value={selectedLayer} onValueChange={setSelectedLayer}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {weatherLayers.filter(l => l.available).map((layer) => (
-                    <SelectItem key={layer.id} value={layer.id}>
-                      <div className="flex items-center gap-2">
-                        {layer.icon}
-                        {layer.name}
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {weatherLayers
+                    .filter((l) => l.available)
+                    .map((layer) => (
+                      <SelectItem key={layer.id} value={layer.id}>
+                        <div className="flex items-center gap-2">
+                          {layer.icon}
+                          {layer.name}
+                        </div>
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div>
               <label className="text-sm font-medium mb-2 block">
                 Forecast: {formatForecastTime(forecastHour)}
@@ -336,16 +382,23 @@ export default function WeatherPage() {
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center">
                       <Cloud className="h-16 w-16 text-muted-foreground mb-4 mx-auto" />
-                      <p className="text-lg font-medium">Weather Map Visualization</p>
+                      <p className="text-lg font-medium">
+                        Weather Map Visualization
+                      </p>
                       <p className="text-sm text-muted-foreground mt-2">
                         Interactive map will be rendered here
                       </p>
                       <p className="text-xs text-muted-foreground mt-4">
-                        Showing: {weatherLayers.find(l => l.id === selectedLayer)?.name} layer
+                        Showing:{" "}
+                        {
+                          weatherLayers.find((l) => l.id === selectedLayer)
+                            ?.name
+                        }{" "}
+                        layer
                       </p>
                     </div>
                   </div>
-                  
+
                   {/* Map controls overlay */}
                   <div className="absolute top-4 right-4 space-y-2">
                     <Button size="sm" variant="secondary">
@@ -355,7 +408,7 @@ export default function WeatherPage() {
                       <Minus className="h-4 w-4" />
                     </Button>
                   </div>
-                  
+
                   {/* Legend overlay */}
                   <div className="absolute bottom-4 left-4 bg-background/90 p-3 rounded-lg">
                     <p className="text-xs font-medium mb-2">Legend</p>
@@ -383,50 +436,57 @@ export default function WeatherPage() {
             </CardContent>
           </Card>
         </div>
-        
+
         {/* Weather Details Sidebar */}
         <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Current Conditions</CardTitle>
-              <CardDescription>
-                Click on map for point forecast
-              </CardDescription>
+              <CardDescription>Click on map for point forecast</CardDescription>
             </CardHeader>
             <CardContent>
               {weatherData ? (
                 <div className="space-y-4">
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Wind</span>
+                      <span className="text-sm text-muted-foreground">
+                        Wind
+                      </span>
                       <div className="flex items-center gap-1">
                         <Wind className="h-4 w-4" />
                         <span className="font-medium">
                           {Math.round(weatherData.windSpeed)} kts
                         </span>
-                        <Navigation 
-                          className="h-4 w-4" 
-                          style={{ transform: `rotate(${weatherData.windDirection}deg)` }}
+                        <Navigation
+                          className="h-4 w-4"
+                          style={{
+                            transform: `rotate(${weatherData.windDirection}deg)`,
+                          }}
                         />
                       </div>
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Waves</span>
+                      <span className="text-sm text-muted-foreground">
+                        Waves
+                      </span>
                       <div className="flex items-center gap-1">
                         <Waves className="h-4 w-4" />
                         <span className="font-medium">
-                          {weatherData.waveHeight.toFixed(1)} ft @ {Math.round(weatherData.wavePeriod)}s
+                          {weatherData.waveHeight.toFixed(1)} ft @{" "}
+                          {Math.round(weatherData.wavePeriod)}s
                         </span>
                       </div>
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Visibility</span>
+                      <span className="text-sm text-muted-foreground">
+                        Visibility
+                      </span>
                       <div className="flex items-center gap-1">
                         <Eye className="h-4 w-4" />
                         <span className="font-medium">
@@ -435,10 +495,12 @@ export default function WeatherPage() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Pressure</span>
+                      <span className="text-sm text-muted-foreground">
+                        Pressure
+                      </span>
                       <span className="font-medium">
                         {Math.round(weatherData.pressure)} mb
                       </span>
@@ -453,7 +515,7 @@ export default function WeatherPage() {
               )}
             </CardContent>
           </Card>
-          
+
           {/* Layer Info */}
           <Card>
             <CardHeader>
@@ -468,11 +530,13 @@ export default function WeatherPage() {
                   <div
                     key={layer.id}
                     className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selectedLayer === layer.id 
-                        ? 'border-primary bg-primary/5' 
-                        : 'hover:bg-muted'
-                    } ${!layer.available ? 'opacity-50' : ''}`}
-                    onClick={() => layer.available && setSelectedLayer(layer.id)}
+                      selectedLayer === layer.id
+                        ? "border-primary bg-primary/5"
+                        : "hover:bg-muted"
+                    } ${!layer.available ? "opacity-50" : ""}`}
+                    onClick={() =>
+                      layer.available && setSelectedLayer(layer.id)
+                    }
                   >
                     <div className="flex items-center gap-2 font-medium">
                       {layer.icon}
@@ -493,14 +557,14 @@ export default function WeatherPage() {
           </Card>
         </div>
       </div>
-      
+
       {/* Last Update */}
       <div className="text-center text-sm text-muted-foreground">
         Last updated: {lastUpdate.toLocaleString()}
       </div>
     </div>
-  )
+  );
 }
 
 // Add missing imports
-import { Plus, Minus } from 'lucide-react'
+import { Plus, Minus } from "lucide-react";

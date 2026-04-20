@@ -1,83 +1,110 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { MetricCard } from './MetricCard'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { 
-  AreaChart, 
-  Area, 
-  BarChart, 
-  Bar, 
-  LineChart, 
-  Line, 
-  PieChart, 
-  Pie, 
+import { useEffect, useState } from "react";
+import { MetricCard } from "./MetricCard";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
   Cell,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
-  Legend
-} from 'recharts'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Skeleton } from '../ui/skeleton'
-import { useSocket } from '../../contexts/SocketContext'
-import { useChartColors } from '@/lib/chart-colors'
+  Legend,
+} from "recharts";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { Skeleton } from "../ui/skeleton";
+import { useSocket } from "../../contexts/SocketContext";
+import { useChartColors } from "@/lib/chart-colors";
+import { logger } from "../../lib/logger";
 
 interface BusinessMetrics {
-  mrr: number
-  arr: number
-  totalUsers: number
-  paidUsers: number
-  trialUsers: number
-  churnRate: number
-  averageRevenuePerUser: number
-  monthlyActiveUsers: number
-  conversionRate: number
-  mrrGrowth?: number
-  userGrowth?: number
+  mrr: number;
+  arr: number;
+  totalUsers: number;
+  paidUsers: number;
+  trialUsers: number;
+  churnRate: number;
+  averageRevenuePerUser: number;
+  monthlyActiveUsers: number;
+  conversionRate: number;
+  mrrGrowth?: number;
+  userGrowth?: number;
 }
 
 interface ChartData {
-  mrrHistory: Array<{ date: string; value: number }>
-  userGrowth: Array<{ date: string; total: number; paid: number; trial: number }>
-  featureUsage: Array<{ feature: string; count: number }>
-  subscriptionDistribution: Array<{ name: string; value: number }>
-  cohortRetention: Array<{ week: number; retention: number }>
+  mrrHistory: Array<{ date: string; value: number }>;
+  userGrowth: Array<{
+    date: string;
+    total: number;
+    paid: number;
+    trial: number;
+  }>;
+  featureUsage: Array<{ feature: string; count: number }>;
+  subscriptionDistribution: Array<{ name: string; value: number }>;
+  cohortRetention: Array<{ week: number; retention: number }>;
 }
 
 export function AnalyticsDashboard() {
-  const chartColors = useChartColors()
-  const COLORS = [chartColors.primary, chartColors.quaternary, chartColors.success, chartColors.tertiary, chartColors.danger]
-  const [metrics, setMetrics] = useState<BusinessMetrics | null>(null)
-  const [chartData, setChartData] = useState<ChartData | null>(null)
-  const [timeRange, setTimeRange] = useState('30d')
-  const [loading, setLoading] = useState(true)
-  const { connected } = useSocket()
+  const chartColors = useChartColors();
+  const COLORS = [
+    chartColors.primary,
+    chartColors.quaternary,
+    chartColors.success,
+    chartColors.tertiary,
+    chartColors.danger,
+  ];
+  const [metrics, setMetrics] = useState<BusinessMetrics | null>(null);
+  const [chartData, setChartData] = useState<ChartData | null>(null);
+  const [timeRange, setTimeRange] = useState("30d");
+  const [loading, setLoading] = useState(true);
+  const { connected } = useSocket();
 
   useEffect(() => {
-    fetchAnalytics()
-    
+    fetchAnalytics();
+
     // Refresh every 5 minutes
-    const interval = setInterval(fetchAnalytics, 5 * 60 * 1000)
-    
-    return () => clearInterval(interval)
-  }, [timeRange])
+    const interval = setInterval(fetchAnalytics, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [timeRange]);
 
   const fetchAnalytics = async () => {
     try {
-      const response = await fetch(`/api/analytics/metrics?range=${timeRange}`)
-      const data = await response.json()
-      
-      setMetrics(data.metrics)
-      setChartData(data.charts)
-      setLoading(false)
+      const response = await fetch(`/api/analytics/metrics?range=${timeRange}`);
+      const data = await response.json();
+
+      setMetrics(data.metrics);
+      setChartData(data.charts);
+      setLoading(false);
     } catch (error) {
-      console.error('Failed to fetch analytics:', error)
-      setLoading(false)
+      logger.error("Failed to fetch business analytics", {
+        error: String(error),
+        timeRange,
+      });
+      setLoading(false);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -96,7 +123,7 @@ export function AnalyticsDashboard() {
           ))}
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -124,13 +151,13 @@ export function AnalyticsDashboard() {
           value={metrics?.mrr || 0}
           prefix="$"
           change={metrics?.mrrGrowth}
-          trend={metrics?.mrrGrowth && metrics.mrrGrowth > 0 ? 'up' : 'down'}
+          trend={metrics?.mrrGrowth && metrics.mrrGrowth > 0 ? "up" : "down"}
         />
         <MetricCard
           title="Total Users"
           value={metrics?.totalUsers || 0}
           change={metrics?.userGrowth}
-          trend={metrics?.userGrowth && metrics.userGrowth > 0 ? 'up' : 'down'}
+          trend={metrics?.userGrowth && metrics.userGrowth > 0 ? "up" : "down"}
         />
         <MetricCard
           title="Paid Users"
@@ -141,28 +168,21 @@ export function AnalyticsDashboard() {
           title="Churn Rate"
           value={metrics?.churnRate?.toFixed(1) || 0}
           suffix="%"
-          trend={metrics?.churnRate && metrics.churnRate > 5 ? 'down' : 'up'}
+          trend={metrics?.churnRate && metrics.churnRate > 5 ? "down" : "up"}
         />
         <MetricCard
           title="ARPU"
           value={metrics?.averageRevenuePerUser?.toFixed(2) || 0}
           prefix="$"
         />
-        <MetricCard
-          title="MAU"
-          value={metrics?.monthlyActiveUsers || 0}
-        />
+        <MetricCard title="MAU" value={metrics?.monthlyActiveUsers || 0} />
         <MetricCard
           title="Trial → Paid"
           value={metrics?.conversionRate?.toFixed(1) || 0}
           suffix="%"
           trend="up"
         />
-        <MetricCard
-          title="ARR"
-          value={metrics?.arr || 0}
-          prefix="$"
-        />
+        <MetricCard title="ARR" value={metrics?.arr || 0} prefix="$" />
       </div>
 
       {/* Charts */}
@@ -171,7 +191,9 @@ export function AnalyticsDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>MRR Growth</CardTitle>
-            <CardDescription>Monthly recurring revenue over time</CardDescription>
+            <CardDescription>
+              Monthly recurring revenue over time
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -233,7 +255,9 @@ export function AnalyticsDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Feature Usage</CardTitle>
-            <CardDescription>Most used features in the platform</CardDescription>
+            <CardDescription>
+              Most used features in the platform
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -262,13 +286,18 @@ export function AnalyticsDashboard() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }: any) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`
+                  }
                   outerRadius={80}
                   fill={chartColors.primary}
                   dataKey="value"
                 >
                   {chartData?.subscriptionDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -281,14 +310,29 @@ export function AnalyticsDashboard() {
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Cohort Retention</CardTitle>
-            <CardDescription>User retention by week after signup</CardDescription>
+            <CardDescription>
+              User retention by week after signup
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={chartData?.cohortRetention || []}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="week" label={{ value: 'Weeks after signup', position: 'insideBottom', offset: -5 }} />
-                <YAxis label={{ value: 'Retention %', angle: -90, position: 'insideLeft' }} />
+                <XAxis
+                  dataKey="week"
+                  label={{
+                    value: "Weeks after signup",
+                    position: "insideBottom",
+                    offset: -5,
+                  }}
+                />
+                <YAxis
+                  label={{
+                    value: "Retention %",
+                    angle: -90,
+                    position: "insideLeft",
+                  }}
+                />
                 <Tooltip formatter={(value: number) => `${value}%`} />
                 <Area
                   type="monotone"
@@ -303,5 +347,5 @@ export function AnalyticsDashboard() {
         </Card>
       </div>
     </div>
-  )
-} 
+  );
+}

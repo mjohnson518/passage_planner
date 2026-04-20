@@ -47,6 +47,7 @@ import { useAnalytics } from "../hooks/useAnalytics";
 import { deduplicatedFetch } from "../lib/performance";
 import RequireAuth from "../components/auth/RequireAuth";
 import { features } from "../lib/features";
+import { logger } from "../lib/logger";
 
 interface Passage {
   id: string;
@@ -134,7 +135,7 @@ function PassagesPageInner() {
 
       setPassages(transformedPassages);
     } catch (error) {
-      console.error("Failed to load passages:", error);
+      logger.error("Failed to load passages", { error: String(error) });
       setPassages([]);
     } finally {
       setLoading(false);

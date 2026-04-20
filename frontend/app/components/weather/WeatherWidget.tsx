@@ -1,109 +1,116 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { Badge } from '../ui/badge'
-import { Skeleton } from '../ui/skeleton'
-import { Button } from '../ui/button'
-import { 
-  Cloud, 
-  Wind, 
-  Droplets, 
-  Waves, 
-  Sun, 
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
+import { Badge } from "../ui/badge";
+import { Skeleton } from "../ui/skeleton";
+import { Button } from "../ui/button";
+import {
+  Cloud,
+  Wind,
+  Droplets,
+  Waves,
+  Sun,
   CloudRain,
   CloudSnow,
   CloudDrizzle,
   Navigation,
   RefreshCw,
-  MapPin
-} from 'lucide-react'
-import { useAuth } from '../../contexts/AuthContext'
-import { deduplicatedFetch } from '../../lib/performance'
+  MapPin,
+} from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
+import { deduplicatedFetch } from "../../lib/performance";
+import { logger } from "../../lib/logger";
 
 interface WeatherData {
-  location: string
+  location: string;
   current: {
-    temperature: number
-    feelsLike: number
-    condition: string
-    icon: 'sun' | 'cloud' | 'rain' | 'snow' | 'drizzle'
+    temperature: number;
+    feelsLike: number;
+    condition: string;
+    icon: "sun" | "cloud" | "rain" | "snow" | "drizzle";
     wind: {
-      speed: number
-      direction: string
-      degrees: number
-    }
-    humidity: number
-    pressure: number
-    visibility: number
-    uvIndex: number
-  }
+      speed: number;
+      direction: string;
+      degrees: number;
+    };
+    humidity: number;
+    pressure: number;
+    visibility: number;
+    uvIndex: number;
+  };
   marine: {
-    waveHeight: number
-    wavePeriod: number
-    waterTemp: number
-    swellDirection: string
-  }
+    waveHeight: number;
+    wavePeriod: number;
+    waterTemp: number;
+    swellDirection: string;
+  };
   forecast: Array<{
-    time: string
-    temperature: number
-    condition: string
-    windSpeed: number
-    precipitation: number
-  }>
+    time: string;
+    temperature: number;
+    condition: string;
+    windSpeed: number;
+    precipitation: number;
+  }>;
 }
 
 export function WeatherWidget() {
-  const { user, session } = useAuth()
-  const [weather, setWeather] = useState<WeatherData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const { user, session } = useAuth();
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   useEffect(() => {
     if (user && session) {
-      loadWeatherData()
+      loadWeatherData();
     }
-  }, [user, session])
+  }, [user, session]);
 
   const loadWeatherData = async () => {
     try {
-      setLoading(true)
-      setError(null)
-      
+      setLoading(true);
+      setError(null);
+
       // Get user's default location or use Boston as fallback
-      const location = 'Boston, MA' // TODO: Get from user profile
-      
+      const location = "Boston, MA"; // TODO: Get from user profile
+
       const data = await deduplicatedFetch(
         `weather-widget-${user?.id}`,
         async () => {
-          const response = await fetch('/api/weather/current', {
-            method: 'POST',
+          const response = await fetch("/api/weather/current", {
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session?.access_token}`
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session?.access_token}`,
             },
-            body: JSON.stringify({ location })
-          })
-          
+            body: JSON.stringify({ location }),
+          });
+
           if (!response.ok) {
-            throw new Error('Failed to fetch weather data')
+            throw new Error("Failed to fetch weather data");
           }
-          
-          return response.json()
+
+          return response.json();
         },
-        300000 // Cache for 5 minutes
-      )
-      
-      setWeather(data)
-      setLastUpdate(new Date())
+        300000, // Cache for 5 minutes
+      );
+
+      setWeather(data);
+      setLastUpdate(new Date());
     } catch (err) {
-      console.error('Weather data error:', err)
-      setError('Unable to load weather data')
+      logger.error("WeatherWidget fetch failed", { error: String(err) });
+      setError("Unable to load weather data");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const getWeatherIcon = (icon: string) => {
     const iconMap = {
@@ -111,17 +118,17 @@ export function WeatherWidget() {
       cloud: <Cloud className="h-8 w-8 text-muted-foreground" />,
       rain: <CloudRain className="h-8 w-8 text-primary" />,
       snow: <CloudSnow className="h-8 w-8 text-ocean-light" />,
-      drizzle: <CloudDrizzle className="h-8 w-8 text-ocean-mid" />
-    }
-    return iconMap[icon as keyof typeof iconMap] || iconMap.cloud
-  }
+      drizzle: <CloudDrizzle className="h-8 w-8 text-ocean-mid" />,
+    };
+    return iconMap[icon as keyof typeof iconMap] || iconMap.cloud;
+  };
 
   const getWindColor = (speed: number) => {
-    if (speed < 10) return 'text-success'
-    if (speed < 20) return 'text-warning'
-    if (speed < 30) return 'text-accent'
-    return 'text-destructive'
-  }
+    if (speed < 10) return "text-success";
+    if (speed < 20) return "text-warning";
+    if (speed < 30) return "text-accent";
+    return "text-destructive";
+  };
 
   if (loading) {
     return (
@@ -142,7 +149,7 @@ export function WeatherWidget() {
           </div>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   if (error || !weather) {
@@ -156,7 +163,9 @@ export function WeatherWidget() {
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
-            <p className="text-muted-foreground mb-4">{error || 'No weather data available'}</p>
+            <p className="text-muted-foreground mb-4">
+              {error || "No weather data available"}
+            </p>
             <Button onClick={loadWeatherData} variant="outline" size="sm">
               <RefreshCw className="h-4 w-4 mr-2" />
               Retry
@@ -164,7 +173,7 @@ export function WeatherWidget() {
           </div>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
@@ -196,26 +205,36 @@ export function WeatherWidget() {
           <div className="flex items-center gap-4">
             {getWeatherIcon(weather.current.icon)}
             <div>
-              <div className="text-3xl font-bold">{weather.current.temperature}°F</div>
+              <div className="text-3xl font-bold">
+                {weather.current.temperature}°F
+              </div>
               <div className="text-sm text-muted-foreground">
                 Feels like {weather.current.feelsLike}°F
               </div>
-              <div className="text-sm font-medium">{weather.current.condition}</div>
+              <div className="text-sm font-medium">
+                {weather.current.condition}
+              </div>
             </div>
           </div>
-          
+
           {/* Wind Info */}
           <div className="text-right">
             <div className="flex items-center gap-2 justify-end">
-              <Wind className={`h-5 w-5 ${getWindColor(weather.current.wind.speed)}`} />
-              <span className={`text-lg font-semibold ${getWindColor(weather.current.wind.speed)}`}>
+              <Wind
+                className={`h-5 w-5 ${getWindColor(weather.current.wind.speed)}`}
+              />
+              <span
+                className={`text-lg font-semibold ${getWindColor(weather.current.wind.speed)}`}
+              >
                 {weather.current.wind.speed} kts
               </span>
             </div>
             <div className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
-              <Navigation 
-                className="h-3 w-3" 
-                style={{ transform: `rotate(${weather.current.wind.degrees}deg)` }}
+              <Navigation
+                className="h-3 w-3"
+                style={{
+                  transform: `rotate(${weather.current.wind.degrees}deg)`,
+                }}
               />
               {weather.current.wind.direction}
             </div>
@@ -233,7 +252,7 @@ export function WeatherWidget() {
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Droplets className="h-4 w-4 text-primary" />
             <div>
@@ -253,7 +272,9 @@ export function WeatherWidget() {
               <div key={idx} className="text-center">
                 <div className="text-xs text-muted-foreground">{hour.time}</div>
                 <div className="text-sm font-medium">{hour.temperature}°</div>
-                <div className="text-xs text-muted-foreground">{hour.windSpeed} kts</div>
+                <div className="text-xs text-muted-foreground">
+                  {hour.windSpeed} kts
+                </div>
                 {hour.precipitation > 0 && (
                   <Badge variant="secondary" className="text-xs px-1 py-0 mt-1">
                     {hour.precipitation}%
@@ -270,5 +291,5 @@ export function WeatherWidget() {
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

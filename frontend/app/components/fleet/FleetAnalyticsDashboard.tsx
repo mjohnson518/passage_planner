@@ -1,40 +1,49 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { 
-  AreaChart, 
-  Area, 
-  BarChart, 
-  Bar, 
-  PieChart, 
-  Pie, 
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
   Cell,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
-  Legend
-} from 'recharts'
-import { Skeleton } from '../ui/skeleton'
-import type { FleetAnalytics } from '@/types/shared'
-import { useChartColors } from '../../lib/chart-colors'
+  Legend,
+} from "recharts";
+import { Skeleton } from "../ui/skeleton";
+import type { FleetAnalytics } from "@/types/shared";
+import { useChartColors } from "../../lib/chart-colors";
+import { logger } from "../../lib/logger";
 
 interface FleetAnalyticsDashboardProps {
-  fleetId: string
-  vessels?: any[]
-  members?: any[]
+  fleetId: string;
+  vessels?: any[];
+  members?: any[];
 }
 
-export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashboardProps) {
-  const chartColors = useChartColors()
-  const [analytics, setAnalytics] = useState<FleetAnalytics | null>(null)
-  const [loading, setLoading] = useState(true)
+export default function FleetAnalyticsDashboard({
+  fleetId,
+}: FleetAnalyticsDashboardProps) {
+  const chartColors = useChartColors();
+  const [analytics, setAnalytics] = useState<FleetAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAnalytics()
-  }, [fleetId])
+    fetchAnalytics();
+  }, [fleetId]);
 
   const fetchAnalytics = async () => {
     try {
@@ -48,25 +57,58 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
         totalDistance: 12450,
         averagePassageDistance: 79.8,
         vesselUtilization: [
-          { vesselId: '1', name: 'Serenity', passagesCount: 45, totalDistance: 3200, lastUsed: new Date() },
-          { vesselId: '2', name: 'Wind Dancer', passagesCount: 38, totalDistance: 2890, lastUsed: new Date() },
-          { vesselId: '3', name: 'Blue Horizon', passagesCount: 32, totalDistance: 2410, lastUsed: new Date() },
-          { vesselId: '4', name: 'Ocean Spirit', passagesCount: 28, totalDistance: 2150, lastUsed: new Date() },
-          { vesselId: '5', name: 'Wave Runner', passagesCount: 13, totalDistance: 1800, lastUsed: new Date() }
+          {
+            vesselId: "1",
+            name: "Serenity",
+            passagesCount: 45,
+            totalDistance: 3200,
+            lastUsed: new Date(),
+          },
+          {
+            vesselId: "2",
+            name: "Wind Dancer",
+            passagesCount: 38,
+            totalDistance: 2890,
+            lastUsed: new Date(),
+          },
+          {
+            vesselId: "3",
+            name: "Blue Horizon",
+            passagesCount: 32,
+            totalDistance: 2410,
+            lastUsed: new Date(),
+          },
+          {
+            vesselId: "4",
+            name: "Ocean Spirit",
+            passagesCount: 28,
+            totalDistance: 2150,
+            lastUsed: new Date(),
+          },
+          {
+            vesselId: "5",
+            name: "Wave Runner",
+            passagesCount: 13,
+            totalDistance: 1800,
+            lastUsed: new Date(),
+          },
         ],
         popularRoutes: [
-          { departure: 'Boston', destination: 'Portland', count: 23 },
-          { departure: 'Newport', destination: 'Block Island', count: 18 },
-          { departure: 'Annapolis', destination: 'Norfolk', count: 15 },
-          { departure: 'Miami', destination: 'Key West', count: 12 }
-        ]
-      })
-      setLoading(false)
+          { departure: "Boston", destination: "Portland", count: 23 },
+          { departure: "Newport", destination: "Block Island", count: 18 },
+          { departure: "Annapolis", destination: "Norfolk", count: 15 },
+          { departure: "Miami", destination: "Key West", count: 12 },
+        ],
+      });
+      setLoading(false);
     } catch (error) {
-      console.error('Failed to fetch analytics:', error)
-      setLoading(false)
+      logger.error("Failed to fetch fleet analytics", {
+        error: String(error),
+        fleetId,
+      });
+      setLoading(false);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -83,37 +125,37 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
           </Card>
         ))}
       </div>
-    )
+    );
   }
 
-  if (!analytics) return null
+  if (!analytics) return null;
 
   // Prepare chart data
   const utilizationData = analytics.vesselUtilization.map((v: any) => ({
     name: v.name,
     passages: v.passagesCount,
-    distance: v.totalDistance
-  }))
+    distance: v.totalDistance,
+  }));
 
   const routeData = analytics.popularRoutes.map((r: any) => ({
     route: `${r.departure} → ${r.destination}`,
-    count: r.count
-  }))
+    count: r.count,
+  }));
 
   const pieData = analytics.vesselUtilization.map((v: any) => ({
     name: v.name,
-    value: v.passagesCount
-  }))
+    value: v.passagesCount,
+  }));
 
   // Monthly usage trend (mock data)
   const trendData = [
-    { month: 'Jan', passages: 12 },
-    { month: 'Feb', passages: 15 },
-    { month: 'Mar', passages: 18 },
-    { month: 'Apr', passages: 22 },
-    { month: 'May', passages: 28 },
-    { month: 'Jun', passages: 25 }
-  ]
+    { month: "Jan", passages: 12 },
+    { month: "Feb", passages: 15 },
+    { month: "Mar", passages: 18 },
+    { month: "Apr", passages: 22 },
+    { month: "May", passages: 28 },
+    { month: "Jun", passages: 25 },
+  ];
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -169,13 +211,18 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }: any) =>
+                  `${name} ${(percent * 100).toFixed(0)}%`
+                }
                 outerRadius={80}
                 fill={chartColors.primary}
                 dataKey="value"
               >
                 {pieData.map((entry: any, index: number) => (
-                  <Cell key={`cell-${index}`} fill={Object.values(chartColors)[index % 5] as string} />
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={Object.values(chartColors)[index % 5] as string}
+                  />
                 ))}
               </Pie>
               <Tooltip />
@@ -197,12 +244,12 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
               <XAxis dataKey="month" />
               <YAxis />
               <Tooltip />
-              <Area 
-                type="monotone" 
-                dataKey="passages" 
+              <Area
+                type="monotone"
+                dataKey="passages"
                 stroke={chartColors.success}
                 fill={chartColors.success}
-                fillOpacity={0.3} 
+                fillOpacity={0.3}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -222,16 +269,23 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
               <p className="text-sm text-muted-foreground">Total Passages</p>
             </div>
             <div className="text-center p-4 bg-muted/30 rounded-lg">
-              <p className="text-2xl font-bold">{analytics.totalDistance.toLocaleString()} nm</p>
+              <p className="text-2xl font-bold">
+                {analytics.totalDistance.toLocaleString()} nm
+              </p>
               <p className="text-sm text-muted-foreground">Total Distance</p>
             </div>
             <div className="text-center p-4 bg-muted/30 rounded-lg">
-              <p className="text-2xl font-bold">{analytics.averagePassageDistance.toFixed(1)} nm</p>
+              <p className="text-2xl font-bold">
+                {analytics.averagePassageDistance.toFixed(1)} nm
+              </p>
               <p className="text-sm text-muted-foreground">Avg Distance</p>
             </div>
             <div className="text-center p-4 bg-muted/30 rounded-lg">
               <p className="text-2xl font-bold">
-                {Math.round((analytics.activeVessels / analytics.totalVessels) * 100)}%
+                {Math.round(
+                  (analytics.activeVessels / analytics.totalVessels) * 100,
+                )}
+                %
               </p>
               <p className="text-sm text-muted-foreground">Fleet Active</p>
             </div>
@@ -239,5 +293,5 @@ export default function FleetAnalyticsDashboard({ fleetId }: FleetAnalyticsDashb
         </CardContent>
       </Card>
     </div>
-  )
-} 
+  );
+}

@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,118 +8,128 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../ui/dialog'
-import { Button } from '../ui/button'
-import { Label } from '../ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Checkbox } from '../ui/checkbox'
-import { ScrollArea } from '../ui/scroll-area'
-import { Share2, Route, Calendar, Ship, Users } from 'lucide-react'
-import { toast } from 'sonner'
-import type { FleetVessel, CrewMember } from '@/types/shared'
+} from "../ui/dialog";
+import { Button } from "../ui/button";
+import { Label } from "../ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { Checkbox } from "../ui/checkbox";
+import { ScrollArea } from "../ui/scroll-area";
+import { Share2, Route, Calendar, Ship, Users } from "lucide-react";
+import { toast } from "sonner";
+import type { FleetVessel, CrewMember } from "@/types/shared";
+import { logger } from "../../lib/logger";
 
 interface SharePassageDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  fleetId: string
-  vessels: FleetVessel[]
-  members: CrewMember[]
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fleetId: string;
+  vessels: FleetVessel[];
+  members: CrewMember[];
 }
 
 interface UserPassage {
-  id: string
-  departure: string
-  destination: string
-  departureTime: string
-  distance?: number
-  createdAt: string
+  id: string;
+  departure: string;
+  destination: string;
+  departureTime: string;
+  distance?: number;
+  createdAt: string;
 }
 
-export function SharePassageDialog({ 
-  open, 
-  onOpenChange, 
+export function SharePassageDialog({
+  open,
+  onOpenChange,
   fleetId,
   vessels,
-  members 
+  members,
 }: SharePassageDialogProps) {
-  const [loading, setLoading] = useState(false)
-  const [passages, setPassages] = useState<UserPassage[]>([])
-  const [selectedPassage, setSelectedPassage] = useState<string>('')
-  const [selectedVessels, setSelectedVessels] = useState<string[]>([])
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([])
-  const [shareWithAll, setShareWithAll] = useState(true)
+  const [loading, setLoading] = useState(false);
+  const [passages, setPassages] = useState<UserPassage[]>([]);
+  const [selectedPassage, setSelectedPassage] = useState<string>("");
+  const [selectedVessels, setSelectedVessels] = useState<string[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [shareWithAll, setShareWithAll] = useState(true);
 
   useEffect(() => {
     if (open) {
-      fetchUserPassages()
+      fetchUserPassages();
     }
-  }, [open])
+  }, [open]);
 
   const fetchUserPassages = async () => {
     try {
-      const response = await fetch('/api/passages', {
-        credentials: 'include',
-      })
+      const response = await fetch("/api/passages", {
+        credentials: "include",
+      });
 
       if (response.ok) {
-        const data = await response.json()
-        setPassages(data.passages || [])
+        const data = await response.json();
+        setPassages(data.passages || []);
       }
     } catch (error) {
-      console.error('Failed to fetch passages:', error)
-      toast.error('Failed to load passages')
+      logger.error("Failed to fetch passages for share dialog", {
+        error: String(error),
+        fleetId,
+      });
+      toast.error("Failed to load passages");
     }
-  }
+  };
 
   const handleSubmit = async () => {
     if (!selectedPassage) {
-      toast.error('Please select a passage to share')
-      return
+      toast.error("Please select a passage to share");
+      return;
     }
 
-    setLoading(true)
+    setLoading(true);
     try {
       const response = await fetch(`/api/fleet/${fleetId}/passages/share`, {
-        method: 'POST',
-        credentials: 'include',
+        method: "POST",
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           passageId: selectedPassage,
           vesselIds: shareWithAll ? undefined : selectedVessels,
           memberIds: shareWithAll ? undefined : selectedMembers,
-        })
-      })
+        }),
+      });
 
       if (!response.ok) {
-        throw new Error('Failed to share passage')
+        throw new Error("Failed to share passage");
       }
 
-      toast.success('Passage shared successfully!')
-      onOpenChange(false)
-      
+      toast.success("Passage shared successfully!");
+      onOpenChange(false);
+
       // Reset form
-      setSelectedPassage('')
-      setSelectedVessels([])
-      setSelectedMembers([])
-      setShareWithAll(true)
+      setSelectedPassage("");
+      setSelectedVessels([]);
+      setSelectedMembers([]);
+      setShareWithAll(true);
     } catch (error) {
-      toast.error('Failed to share passage')
+      toast.error("Failed to share passage");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
+    return new Date(dateString).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -164,11 +174,11 @@ export function SharePassageDialog({
               <Checkbox
                 id="shareWithAll"
                 checked={shareWithAll}
-                onCheckedChange={(checked) => setShareWithAll(checked as boolean)}
+                onCheckedChange={(checked) =>
+                  setShareWithAll(checked as boolean)
+                }
               />
-              <Label htmlFor="shareWithAll">
-                Share with entire fleet
-              </Label>
+              <Label htmlFor="shareWithAll">Share with entire fleet</Label>
             </div>
           </div>
 
@@ -181,20 +191,29 @@ export function SharePassageDialog({
                 </Label>
                 <ScrollArea className="h-32 border rounded-md p-3">
                   {vessels.map((vessel) => (
-                    <div key={vessel.id} className="flex items-center space-x-2 py-1">
+                    <div
+                      key={vessel.id}
+                      className="flex items-center space-x-2 py-1"
+                    >
                       <Checkbox
                         id={`vessel-${vessel.id}`}
                         checked={selectedVessels.includes(vessel.id)}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setSelectedVessels([...selectedVessels, vessel.id])
+                            setSelectedVessels([...selectedVessels, vessel.id]);
                           } else {
-                            setSelectedVessels(selectedVessels.filter(id => id !== vessel.id))
+                            setSelectedVessels(
+                              selectedVessels.filter((id) => id !== vessel.id),
+                            );
                           }
                         }}
                       />
-                      <Label htmlFor={`vessel-${vessel.id}`} className="font-normal cursor-pointer">
-                        {vessel.name} {vessel.callSign && `(${vessel.callSign})`}
+                      <Label
+                        htmlFor={`vessel-${vessel.id}`}
+                        className="font-normal cursor-pointer"
+                      >
+                        {vessel.name}{" "}
+                        {vessel.callSign && `(${vessel.callSign})`}
                       </Label>
                     </div>
                   ))}
@@ -208,19 +227,27 @@ export function SharePassageDialog({
                 </Label>
                 <ScrollArea className="h-32 border rounded-md p-3">
                   {members.map((member) => (
-                    <div key={member.id} className="flex items-center space-x-2 py-1">
+                    <div
+                      key={member.id}
+                      className="flex items-center space-x-2 py-1"
+                    >
                       <Checkbox
                         id={`member-${member.id}`}
                         checked={selectedMembers.includes(member.id)}
                         onCheckedChange={(checked) => {
                           if (checked) {
-                            setSelectedMembers([...selectedMembers, member.id])
+                            setSelectedMembers([...selectedMembers, member.id]);
                           } else {
-                            setSelectedMembers(selectedMembers.filter(id => id !== member.id))
+                            setSelectedMembers(
+                              selectedMembers.filter((id) => id !== member.id),
+                            );
                           }
                         }}
                       />
-                      <Label htmlFor={`member-${member.id}`} className="font-normal cursor-pointer">
+                      <Label
+                        htmlFor={`member-${member.id}`}
+                        className="font-normal cursor-pointer"
+                      >
                         {member.name} ({member.role})
                       </Label>
                     </div>
@@ -232,17 +259,18 @@ export function SharePassageDialog({
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
-          <Button 
-            onClick={handleSubmit} 
-            disabled={loading || !selectedPassage}
-          >
-            {loading ? 'Sharing...' : 'Share Passage'}
+          <Button onClick={handleSubmit} disabled={loading || !selectedPassage}>
+            {loading ? "Sharing..." : "Share Passage"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-} 
+  );
+}
