@@ -1,103 +1,104 @@
-'use client'
+"use client";
 
-import { useEffect, useRef, useState } from 'react'
-import { Input } from '../ui/input'
+import { useEffect, useRef, useState } from "react";
+import { Input } from "../ui/input";
+import { logger } from "../../lib/logger";
 
 declare global {
   interface Window {
-    google: any
+    google: any;
   }
 }
 
 interface LocationAutocompleteProps {
-  value: string
-  onChange: (value: string) => void
+  value: string;
+  onChange: (value: string) => void;
   onPlaceSelected?: (place: {
-    name: string
-    latitude: number
-    longitude: number
-    formatted_address: string
-  }) => void
-  placeholder?: string
-  className?: string
-  id?: string
+    name: string;
+    latitude: number;
+    longitude: number;
+    formatted_address: string;
+  }) => void;
+  placeholder?: string;
+  className?: string;
+  id?: string;
 }
 
 export default function LocationAutocomplete({
   value,
   onChange,
   onPlaceSelected,
-  placeholder = 'Enter port or location...',
-  className = '',
-  id
+  placeholder = "Enter port or location...",
+  className = "",
+  id,
 }: LocationAutocompleteProps) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [isLoaded, setIsLoaded] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     // Check if Google Maps is already loaded
     if (window.google?.maps?.places) {
-      initializeAutocomplete()
-      return
+      initializeAutocomplete();
+      return;
     }
 
     // Load Google Maps Script
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-    
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
     if (!apiKey) {
-      console.warn('Google Maps API key not configured - autocomplete disabled')
-      return
+      logger.warn("Google Maps API key not configured - autocomplete disabled");
+      return;
     }
 
-    const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
-    script.async = true
-    script.defer = true
-    
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+
     script.onload = () => {
-      setIsLoaded(true)
-      initializeAutocomplete()
-    }
+      setIsLoaded(true);
+      initializeAutocomplete();
+    };
 
     script.onerror = () => {
-      console.error('Failed to load Google Maps')
-    }
+      logger.error("Failed to load Google Maps");
+    };
 
-    document.head.appendChild(script)
+    document.head.appendChild(script);
 
     return () => {
       // Cleanup
       if (script.parentNode) {
-        script.parentNode.removeChild(script)
+        script.parentNode.removeChild(script);
       }
-    }
-  }, [])
+    };
+  }, []);
 
   const initializeAutocomplete = () => {
-    if (!inputRef.current || !window.google?.maps?.places) return
+    if (!inputRef.current || !window.google?.maps?.places) return;
 
     const autocomplete = new window.google.maps.places.Autocomplete(
       inputRef.current,
       {
-        types: ['(cities)', 'establishment'],
-        fields: ['formatted_address', 'geometry', 'name', 'address_components']
-      }
-    )
+        types: ["(cities)", "establishment"],
+        fields: ["formatted_address", "geometry", "name", "address_components"],
+      },
+    );
 
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace()
-      
+    autocomplete.addListener("place_changed", () => {
+      const place = autocomplete.getPlace();
+
       if (!place.geometry?.location) {
-        console.warn('No geometry for selected place')
-        return
+        logger.warn("No geometry for selected place");
+        return;
       }
 
-      const latitude = place.geometry.location.lat()
-      const longitude = place.geometry.location.lng()
-      const name = place.name || place.formatted_address || value
+      const latitude = place.geometry.location.lat();
+      const longitude = place.geometry.location.lng();
+      const name = place.name || place.formatted_address || value;
 
       // Update the input value
-      onChange(name)
+      onChange(name);
 
       // Call callback with full place data
       if (onPlaceSelected) {
@@ -105,11 +106,11 @@ export default function LocationAutocomplete({
           name,
           latitude,
           longitude,
-          formatted_address: place.formatted_address || name
-        })
+          formatted_address: place.formatted_address || name,
+        });
       }
-    })
-  }
+    });
+  };
 
   return (
     <Input
@@ -121,6 +122,5 @@ export default function LocationAutocomplete({
       className={className}
       id={id}
     />
-  )
+  );
 }
-

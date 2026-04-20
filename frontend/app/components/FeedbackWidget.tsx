@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { MessageSquare, X, Send, Check } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import React, { useState } from "react";
+import { MessageSquare, X, Send, Check } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { logger } from "../lib/logger";
 
-type FeedbackType = 'bug' | 'feature' | 'general';
+type FeedbackType = "bug" | "feature" | "general";
 
 interface FeedbackFormData {
   type: FeedbackType;
@@ -20,9 +21,9 @@ export function FeedbackWidget() {
   const { user } = useAuth();
 
   const [formData, setFormData] = useState<FeedbackFormData>({
-    type: 'general',
-    text: '',
-    email: user?.email || '',
+    type: "general",
+    text: "",
+    email: user?.email || "",
     includeContext: true,
   });
 
@@ -31,20 +32,22 @@ export function FeedbackWidget() {
     setIsSubmitting(true);
 
     try {
-      const context = formData.includeContext ? {
-        pageUrl: window.location.href,
-        userAgent: navigator.userAgent,
-        browserInfo: {
-          language: navigator.language,
-          platform: navigator.platform,
-          screenResolution: `${window.screen.width}x${window.screen.height}`,
-        },
-        timestamp: new Date().toISOString(),
-      } : {};
+      const context = formData.includeContext
+        ? {
+            pageUrl: window.location.href,
+            userAgent: navigator.userAgent,
+            browserInfo: {
+              language: navigator.language,
+              platform: navigator.platform,
+              screenResolution: `${window.screen.width}x${window.screen.height}`,
+            },
+            timestamp: new Date().toISOString(),
+          }
+        : {};
 
-      const response = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           feedback_type: formData.type,
           feedback_text: formData.text,
@@ -53,7 +56,7 @@ export function FeedbackWidget() {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to submit feedback');
+      if (!response.ok) throw new Error("Failed to submit feedback");
 
       setIsSubmitted(true);
 
@@ -61,15 +64,15 @@ export function FeedbackWidget() {
         setIsOpen(false);
         setIsSubmitted(false);
         setFormData({
-          type: 'general',
-          text: '',
-          email: user?.email || '',
+          type: "general",
+          text: "",
+          email: user?.email || "",
           includeContext: true,
         });
       }, 3000);
     } catch (error) {
-      console.error('Failed to submit feedback:', error);
-      alert('Failed to submit feedback. Please try again.');
+      logger.error("Failed to submit feedback", { error: String(error) });
+      alert("Failed to submit feedback. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -95,7 +98,7 @@ export function FeedbackWidget() {
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-border">
               <h2 className="text-xl font-semibold text-foreground">
-                {isSubmitted ? 'Thank You!' : 'Send Feedback'}
+                {isSubmitted ? "Thank You!" : "Send Feedback"}
               </h2>
               <button
                 onClick={() => setIsOpen(false)}
@@ -117,7 +120,8 @@ export function FeedbackWidget() {
                     Feedback Received
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Thank you for helping us improve Helmwise. We review all feedback and will follow up if needed.
+                    Thank you for helping us improve Helmwise. We review all
+                    feedback and will follow up if needed.
                   </p>
                 </div>
               ) : (
@@ -129,18 +133,23 @@ export function FeedbackWidget() {
                     </label>
                     <div className="grid grid-cols-3 gap-2">
                       {[
-                        { value: 'bug', label: 'Bug Report' },
-                        { value: 'feature', label: 'Feature Idea' },
-                        { value: 'general', label: 'General' },
+                        { value: "bug", label: "Bug Report" },
+                        { value: "feature", label: "Feature Idea" },
+                        { value: "general", label: "General" },
                       ].map((type) => (
                         <button
                           key={type.value}
                           type="button"
-                          onClick={() => setFormData({ ...formData, type: type.value as FeedbackType })}
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              type: type.value as FeedbackType,
+                            })
+                          }
                           className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                             formData.type === type.value
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-foreground hover:bg-muted/80'
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-foreground hover:bg-muted/80"
                           }`}
                         >
                           {type.label}
@@ -151,38 +160,49 @@ export function FeedbackWidget() {
 
                   {/* Feedback text */}
                   <div>
-                    <label htmlFor="feedback-text" className="block text-sm font-medium text-foreground mb-2">
-                      {formData.type === 'bug' && 'Describe the bug'}
-                      {formData.type === 'feature' && 'Describe your feature idea'}
-                      {formData.type === 'general' && 'Your feedback'}
+                    <label
+                      htmlFor="feedback-text"
+                      className="block text-sm font-medium text-foreground mb-2"
+                    >
+                      {formData.type === "bug" && "Describe the bug"}
+                      {formData.type === "feature" &&
+                        "Describe your feature idea"}
+                      {formData.type === "general" && "Your feedback"}
                     </label>
                     <textarea
                       id="feedback-text"
                       rows={6}
                       required
                       value={formData.text}
-                      onChange={(e) => setFormData({ ...formData, text: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, text: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-input rounded-md shadow-sm bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring focus:border-ring focus:outline-none focus:ring-2"
                       placeholder={
-                        formData.type === 'bug'
-                          ? 'What happened? What did you expect to happen?'
-                          : formData.type === 'feature'
-                          ? 'What feature would make Helmwise more useful for you?'
-                          : 'Tell us what you think...'
+                        formData.type === "bug"
+                          ? "What happened? What did you expect to happen?"
+                          : formData.type === "feature"
+                            ? "What feature would make Helmwise more useful for you?"
+                            : "Tell us what you think..."
                       }
                     />
                   </div>
 
                   {/* Email */}
                   <div>
-                    <label htmlFor="feedback-email" className="block text-sm font-medium text-foreground mb-2">
+                    <label
+                      htmlFor="feedback-email"
+                      className="block text-sm font-medium text-foreground mb-2"
+                    >
                       Email (optional - for follow-up)
                     </label>
                     <input
                       id="feedback-email"
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-input rounded-md shadow-sm bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring focus:border-ring focus:outline-none focus:ring-2"
                       placeholder="your@email.com"
                     />
@@ -194,10 +214,18 @@ export function FeedbackWidget() {
                       id="include-context"
                       type="checkbox"
                       checked={formData.includeContext}
-                      onChange={(e) => setFormData({ ...formData, includeContext: e.target.checked })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          includeContext: e.target.checked,
+                        })
+                      }
                       className="mt-1 h-4 w-4 text-primary focus:ring-ring border-input rounded"
                     />
-                    <label htmlFor="include-context" className="ml-2 block text-sm text-muted-foreground">
+                    <label
+                      htmlFor="include-context"
+                      className="ml-2 block text-sm text-muted-foreground"
+                    >
                       Include page URL and browser info (helps us debug issues)
                     </label>
                   </div>

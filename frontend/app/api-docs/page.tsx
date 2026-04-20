@@ -1,65 +1,111 @@
+"use client";
 
-'use client'
-
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '../contexts/AuthContext'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
-import { Badge } from '../components/ui/badge'
-import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert'
-import { Code, Copy, CheckCircle, AlertCircle, Key, Terminal, Book } from 'lucide-react'
-import { toast } from 'sonner'
-import dynamic from 'next/dynamic'
-import type React from 'react'
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../components/ui/tabs";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Badge } from "../components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
+import {
+  Code,
+  Copy,
+  CheckCircle,
+  AlertCircle,
+  Key,
+  Terminal,
+  Book,
+} from "lucide-react";
+import { toast } from "sonner";
+import dynamic from "next/dynamic";
+import type React from "react";
+import { logger } from "../lib/logger";
 
 const SyntaxHighlighter: any = dynamic(
-  () => import('react-syntax-highlighter/dist/esm/prism').then((m: any) => ({ default: m.Prism })),
+  () =>
+    import("react-syntax-highlighter/dist/esm/prism").then((m: any) => ({
+      default: m.Prism,
+    })),
   {
     ssr: false,
-    loading: () => <pre className="bg-muted rounded-lg p-4 text-sm text-muted-foreground"><code>Loading...</code></pre>
-  }
-)
+    loading: () => (
+      <pre className="bg-muted rounded-lg p-4 text-sm text-muted-foreground">
+        <code>Loading...</code>
+      </pre>
+    ),
+  },
+);
 
 interface APIEndpoint {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE'
-  path: string
-  description: string
-  auth: boolean
-  params?: { name: string; type: string; required: boolean; description: string }[]
-  body?: { name: string; type: string; required: boolean; description: string }[]
+  method: "GET" | "POST" | "PUT" | "DELETE";
+  path: string;
+  description: string;
+  auth: boolean;
+  params?: {
+    name: string;
+    type: string;
+    required: boolean;
+    description: string;
+  }[];
+  body?: {
+    name: string;
+    type: string;
+    required: boolean;
+    description: string;
+  }[];
   response: {
-    success: any
-    error?: any
-  }
+    success: any;
+    error?: any;
+  };
   example: {
-    request: string
-    response: string
-  }
+    request: string;
+    response: string;
+  };
 }
 
 const endpoints: Record<string, APIEndpoint[]> = {
   passages: [
     {
-      method: 'POST',
-      path: '/api/passages/plan',
-      description: 'Plan a new passage using natural language',
+      method: "POST",
+      path: "/api/passages/plan",
+      description: "Plan a new passage using natural language",
       auth: true,
       body: [
-        { name: 'query', type: 'string', required: true, description: 'Natural language description of your passage' },
-        { name: 'preferences', type: 'object', required: false, description: 'Override user preferences for this passage' }
+        {
+          name: "query",
+          type: "string",
+          required: true,
+          description: "Natural language description of your passage",
+        },
+        {
+          name: "preferences",
+          type: "object",
+          required: false,
+          description: "Override user preferences for this passage",
+        },
       ],
       response: {
         success: {
-          id: 'string',
-          route: 'Route',
-          weather: 'WeatherData',
-          tides: 'TidalData',
-          safety: 'SafetyInfo',
-          eta: 'string'
-        }
+          id: "string",
+          route: "Route",
+          weather: "WeatherData",
+          tides: "TidalData",
+          safety: "SafetyInfo",
+          eta: "string",
+        },
       },
       example: {
         request: `{
@@ -76,77 +122,112 @@ const endpoints: Record<string, APIEndpoint[]> = {
   "tides": {...},
   "safety": {...},
   "eta": "2024-01-16T18:30:00Z"
-}`
-      }
+}`,
+      },
     },
     {
-      method: 'GET',
-      path: '/api/passages',
-      description: 'Get all passages for the authenticated user',
+      method: "GET",
+      path: "/api/passages",
+      description: "Get all passages for the authenticated user",
       auth: true,
       params: [
-        { name: 'limit', type: 'number', required: false, description: 'Number of passages to return (default: 20)' },
-        { name: 'offset', type: 'number', required: false, description: 'Offset for pagination' },
-        { name: 'status', type: 'string', required: false, description: 'Filter by status: planned, completed, cancelled' }
+        {
+          name: "limit",
+          type: "number",
+          required: false,
+          description: "Number of passages to return (default: 20)",
+        },
+        {
+          name: "offset",
+          type: "number",
+          required: false,
+          description: "Offset for pagination",
+        },
+        {
+          name: "status",
+          type: "string",
+          required: false,
+          description: "Filter by status: planned, completed, cancelled",
+        },
       ],
       response: {
         success: {
-          passages: 'Passage[]',
-          total: 'number',
-          limit: 'number',
-          offset: 'number'
-        }
+          passages: "Passage[]",
+          total: "number",
+          limit: "number",
+          offset: "number",
+        },
       },
       example: {
-        request: 'GET /api/passages?limit=10&status=planned',
+        request: "GET /api/passages?limit=10&status=planned",
         response: `{
   "passages": [...],
   "total": 45,
   "limit": 10,
   "offset": 0
-}`
-      }
+}`,
+      },
     },
     {
-      method: 'GET',
-      path: '/api/passages/:id/export',
-      description: 'Export passage plan in various formats',
+      method: "GET",
+      path: "/api/passages/:id/export",
+      description: "Export passage plan in various formats",
       auth: true,
       params: [
-        { name: 'format', type: 'string', required: true, description: 'Export format: gpx, kml, csv, pdf' }
+        {
+          name: "format",
+          type: "string",
+          required: true,
+          description: "Export format: gpx, kml, csv, pdf",
+        },
       ],
       response: {
-        success: 'Binary file data',
+        success: "Binary file data",
         error: {
-          error: 'string',
-          code: 'FEATURE_LOCKED'
-        }
+          error: "string",
+          code: "FEATURE_LOCKED",
+        },
       },
       example: {
-        request: 'GET /api/passages/passage_123/export?format=gpx',
-        response: 'Binary GPX file'
-      }
-    }
+        request: "GET /api/passages/passage_123/export?format=gpx",
+        response: "Binary GPX file",
+      },
+    },
   ],
   weather: [
     {
-      method: 'GET',
-      path: '/api/weather/forecast',
-      description: 'Get weather forecast for specific coordinates',
+      method: "GET",
+      path: "/api/weather/forecast",
+      description: "Get weather forecast for specific coordinates",
       auth: true,
       params: [
-        { name: 'lat', type: 'number', required: true, description: 'Latitude' },
-        { name: 'lon', type: 'number', required: true, description: 'Longitude' },
-        { name: 'days', type: 'number', required: false, description: 'Number of days (1-7, default: 3)' }
+        {
+          name: "lat",
+          type: "number",
+          required: true,
+          description: "Latitude",
+        },
+        {
+          name: "lon",
+          type: "number",
+          required: true,
+          description: "Longitude",
+        },
+        {
+          name: "days",
+          type: "number",
+          required: false,
+          description: "Number of days (1-7, default: 3)",
+        },
       ],
       response: {
         success: {
-          location: 'Location',
-          forecasts: 'WeatherForecast[]'
-        }
+          location: "Location",
+          forecasts: "WeatherForecast[]",
+        },
       },
       example: {
-        request: 'GET /api/weather/forecast?lat=42.3601&lon=-71.0589&days=3',
+        request: "GET /api/weather/forecast?lat=42.3601&lon=-71.0589&days=3",
         response: `{
   "location": {
     "lat": 42.3601,
@@ -154,30 +235,40 @@ const endpoints: Record<string, APIEndpoint[]> = {
     "name": "Boston Harbor"
   },
   "forecasts": [...]
-}`
-      }
-    }
+}`,
+      },
+    },
   ],
   fleet: [
     {
-      method: 'POST',
-      path: '/api/fleet/create',
-      description: 'Create a new fleet (Pro tier only)',
+      method: "POST",
+      path: "/api/fleet/create",
+      description: "Create a new fleet (Pro tier only)",
       auth: true,
       body: [
-        { name: 'name', type: 'string', required: true, description: 'Fleet name' },
-        { name: 'description', type: 'string', required: false, description: 'Fleet description' }
+        {
+          name: "name",
+          type: "string",
+          required: true,
+          description: "Fleet name",
+        },
+        {
+          name: "description",
+          type: "string",
+          required: false,
+          description: "Fleet description",
+        },
       ],
       response: {
         success: {
-          id: 'string',
-          name: 'string',
-          created_at: 'string'
+          id: "string",
+          name: "string",
+          created_at: "string",
         },
         error: {
-          error: 'string',
-          code: 'SUBSCRIPTION_REQUIRED'
-        }
+          error: "string",
+          code: "SUBSCRIPTION_REQUIRED",
+        },
       },
       example: {
         request: `{
@@ -188,143 +279,147 @@ const endpoints: Record<string, APIEndpoint[]> = {
   "id": "fleet_456",
   "name": "Boston Yacht Club",
   "created_at": "2024-01-15T10:00:00Z"
-}`
-      }
-    }
-  ]
-}
+}`,
+      },
+    },
+  ],
+};
 
 export default function APIDocsPage() {
-  const { user } = useAuth()
-  const router = useRouter()
-  const [apiKey, setApiKey] = useState<string>('')
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [copiedEndpoint, setCopiedEndpoint] = useState<string>('')
-  const [selectedCategory, setSelectedCategory] = useState('passages')
-  const [testEndpoint, setTestEndpoint] = useState<APIEndpoint | null>(null)
-  const [testResult, setTestResult] = useState<any>(null)
-  const [testing, setTesting] = useState(false)
-  const [codeStyle, setCodeStyle] = useState<Record<string, React.CSSProperties>>({})
+  const { user } = useAuth();
+  const router = useRouter();
+  const [apiKey, setApiKey] = useState<string>("");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [copiedEndpoint, setCopiedEndpoint] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState("passages");
+  const [testEndpoint, setTestEndpoint] = useState<APIEndpoint | null>(null);
+  const [testResult, setTestResult] = useState<any>(null);
+  const [testing, setTesting] = useState(false);
+  const [codeStyle, setCodeStyle] = useState<
+    Record<string, React.CSSProperties>
+  >({});
 
   useEffect(() => {
-    import('react-syntax-highlighter/dist/esm/styles/prism').then(m => setCodeStyle(m.vscDarkPlus))
-  }, [])
+    import("react-syntax-highlighter/dist/esm/styles/prism").then((m) =>
+      setCodeStyle(m.vscDarkPlus),
+    );
+  }, []);
 
   useEffect(() => {
     if (!user) {
-      router.push('/login')
-      return
+      router.push("/login");
+      return;
     }
 
     // Check if user has Pro tier by fetching user's subscription data
-    checkProAccess()
-  }, [user, router])
+    checkProAccess();
+  }, [user, router]);
 
   const checkProAccess = async () => {
     try {
-      const response = await fetch('/api/user/subscription', {
-        credentials: 'include',
-      })
-      
+      const response = await fetch("/api/user/subscription", {
+        credentials: "include",
+      });
+
       if (response.ok) {
-        const data = await response.json()
-        const hasProAccess = data.tier === 'pro' || data.tier === 'enterprise'
-        
+        const data = await response.json();
+        const hasProAccess = data.tier === "pro" || data.tier === "enterprise";
+
         if (!hasProAccess) {
-          router.push('/pricing?feature=api')
-          return
+          router.push("/pricing?feature=api");
+          return;
         }
       } else {
         // If we can't verify subscription, redirect to pricing
-        router.push('/pricing?feature=api')
+        router.push("/pricing?feature=api");
       }
     } catch (error) {
-      console.error('Failed to check subscription:', error)
-      router.push('/pricing?feature=api')
+      logger.error("Failed to check subscription", { error: String(error) });
+      router.push("/pricing?feature=api");
     }
-  }
+  };
 
   const fetchApiKey = async () => {
     try {
-      const response = await fetch('/api/user/api-key', {
-        credentials: 'include',
-      })
+      const response = await fetch("/api/user/api-key", {
+        credentials: "include",
+      });
 
       if (response.ok) {
-        const data = await response.json()
-        setApiKey(data.apiKey || '')
+        const data = await response.json();
+        setApiKey(data.apiKey || "");
       }
     } catch (error) {
-      console.error('Failed to fetch API key:', error)
+      logger.error("Failed to fetch API key", { error: String(error) });
     }
-  }
+  };
 
   const generateApiKey = async () => {
     try {
-      const response = await fetch('/api/user/api-key/generate', {
-        method: 'POST',
-        credentials: 'include',
-      })
+      const response = await fetch("/api/user/api-key/generate", {
+        method: "POST",
+        credentials: "include",
+      });
 
       if (response.ok) {
-        const data = await response.json()
-        setApiKey(data.apiKey)
-        setShowApiKey(true)
-        toast.success('New API key generated')
+        const data = await response.json();
+        setApiKey(data.apiKey);
+        setShowApiKey(true);
+        toast.success("New API key generated");
       }
     } catch (error) {
-      toast.error('Failed to generate API key')
+      toast.error("Failed to generate API key");
     }
-  }
+  };
 
   const copyToClipboard = (text: string, endpoint?: string) => {
-    navigator.clipboard.writeText(text)
+    navigator.clipboard.writeText(text);
     if (endpoint) {
-      setCopiedEndpoint(endpoint)
-      setTimeout(() => setCopiedEndpoint(''), 2000)
+      setCopiedEndpoint(endpoint);
+      setTimeout(() => setCopiedEndpoint(""), 2000);
     }
-    toast.success('Copied to clipboard')
-  }
+    toast.success("Copied to clipboard");
+  };
 
   const testAPIEndpoint = async (endpoint: APIEndpoint) => {
-    setTesting(true)
-    setTestResult(null)
-    
+    setTesting(true);
+    setTestResult(null);
+
     try {
-      const url = process.env.NEXT_PUBLIC_API_URL + endpoint.path
+      const url = process.env.NEXT_PUBLIC_API_URL + endpoint.path;
       const options: RequestInit = {
         method: endpoint.method,
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+      };
+
+      if (endpoint.method === "POST" && endpoint.example.request) {
+        options.body = endpoint.example.request;
       }
 
-      if (endpoint.method === 'POST' && endpoint.example.request) {
-        options.body = endpoint.example.request
-      }
+      const response = await fetch(url, options);
+      const data = await response.json();
 
-      const response = await fetch(url, options)
-      const data = await response.json()
-      
       setTestResult({
         status: response.status,
         statusText: response.statusText,
-        data
-      })
+        data,
+      });
     } catch (error: any) {
       setTestResult({
-        status: 'error',
-        statusText: 'Request failed',
-        data: { error: error.message }
-      })
+        status: "error",
+        statusText: "Request failed",
+        data: { error: error.message },
+      });
     } finally {
-      setTesting(false)
+      setTesting(false);
     }
-  }
+  };
 
   if (!user) {
-    return null
+    return null;
   }
 
   return (
@@ -352,7 +447,7 @@ export default function APIDocsPage() {
             <div className="space-y-4">
               <div className="flex gap-2">
                 <Input
-                  type={showApiKey ? 'text' : 'password'}
+                  type={showApiKey ? "text" : "password"}
                   value={apiKey}
                   readOnly
                   className="font-mono"
@@ -361,7 +456,7 @@ export default function APIDocsPage() {
                   variant="outline"
                   onClick={() => setShowApiKey(!showApiKey)}
                 >
-                  {showApiKey ? 'Hide' : 'Show'}
+                  {showApiKey ? "Hide" : "Show"}
                 </Button>
                 <Button
                   variant="outline"
@@ -374,16 +469,17 @@ export default function APIDocsPage() {
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Keep your API key secure</AlertTitle>
                 <AlertDescription>
-                  Never share your API key or commit it to version control. Regenerate it immediately if compromised.
+                  Never share your API key or commit it to version control.
+                  Regenerate it immediately if compromised.
                 </AlertDescription>
               </Alert>
             </div>
           ) : (
             <div className="text-center py-4">
-              <p className="mb-4 text-muted-foreground">No API key generated yet</p>
-              <Button onClick={generateApiKey}>
-                Generate API Key
-              </Button>
+              <p className="mb-4 text-muted-foreground">
+                No API key generated yet
+              </p>
+              <Button onClick={generateApiKey}>Generate API Key</Button>
             </div>
           )}
         </CardContent>
@@ -394,7 +490,8 @@ export default function APIDocsPage() {
         <CardHeader>
           <CardTitle>Authentication</CardTitle>
           <CardDescription>
-            All API requests must include your API key in the Authorization header
+            All API requests must include your API key in the Authorization
+            header
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -402,7 +499,7 @@ export default function APIDocsPage() {
             <SyntaxHighlighter
               language="bash"
               style={codeStyle}
-              customStyle={{ borderRadius: '0.5rem' }}
+              customStyle={{ borderRadius: "0.5rem" }}
             >
               {`curl -X GET "${process.env.NEXT_PUBLIC_API_URL}/api/passages" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
@@ -412,9 +509,11 @@ export default function APIDocsPage() {
               size="sm"
               variant="ghost"
               className="absolute top-2 right-2"
-              onClick={() => copyToClipboard(`curl -X GET "${process.env.NEXT_PUBLIC_API_URL}/api/passages" \\
-  -H "Authorization: Bearer ${apiKey || 'YOUR_API_KEY'}" \\
-  -H "Content-Type: application/json"`)}
+              onClick={() =>
+                copyToClipboard(`curl -X GET "${process.env.NEXT_PUBLIC_API_URL}/api/passages" \\
+  -H "Authorization: Bearer ${apiKey || "YOUR_API_KEY"}" \\
+  -H "Content-Type: application/json"`)
+              }
             >
               <Copy className="h-4 w-4" />
             </Button>
@@ -439,22 +538,33 @@ export default function APIDocsPage() {
             </TabsList>
 
             {Object.entries(endpoints).map(([category, categoryEndpoints]) => (
-              <TabsContent key={category} value={category} className="space-y-6">
+              <TabsContent
+                key={category}
+                value={category}
+                className="space-y-6"
+              >
                 {categoryEndpoints.map((endpoint, index) => (
                   <Card key={index}>
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <Badge variant={
-                              endpoint.method === 'GET' ? 'default' :
-                              endpoint.method === 'POST' ? 'secondary' :
-                              endpoint.method === 'PUT' ? 'outline' :
-                              'destructive'
-                            }>
+                            <Badge
+                              variant={
+                                endpoint.method === "GET"
+                                  ? "default"
+                                  : endpoint.method === "POST"
+                                    ? "secondary"
+                                    : endpoint.method === "PUT"
+                                      ? "outline"
+                                      : "destructive"
+                              }
+                            >
                               {endpoint.method}
                             </Badge>
-                            <code className="text-sm font-mono">{endpoint.path}</code>
+                            <code className="text-sm font-mono">
+                              {endpoint.path}
+                            </code>
                           </div>
                           <p className="text-sm text-muted-foreground">
                             {endpoint.description}
@@ -477,16 +587,25 @@ export default function APIDocsPage() {
                           <h4 className="font-medium mb-2">Query Parameters</h4>
                           <div className="space-y-2">
                             {endpoint.params.map((param, i) => (
-                              <div key={i} className="flex items-start gap-2 text-sm">
+                              <div
+                                key={i}
+                                className="flex items-start gap-2 text-sm"
+                              >
                                 <code className="font-mono bg-muted px-1 py-0.5 rounded">
                                   {param.name}
                                 </code>
                                 <span className="text-muted-foreground">
                                   {param.type}
-                                  {param.required && <span className="text-destructive ml-1">*</span>}
+                                  {param.required && (
+                                    <span className="text-destructive ml-1">
+                                      *
+                                    </span>
+                                  )}
                                 </span>
                                 <span className="text-muted-foreground">—</span>
-                                <span className="text-muted-foreground">{param.description}</span>
+                                <span className="text-muted-foreground">
+                                  {param.description}
+                                </span>
                               </div>
                             ))}
                           </div>
@@ -499,16 +618,25 @@ export default function APIDocsPage() {
                           <h4 className="font-medium mb-2">Request Body</h4>
                           <div className="space-y-2">
                             {endpoint.body.map((field, i) => (
-                              <div key={i} className="flex items-start gap-2 text-sm">
+                              <div
+                                key={i}
+                                className="flex items-start gap-2 text-sm"
+                              >
                                 <code className="font-mono bg-muted px-1 py-0.5 rounded">
                                   {field.name}
                                 </code>
                                 <span className="text-muted-foreground">
                                   {field.type}
-                                  {field.required && <span className="text-destructive ml-1">*</span>}
+                                  {field.required && (
+                                    <span className="text-destructive ml-1">
+                                      *
+                                    </span>
+                                  )}
                                 </span>
                                 <span className="text-muted-foreground">—</span>
-                                <span className="text-muted-foreground">{field.description}</span>
+                                <span className="text-muted-foreground">
+                                  {field.description}
+                                </span>
                               </div>
                             ))}
                           </div>
@@ -519,13 +647,15 @@ export default function APIDocsPage() {
                       <div>
                         <h4 className="font-medium mb-2">Example</h4>
                         <div className="space-y-2">
-                          {endpoint.method !== 'GET' && (
+                          {endpoint.method !== "GET" && (
                             <div className="relative">
-                              <p className="text-sm text-muted-foreground mb-1">Request:</p>
+                              <p className="text-sm text-muted-foreground mb-1">
+                                Request:
+                              </p>
                               <SyntaxHighlighter
                                 language="json"
                                 style={codeStyle}
-                                customStyle={{ fontSize: '0.875rem' }}
+                                customStyle={{ fontSize: "0.875rem" }}
                               >
                                 {endpoint.example.request}
                               </SyntaxHighlighter>
@@ -533,7 +663,12 @@ export default function APIDocsPage() {
                                 size="sm"
                                 variant="ghost"
                                 className="absolute top-6 right-2"
-                                onClick={() => copyToClipboard(endpoint.example.request, endpoint.path)}
+                                onClick={() =>
+                                  copyToClipboard(
+                                    endpoint.example.request,
+                                    endpoint.path,
+                                  )
+                                }
                               >
                                 {copiedEndpoint === endpoint.path ? (
                                   <CheckCircle className="h-4 w-4" />
@@ -544,11 +679,13 @@ export default function APIDocsPage() {
                             </div>
                           )}
                           <div className="relative">
-                            <p className="text-sm text-muted-foreground mb-1">Response:</p>
+                            <p className="text-sm text-muted-foreground mb-1">
+                              Response:
+                            </p>
                             <SyntaxHighlighter
                               language="json"
                               style={codeStyle}
-                              customStyle={{ fontSize: '0.875rem' }}
+                              customStyle={{ fontSize: "0.875rem" }}
                             >
                               {endpoint.example.response}
                             </SyntaxHighlighter>
@@ -587,14 +724,15 @@ export default function APIDocsPage() {
 
               <div>
                 <h4 className="font-medium mb-2">Request</h4>
-                <SyntaxHighlighter
-                  language="bash"
-                  style={codeStyle}
-                >
+                <SyntaxHighlighter language="bash" style={codeStyle}>
                   {`curl -X ${testEndpoint.method} "${process.env.NEXT_PUBLIC_API_URL}${testEndpoint.path}" \\
-  -H "Authorization: Bearer ${apiKey || 'YOUR_API_KEY'}" \\
-  -H "Content-Type: application/json"${testEndpoint.body ? ` \\
-  -d '${testEndpoint.example.request}'` : ''}`}
+  -H "Authorization: Bearer ${apiKey || "YOUR_API_KEY"}" \\
+  -H "Content-Type: application/json"${
+    testEndpoint.body
+      ? ` \\
+  -d '${testEndpoint.example.request}'`
+      : ""
+  }`}
                 </SyntaxHighlighter>
               </div>
 
@@ -603,14 +741,15 @@ export default function APIDocsPage() {
                   <h4 className="font-medium mb-2">Response</h4>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Badge variant={testResult.status < 400 ? 'default' : 'destructive'}>
+                      <Badge
+                        variant={
+                          testResult.status < 400 ? "default" : "destructive"
+                        }
+                      >
                         {testResult.status} {testResult.statusText}
                       </Badge>
                     </div>
-                    <SyntaxHighlighter
-                      language="json"
-                      style={codeStyle}
-                    >
+                    <SyntaxHighlighter language="json" style={codeStyle}>
                       {JSON.stringify(testResult.data, null, 2)}
                     </SyntaxHighlighter>
                   </div>
@@ -621,8 +760,8 @@ export default function APIDocsPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setTestEndpoint(null)
-                    setTestResult(null)
+                    setTestEndpoint(null);
+                    setTestResult(null);
                   }}
                 >
                   Close
@@ -631,7 +770,7 @@ export default function APIDocsPage() {
                   onClick={() => testAPIEndpoint(testEndpoint)}
                   disabled={!apiKey || testing}
                 >
-                  {testing ? 'Testing...' : 'Send Request'}
+                  {testing ? "Testing..." : "Send Request"}
                 </Button>
               </div>
             </CardContent>
@@ -639,5 +778,5 @@ export default function APIDocsPage() {
         </div>
       )}
     </div>
-  )
-} 
+  );
+}

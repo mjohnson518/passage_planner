@@ -9,6 +9,7 @@
 
 import React, { Component, ReactNode } from "react";
 import { AlertCircle, RefreshCw, Home } from "lucide-react";
+import { logger } from "../lib/logger";
 
 interface Props {
   children: ReactNode;
@@ -40,9 +41,11 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log error to console in development
     if (process.env.NODE_ENV === "development") {
-      console.error("Error Boundary caught error:", error, errorInfo);
+      logger.error("Error Boundary caught error", {
+        error: String(error),
+        componentStack: errorInfo.componentStack,
+      });
     }
 
     // Call optional error handler
@@ -97,7 +100,9 @@ export class ErrorBoundary extends Component<Props, State> {
         }),
       });
     } catch (loggingError) {
-      console.error("Failed to log error to service:", loggingError);
+      logger.error("Failed to log error to service", {
+        error: String(loggingError),
+      });
     }
   }
 
@@ -245,7 +250,10 @@ export function FeatureErrorBoundary({
     <ErrorBoundary
       fallback={fallback}
       onError={(error, errorInfo) => {
-        console.error(`Error in ${featureName}:`, error, errorInfo);
+        logger.error(`Error in ${featureName}`, {
+          error: String(error),
+          componentStack: errorInfo.componentStack,
+        });
         onError?.(error);
       }}
     >

@@ -1,73 +1,74 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Button } from '../ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { Alert, AlertDescription } from '../ui/alert'
-import { Loader2, AlertCircle } from 'lucide-react'
-import { toast } from 'sonner'
+import { useState } from "react";
+import { Button } from "../ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Alert, AlertDescription } from "../ui/alert";
+import { Loader2, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+import { logger } from "../../lib/logger";
 
 interface StripeCheckoutProps {
-  tier: 'premium' | 'pro'
-  period: 'monthly' | 'yearly'
-  priceId?: string  // Optional: for display/tracking purposes
-  onSuccess?: () => void
-  onCancel?: () => void
+  tier: "premium" | "pro";
+  period: "monthly" | "yearly";
+  priceId?: string; // Optional: for display/tracking purposes
+  onSuccess?: () => void;
+  onCancel?: () => void;
 }
 
-export default function StripeCheckout({ 
+export default function StripeCheckout({
   tier,
   period,
   priceId,
   onSuccess,
-  onCancel 
+  onCancel,
 }: StripeCheckoutProps) {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleCheckout = async () => {
     try {
-      setLoading(true)
-      setError(null)
+      setLoading(true);
+      setError(null);
 
       // Call our API route to create Stripe checkout session
-      const response = await fetch('/api/stripe/create-checkout-session', {
-        method: 'POST',
-        credentials: 'include',
+      const response = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           tier,
           period,
           successUrl: `${window.location.origin}/dashboard?payment=success`,
-          cancelUrl: `${window.location.origin}/pricing?payment=cancelled`
-        })
-      })
+          cancelUrl: `${window.location.origin}/pricing?payment=cancelled`,
+        }),
+      });
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to create checkout session')
+        const data = await response.json();
+        throw new Error(data.error || "Failed to create checkout session");
       }
 
-      const { sessionUrl } = await response.json()
+      const { sessionUrl } = await response.json();
 
       if (!sessionUrl) {
-        throw new Error('No checkout URL received')
+        throw new Error("No checkout URL received");
       }
 
-      window.location.href = sessionUrl
-      
+      window.location.href = sessionUrl;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
-      setError(errorMessage)
-      console.error('Checkout error:', err)
-      toast.error(errorMessage)
+      const errorMessage =
+        err instanceof Error ? err.message : "An error occurred";
+      setError(errorMessage);
+      logger.error("Checkout error", { error: String(err), tier, period });
+      toast.error(errorMessage);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-  
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -75,7 +76,8 @@ export default function StripeCheckout({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-muted-foreground">
-          You'll be redirected to our secure payment processor (Stripe) to complete your {tier} {period} subscription.
+          You'll be redirected to our secure payment processor (Stripe) to
+          complete your {tier} {period} subscription.
         </p>
 
         {error && (
@@ -86,7 +88,7 @@ export default function StripeCheckout({
         )}
 
         <div className="flex gap-2">
-          <Button 
+          <Button
             onClick={handleCheckout}
             disabled={loading}
             className="min-w-[180px]"
@@ -97,15 +99,11 @@ export default function StripeCheckout({
                 Redirecting...
               </>
             ) : (
-              'Proceed to Checkout'
+              "Proceed to Checkout"
             )}
           </Button>
           {onCancel && (
-            <Button 
-              variant="outline" 
-              onClick={onCancel}
-              disabled={loading}
-            >
+            <Button variant="outline" onClick={onCancel} disabled={loading}>
               Cancel
             </Button>
           )}
@@ -116,5 +114,5 @@ export default function StripeCheckout({
         </p>
       </CardContent>
     </Card>
-  )
-} 
+  );
+}

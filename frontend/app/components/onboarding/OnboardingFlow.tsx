@@ -1,121 +1,131 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Button } from '../ui/button'
-import { Progress } from '../ui/progress'
-import { WelcomeStep } from './steps/WelcomeStep'
-import { BoatSetupStep } from './steps/BoatSetupStep'
-import { PreferencesStep } from './steps/PreferencesStep'
-import { TutorialStep } from './steps/TutorialStep'
-import { CompletionStep } from './steps/CompletionStep'
-import { useAuth } from '../../contexts/AuthContext'
-import { useAnalytics } from '../../hooks/useAnalytics'
-import { ANALYTICS_EVENTS } from '../../hooks/useAnalytics'
-import type { BoatProfile, PassagePreferences } from '../../../../shared/src/types/boat'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "../ui/button";
+import { Progress } from "../ui/progress";
+import { WelcomeStep } from "./steps/WelcomeStep";
+import { BoatSetupStep } from "./steps/BoatSetupStep";
+import { PreferencesStep } from "./steps/PreferencesStep";
+import { TutorialStep } from "./steps/TutorialStep";
+import { CompletionStep } from "./steps/CompletionStep";
+import { useAuth } from "../../contexts/AuthContext";
+import { useAnalytics } from "../../hooks/useAnalytics";
+import { ANALYTICS_EVENTS } from "../../hooks/useAnalytics";
+import { logger } from "../../lib/logger";
+import type {
+  BoatProfile,
+  PassagePreferences,
+} from "../../../../shared/src/types/boat";
 
 export interface OnboardingData {
-  boat: Partial<BoatProfile>
-  preferences: Partial<PassagePreferences>
+  boat: Partial<BoatProfile>;
+  preferences: Partial<PassagePreferences>;
 }
 
-const TOTAL_STEPS = 5
+const TOTAL_STEPS = 5;
 
 export function OnboardingFlow() {
-  const router = useRouter()
-  const { user } = useAuth()
-  const { track } = useAnalytics()
-  const [currentStep, setCurrentStep] = useState(0)
+  const router = useRouter();
+  const { user } = useAuth();
+  const { track } = useAnalytics();
+  const [currentStep, setCurrentStep] = useState(0);
   const [data, setData] = useState<OnboardingData>({
     boat: {
-      type: 'sailboat',
+      type: "sailboat",
       length: 35,
       draft: 5,
-      isDefault: true
+      isDefault: true,
     },
     preferences: {
       maxWindSpeed: 25,
       maxWaveHeight: 2,
       avoidNight: true,
-      comfortLevel: 'cruising'
-    }
-  })
+      comfortLevel: "cruising",
+    },
+  });
 
   const updateData = (updates: Partial<OnboardingData>) => {
-    setData(prev => ({
+    setData((prev) => ({
       ...prev,
-      ...updates
-    }))
-  }
+      ...updates,
+    }));
+  };
 
   const handleNext = () => {
-    track('onboarding_step_completed', { 
-      step: currentStep, 
-      stepName: getStepName(currentStep) 
-    })
-    
+    track("onboarding_step_completed", {
+      step: currentStep,
+      stepName: getStepName(currentStep),
+    });
+
     if (currentStep < TOTAL_STEPS - 1) {
-      setCurrentStep(prev => prev + 1)
+      setCurrentStep((prev) => prev + 1);
     }
-  }
+  };
 
   const handlePrevious = () => {
     if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1)
+      setCurrentStep((prev) => prev - 1);
     }
-  }
+  };
 
   const handleComplete = async () => {
     try {
       // Save boat profile
-      const boatResponse = await fetch('/api/boats', {
-        method: 'POST',
-        credentials: 'include',
+      const boatResponse = await fetch("/api/boats", {
+        method: "POST",
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           ...data.boat,
           userId: user?.id,
-          defaultPreferences: data.preferences
-        })
-      })
+          defaultPreferences: data.preferences,
+        }),
+      });
 
       if (!boatResponse.ok) {
-        throw new Error('Failed to save boat profile')
+        throw new Error("Failed to save boat profile");
       }
 
       // Track completion
       track(ANALYTICS_EVENTS.ONBOARDING_COMPLETED, {
         boatType: data.boat.type,
         boatLength: data.boat.length,
-        hasPreferences: !!data.preferences
-      })
+        hasPreferences: !!data.preferences,
+      });
 
       // Navigate to dashboard
-      router.push('/dashboard?onboarding=complete')
+      router.push("/dashboard?onboarding=complete");
     } catch (error) {
-      console.error('Failed to complete onboarding:', error)
+      logger.error("Failed to complete onboarding", { error: String(error) });
       // Still navigate to dashboard even if save fails
-      router.push('/dashboard')
+      router.push("/dashboard");
     }
-  }
+  };
 
   const handleSkip = () => {
-    track('onboarding_skipped', { step: currentStep })
-    router.push('/dashboard')
-  }
+    track("onboarding_skipped", { step: currentStep });
+    router.push("/dashboard");
+  };
 
   const getStepName = (step: number) => {
-    const steps = ['welcome', 'boat_setup', 'preferences', 'tutorial', 'completion']
-    return steps[step] || 'unknown'
-  }
+    const steps = [
+      "welcome",
+      "boat_setup",
+      "preferences",
+      "tutorial",
+      "completion",
+    ];
+    return steps[step] || "unknown";
+  };
 
   const steps = [
     <WelcomeStep key="welcome" onNext={handleNext} />,
-    <BoatSetupStep 
-      key="boat" 
-      data={data.boat} 
+    <BoatSetupStep
+      key="boat"
+      data={data.boat}
       onUpdate={(boat) => updateData({ boat })}
       onNext={handleNext}
       onPrevious={handlePrevious}
@@ -138,8 +148,8 @@ export function OnboardingFlow() {
       data={data}
       onComplete={handleComplete}
       onPrevious={handlePrevious}
-    />
-  ]
+    />,
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-gray-900 dark:to-gray-800">
@@ -158,10 +168,10 @@ export function OnboardingFlow() {
               </Button>
             )}
           </div>
-          
+
           {/* Progress bar */}
           <div className="space-y-2">
-            <Progress value={(currentStep + 1) / TOTAL_STEPS * 100} />
+            <Progress value={((currentStep + 1) / TOTAL_STEPS) * 100} />
             <p className="text-sm text-muted-foreground">
               Step {currentStep + 1} of {TOTAL_STEPS}
             </p>
@@ -169,13 +179,10 @@ export function OnboardingFlow() {
         </div>
 
         {/* Step content */}
-        <div
-          key={currentStep}
-          className="animate-slide-in-right"
-        >
+        <div key={currentStep} className="animate-slide-in-right">
           {steps[currentStep]}
         </div>
       </div>
     </div>
-  )
-} 
+  );
+}
