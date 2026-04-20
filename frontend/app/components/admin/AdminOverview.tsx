@@ -1,102 +1,109 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { Progress } from '../ui/progress'
-import { Badge } from '../ui/badge'
-import { 
-  DollarSign, 
-  Users, 
-  TrendingUp, 
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
+import { Progress } from "../ui/progress";
+import { Badge } from "../ui/badge";
+import {
+  DollarSign,
+  Users,
+  TrendingUp,
   TrendingDown,
   Activity,
   CreditCard,
   UserCheck,
   UserX,
   ArrowUpRight,
-  ArrowDownRight
-} from 'lucide-react'
-import { Line, Bar } from 'recharts'
-import { useChartColors } from '@/lib/chart-colors'
-import { 
-  LineChart, 
+  ArrowDownRight,
+} from "lucide-react";
+import { Line, Bar } from "recharts";
+import { useChartColors } from "@/lib/chart-colors";
+import {
+  LineChart,
   BarChart,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
-  Legend
-} from 'recharts'
+  Legend,
+} from "recharts";
+import { logger } from "../../lib/logger";
 
 interface MetricCard {
-  title: string
-  value: string | number
-  change: number
-  changeLabel: string
-  icon: any
-  trend: 'up' | 'down' | 'neutral'
+  title: string;
+  value: string | number;
+  change: number;
+  changeLabel: string;
+  icon: any;
+  trend: "up" | "down" | "neutral";
 }
 
 interface OverviewMetrics {
   revenue: {
-    mrr: number
-    arr: number
-    growth: number
-    churn: number
-  }
+    mrr: number;
+    arr: number;
+    growth: number;
+    churn: number;
+  };
   users: {
-    total: number
-    paid: number
-    trial: number
-    active: number
-    newThisMonth: number
-    churnedThisMonth: number
-  }
+    total: number;
+    paid: number;
+    trial: number;
+    active: number;
+    newThisMonth: number;
+    churnedThisMonth: number;
+  };
   usage: {
-    passagesPlanned: number
-    apiCallsToday: number
-    activeAgents: number
-    avgResponseTime: number
-  }
+    passagesPlanned: number;
+    apiCallsToday: number;
+    activeAgents: number;
+    avgResponseTime: number;
+  };
   health: {
-    uptime: number
-    errorRate: number
-    queueDepth: number
-  }
+    uptime: number;
+    errorRate: number;
+    queueDepth: number;
+  };
 }
 
 export function AdminOverview() {
-  const chartColors = useChartColors()
-  const [metrics, setMetrics] = useState<OverviewMetrics | null>(null)
-  const [revenueChart, setRevenueChart] = useState<any[]>([])
-  const [userChart, setUserChart] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const chartColors = useChartColors();
+  const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
+  const [revenueChart, setRevenueChart] = useState<any[]>([]);
+  const [userChart, setUserChart] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchMetrics()
-    const interval = setInterval(fetchMetrics, 30000) // Refresh every 30 seconds
-    return () => clearInterval(interval)
-  }, [])
+    fetchMetrics();
+    const interval = setInterval(fetchMetrics, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchMetrics = async () => {
     try {
-      const response = await fetch('/api/admin/metrics/overview', {
-        credentials: 'include',
-      })
+      const response = await fetch("/api/admin/metrics/overview", {
+        credentials: "include",
+      });
 
       if (response.ok) {
-        const data = await response.json()
-        setMetrics(data.metrics)
-        setRevenueChart(data.revenueChart)
-        setUserChart(data.userChart)
+        const data = await response.json();
+        setMetrics(data.metrics);
+        setRevenueChart(data.revenueChart);
+        setUserChart(data.userChart);
       }
     } catch (error) {
-      console.error('Failed to fetch metrics:', error)
+      logger.error("Failed to fetch admin metrics", { error: String(error) });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   if (loading || !metrics) {
     return (
@@ -110,59 +117,65 @@ export function AdminOverview() {
           </Card>
         ))}
       </div>
-    )
+    );
   }
 
   const metricCards: MetricCard[] = [
     {
-      title: 'Monthly Recurring Revenue',
+      title: "Monthly Recurring Revenue",
       value: `$${metrics.revenue.mrr.toLocaleString()}`,
       change: metrics.revenue.growth,
-      changeLabel: 'from last month',
+      changeLabel: "from last month",
       icon: DollarSign,
-      trend: metrics.revenue.growth > 0 ? 'up' : 'down'
+      trend: metrics.revenue.growth > 0 ? "up" : "down",
     },
     {
-      title: 'Total Users',
+      title: "Total Users",
       value: metrics.users.total.toLocaleString(),
-      change: ((metrics.users.newThisMonth - metrics.users.churnedThisMonth) / metrics.users.total) * 100,
-      changeLabel: 'net growth',
+      change:
+        ((metrics.users.newThisMonth - metrics.users.churnedThisMonth) /
+          metrics.users.total) *
+        100,
+      changeLabel: "net growth",
       icon: Users,
-      trend: metrics.users.newThisMonth > metrics.users.churnedThisMonth ? 'up' : 'down'
+      trend:
+        metrics.users.newThisMonth > metrics.users.churnedThisMonth
+          ? "up"
+          : "down",
     },
     {
-      title: 'Paid Users',
+      title: "Paid Users",
       value: metrics.users.paid.toLocaleString(),
       change: (metrics.users.paid / metrics.users.total) * 100,
-      changeLabel: 'conversion rate',
+      changeLabel: "conversion rate",
       icon: CreditCard,
-      trend: 'neutral'
+      trend: "neutral",
     },
     {
-      title: 'Active Users (30d)',
+      title: "Active Users (30d)",
       value: metrics.users.active.toLocaleString(),
       change: (metrics.users.active / metrics.users.total) * 100,
-      changeLabel: 'engagement rate',
+      changeLabel: "engagement rate",
       icon: Activity,
-      trend: 'neutral'
-    }
-  ]
+      trend: "neutral",
+    },
+  ];
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value)
-  }
+    }).format(value);
+  };
 
   return (
     <div className="space-y-6">
       {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {metricCards.map((metric, index) => {
-          const Icon = metric.icon
+          const Icon = metric.icon;
           return (
             <Card key={index}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -174,22 +187,27 @@ export function AdminOverview() {
               <CardContent>
                 <div className="text-2xl font-bold">{metric.value}</div>
                 <p className="text-xs text-muted-foreground flex items-center mt-1">
-                  {metric.trend === 'up' ? (
+                  {metric.trend === "up" ? (
                     <ArrowUpRight className="h-3 w-3 text-success mr-1" />
-                  ) : metric.trend === 'down' ? (
+                  ) : metric.trend === "down" ? (
                     <ArrowDownRight className="h-3 w-3 text-destructive mr-1" />
                   ) : null}
-                  <span className={
-                    metric.trend === 'up' ? 'text-success' : 
-                    metric.trend === 'down' ? 'text-destructive' : ''
-                  }>
+                  <span
+                    className={
+                      metric.trend === "up"
+                        ? "text-success"
+                        : metric.trend === "down"
+                          ? "text-destructive"
+                          : ""
+                    }
+                  >
                     {Math.abs(metric.change).toFixed(1)}%
                   </span>
                   <span className="ml-1">{metric.changeLabel}</span>
                 </p>
               </CardContent>
             </Card>
-          )
+          );
         })}
       </div>
 
@@ -199,7 +217,9 @@ export function AdminOverview() {
         <Card>
           <CardHeader>
             <CardTitle>Revenue Trend</CardTitle>
-            <CardDescription>Monthly recurring revenue over time</CardDescription>
+            <CardDescription>
+              Monthly recurring revenue over time
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -242,8 +262,16 @@ export function AdminOverview() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="new" fill={chartColors.success} name="New Users" />
-                <Bar dataKey="churned" fill={chartColors.danger} name="Churned" />
+                <Bar
+                  dataKey="new"
+                  fill={chartColors.success}
+                  name="New Users"
+                />
+                <Bar
+                  dataKey="churned"
+                  fill={chartColors.danger}
+                  name="Churned"
+                />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -260,14 +288,18 @@ export function AdminOverview() {
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span>Uptime</span>
-                <span className="font-medium">{metrics.health.uptime.toFixed(2)}%</span>
+                <span className="font-medium">
+                  {metrics.health.uptime.toFixed(2)}%
+                </span>
               </div>
               <Progress value={metrics.health.uptime} className="h-2" />
             </div>
             <div>
               <div className="flex justify-between text-sm mb-1">
                 <span>Error Rate</span>
-                <span className="font-medium">{metrics.health.errorRate.toFixed(2)}%</span>
+                <span className="font-medium">
+                  {metrics.health.errorRate.toFixed(2)}%
+                </span>
               </div>
               <Progress value={metrics.health.errorRate} className="h-2" />
             </div>
@@ -289,7 +321,9 @@ export function AdminOverview() {
             </div>
             <div className="flex justify-between">
               <span className="text-sm">Avg Response</span>
-              <Badge variant="secondary">{metrics.usage.avgResponseTime}ms</Badge>
+              <Badge variant="secondary">
+                {metrics.usage.avgResponseTime}ms
+              </Badge>
             </div>
           </CardContent>
         </Card>
@@ -315,5 +349,5 @@ export function AdminOverview() {
         </Card>
       </div>
     </div>
-  )
-} 
+  );
+}

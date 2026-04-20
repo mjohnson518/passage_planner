@@ -1,136 +1,164 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { Badge } from '../ui/badge'
-import { Progress } from '../ui/progress'
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { useChartColors } from "@/lib/chart-colors"
-import { Activity, Database, HardDrive, Cpu, MemoryStick, Network, AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
+import { Badge } from "../ui/badge";
+import { Progress } from "../ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import { useChartColors } from "@/lib/chart-colors";
+import {
+  Activity,
+  Database,
+  HardDrive,
+  Cpu,
+  MemoryStick,
+  Network,
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
+import { logger } from "../../lib/logger";
 
 interface SystemMetrics {
   cpu: {
-    usage: number
-    cores: number
-    load: number[]
-  }
+    usage: number;
+    cores: number;
+    load: number[];
+  };
   memory: {
-    used: number
-    total: number
-    percentage: number
-  }
+    used: number;
+    total: number;
+    percentage: number;
+  };
   disk: {
-    used: number
-    total: number
-    percentage: number
-  }
+    used: number;
+    total: number;
+    percentage: number;
+  };
   database: {
-    connections: number
-    maxConnections: number
-    avgQueryTime: number
-    slowQueries: number
-  }
+    connections: number;
+    maxConnections: number;
+    avgQueryTime: number;
+    slowQueries: number;
+  };
   redis: {
-    connected: boolean
-    memory: number
-    keys: number
-    hitRate: number
-  }
+    connected: boolean;
+    memory: number;
+    keys: number;
+    hitRate: number;
+  };
   api: {
-    uptime: number
-    requestsPerMinute: number
-    avgResponseTime: number
-    errorRate: number
-  }
+    uptime: number;
+    requestsPerMinute: number;
+    avgResponseTime: number;
+    errorRate: number;
+  };
   services: Array<{
-    name: string
-    status: 'healthy' | 'degraded' | 'down'
-    uptime: number
-    lastCheck: Date
-  }>
+    name: string;
+    status: "healthy" | "degraded" | "down";
+    uptime: number;
+    lastCheck: Date;
+  }>;
   performanceHistory: Array<{
-    time: string
-    cpu: number
-    memory: number
-    requests: number
-    responseTime: number
-  }>
+    time: string;
+    cpu: number;
+    memory: number;
+    requests: number;
+    responseTime: number;
+  }>;
 }
 
 export function SystemHealth() {
-  const chartColors = useChartColors()
-  const [loading, setLoading] = useState(true)
-  const [metrics, setMetrics] = useState<SystemMetrics | null>(null)
-  const [autoRefresh, setAutoRefresh] = useState(true)
+  const chartColors = useChartColors();
+  const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   useEffect(() => {
-    fetchSystemMetrics()
-    
+    fetchSystemMetrics();
+
     if (autoRefresh) {
-      const interval = setInterval(fetchSystemMetrics, 30000) // Refresh every 30 seconds
-      return () => clearInterval(interval)
+      const interval = setInterval(fetchSystemMetrics, 30000); // Refresh every 30 seconds
+      return () => clearInterval(interval);
     }
-  }, [autoRefresh])
+  }, [autoRefresh]);
 
   const fetchSystemMetrics = async () => {
     try {
-      const response = await fetch('/api/admin/system/health')
-      if (!response.ok) throw new Error('Failed to fetch system metrics')
-      const data = await response.json()
-      setMetrics(data)
+      const response = await fetch("/api/admin/system/health");
+      if (!response.ok) throw new Error("Failed to fetch system metrics");
+      const data = await response.json();
+      setMetrics(data);
     } catch (error) {
-      console.error('Failed to load system metrics:', error)
+      logger.error("Failed to load system metrics", { error: String(error) });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'healthy':
-        return 'text-success'
-      case 'degraded':
-        return 'text-warning'
-      case 'down':
-        return 'text-destructive'
+      case "healthy":
+        return "text-success";
+      case "degraded":
+        return "text-warning";
+      case "down":
+        return "text-destructive";
       default:
-        return 'text-muted-foreground'
+        return "text-muted-foreground";
     }
-  }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'healthy':
-        return <CheckCircle2 className="h-4 w-4 text-success" />
-      case 'degraded':
-        return <AlertCircle className="h-4 w-4 text-warning" />
-      case 'down':
-        return <XCircle className="h-4 w-4 text-destructive" />
+      case "healthy":
+        return <CheckCircle2 className="h-4 w-4 text-success" />;
+      case "degraded":
+        return <AlertCircle className="h-4 w-4 text-warning" />;
+      case "down":
+        return <XCircle className="h-4 w-4 text-destructive" />;
       default:
-        return null
+        return null;
     }
-  }
+  };
 
   const formatBytes = (bytes: number) => {
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
-    if (bytes === 0) return '0 Bytes'
-    const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
-  }
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    if (bytes === 0) return "0 Bytes";
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + " " + sizes[i];
+  };
 
   const formatUptime = (seconds: number) => {
-    const days = Math.floor(seconds / 86400)
-    const hours = Math.floor((seconds % 86400) / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    
-    const parts: string[] = []
-    if (days > 0) parts.push(`${days}d`)
-    if (hours > 0) parts.push(`${hours}h`)
-    if (minutes > 0) parts.push(`${minutes}m`)
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
 
-    return parts.join(' ') || '0m'
-  }
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+
+    return parts.join(" ") || "0m";
+  };
 
   if (loading || !metrics) {
     return (
@@ -139,22 +167,27 @@ export function SystemHealth() {
           <div key={i} className="h-32 bg-muted rounded animate-pulse" />
         ))}
       </div>
-    )
+    );
   }
 
-  const overallHealth = metrics.services.every(s => s.status === 'healthy') ? 'healthy' : 
-                       metrics.services.some(s => s.status === 'down') ? 'critical' : 'degraded'
+  const overallHealth = metrics.services.every((s) => s.status === "healthy")
+    ? "healthy"
+    : metrics.services.some((s) => s.status === "down")
+      ? "critical"
+      : "degraded";
 
   return (
     <div className="space-y-6">
-      {overallHealth !== 'healthy' && (
-        <Alert variant={overallHealth === 'critical' ? 'destructive' : 'default'}>
+      {overallHealth !== "healthy" && (
+        <Alert
+          variant={overallHealth === "critical" ? "destructive" : "default"}
+        >
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>System Health Warning</AlertTitle>
           <AlertDescription>
-            {overallHealth === 'critical' 
-              ? 'Critical services are down. Immediate attention required.'
-              : 'Some services are experiencing degraded performance.'}
+            {overallHealth === "critical"
+              ? "Critical services are down. Immediate attention required."
+              : "Some services are experiencing degraded performance."}
           </AlertDescription>
         </Alert>
       )}
@@ -169,7 +202,7 @@ export function SystemHealth() {
             <div className="text-2xl font-bold">{metrics.cpu.usage}%</div>
             <Progress value={metrics.cpu.usage} className="mt-2" />
             <p className="text-xs text-muted-foreground mt-2">
-              {metrics.cpu.cores} cores | Load: {metrics.cpu.load.join(', ')}
+              {metrics.cpu.cores} cores | Load: {metrics.cpu.load.join(", ")}
             </p>
           </CardContent>
         </Card>
@@ -180,10 +213,13 @@ export function SystemHealth() {
             <MemoryStick className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.memory.percentage}%</div>
+            <div className="text-2xl font-bold">
+              {metrics.memory.percentage}%
+            </div>
             <Progress value={metrics.memory.percentage} className="mt-2" />
             <p className="text-xs text-muted-foreground mt-2">
-              {formatBytes(metrics.memory.used)} / {formatBytes(metrics.memory.total)}
+              {formatBytes(metrics.memory.used)} /{" "}
+              {formatBytes(metrics.memory.total)}
             </p>
           </CardContent>
         </Card>
@@ -197,7 +233,8 @@ export function SystemHealth() {
             <div className="text-2xl font-bold">{metrics.disk.percentage}%</div>
             <Progress value={metrics.disk.percentage} className="mt-2" />
             <p className="text-xs text-muted-foreground mt-2">
-              {formatBytes(metrics.disk.used)} / {formatBytes(metrics.disk.total)}
+              {formatBytes(metrics.disk.used)} /{" "}
+              {formatBytes(metrics.disk.total)}
             </p>
           </CardContent>
         </Card>
@@ -208,7 +245,9 @@ export function SystemHealth() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatUptime(metrics.api.uptime)}</div>
+            <div className="text-2xl font-bold">
+              {formatUptime(metrics.api.uptime)}
+            </div>
             <p className="text-xs text-muted-foreground mt-2">
               {metrics.api.requestsPerMinute} req/min
             </p>
@@ -300,10 +339,15 @@ export function SystemHealth() {
               </div>
               <div className="text-right">
                 <div className="text-sm font-medium">
-                  {metrics.database.connections} / {metrics.database.maxConnections}
+                  {metrics.database.connections} /{" "}
+                  {metrics.database.maxConnections}
                 </div>
-                <Progress 
-                  value={(metrics.database.connections / metrics.database.maxConnections) * 100} 
+                <Progress
+                  value={
+                    (metrics.database.connections /
+                      metrics.database.maxConnections) *
+                    100
+                  }
                   className="w-24 mt-1"
                 />
               </div>
@@ -311,14 +355,26 @@ export function SystemHealth() {
 
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Avg Query Time</span>
-              <Badge variant={metrics.database.avgQueryTime > 100 ? 'destructive' : 'default'}>
+              <Badge
+                variant={
+                  metrics.database.avgQueryTime > 100
+                    ? "destructive"
+                    : "default"
+                }
+              >
                 {metrics.database.avgQueryTime}ms
               </Badge>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Slow Queries</span>
-              <Badge variant={metrics.database.slowQueries > 10 ? 'destructive' : 'secondary'}>
+              <Badge
+                variant={
+                  metrics.database.slowQueries > 10
+                    ? "destructive"
+                    : "secondary"
+                }
+              >
                 {metrics.database.slowQueries}
               </Badge>
             </div>
@@ -333,24 +389,32 @@ export function SystemHealth() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Status</span>
-              <Badge variant={metrics.redis.connected ? 'default' : 'destructive'}>
-                {metrics.redis.connected ? 'Connected' : 'Disconnected'}
+              <Badge
+                variant={metrics.redis.connected ? "default" : "destructive"}
+              >
+                {metrics.redis.connected ? "Connected" : "Disconnected"}
               </Badge>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Memory Usage</span>
-              <span className="text-sm">{formatBytes(metrics.redis.memory)}</span>
+              <span className="text-sm">
+                {formatBytes(metrics.redis.memory)}
+              </span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Total Keys</span>
-              <span className="text-sm">{metrics.redis.keys.toLocaleString()}</span>
+              <span className="text-sm">
+                {metrics.redis.keys.toLocaleString()}
+              </span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Cache Hit Rate</span>
-              <Badge variant={metrics.redis.hitRate > 90 ? 'default' : 'destructive'}>
+              <Badge
+                variant={metrics.redis.hitRate > 90 ? "default" : "destructive"}
+              >
                 {metrics.redis.hitRate}%
               </Badge>
             </div>
@@ -361,12 +425,17 @@ export function SystemHealth() {
       <Card>
         <CardHeader>
           <CardTitle>Service Status</CardTitle>
-          <CardDescription>Health status of all system services</CardDescription>
+          <CardDescription>
+            Health status of all system services
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {metrics.services.map((service) => (
-              <div key={service.name} className="flex items-center justify-between p-3 rounded-lg border">
+              <div
+                key={service.name}
+                className="flex items-center justify-between p-3 rounded-lg border"
+              >
                 <div className="flex items-center gap-3">
                   {getStatusIcon(service.status)}
                   <div>
@@ -377,11 +446,15 @@ export function SystemHealth() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <Badge className={getStatusColor(service.status)} variant="outline">
+                  <Badge
+                    className={getStatusColor(service.status)}
+                    variant="outline"
+                  >
                     {service.status.toUpperCase()}
                   </Badge>
                   <div className="text-xs text-muted-foreground mt-1">
-                    Last check: {new Date(service.lastCheck).toLocaleTimeString()}
+                    Last check:{" "}
+                    {new Date(service.lastCheck).toLocaleTimeString()}
                   </div>
                 </div>
               </div>
@@ -390,5 +463,5 @@ export function SystemHealth() {
         </CardContent>
       </Card>
     </div>
-  )
-} 
+  );
+}
