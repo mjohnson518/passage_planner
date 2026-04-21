@@ -28,6 +28,7 @@ Pre-launch production-readiness remediation.
 - Passage delete + bulk GPX export now wired end-to-end against existing orchestrator endpoints (`DELETE /api/passages/:id`, `POST /api/passages/export/bulk`); still feature-flagged off by default pending smoke-test.
 - Structured frontend logger (`app/lib/logger.ts`) that routes warn/error through Sentry and drops info/debug in production.
 - Coverage-regression gate on all four safety-critical agents (`safety`, `weather`, `route`, `tidal`). Thresholds set two points below current measured coverage as a flake buffer (safety 78/70/79/78, weather 76/55/80/82, route 52/44/51/53, tidal 46/27/45/58 — statements/branches/lines/functions). Jest fails any PR that drops below the floor; floors ratchet up as new tests land. The stale-data rejection and worst-case reconciliation tests are now structurally protected from silent deletion. A `test:coverage` script is available in each safety-critical agent for local checks.
+- Supplemental safety-agent area-checker tests (`agents/safety/src/utils/__tests__/area-checker-extra.test.ts`) covering the previously untested database-refresh path (merge, polygon parsing, DB-overrides-default, query failure), antimeridian-crossing bounds, `addRestrictedArea` update-existing branch, `queryAreasByBounds` / `queryAreasNearPoint` geometry paths (including polygon distance), and the refresh-interval cache. Safety-agent coverage rises from 80/73/81/81 to 89/82/93/90 (statements/branches/functions/lines); `area-checker.ts` specifically goes 60→98/37→93.
 
 ### Changed
 
