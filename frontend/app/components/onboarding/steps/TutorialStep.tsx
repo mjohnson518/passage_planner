@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "../../ui/button";
 import {
   Card,
   CardContent,
@@ -116,20 +117,12 @@ export function TutorialStep({ onNext, onPrevious }: TutorialStepProps) {
       </Card>
       {(onPrevious || onNext) && (
         <div className="flex justify-between pt-4">
-          <button
-            className="btn btn-outline"
-            onClick={onPrevious}
-            disabled={!onPrevious}
-          >
+          <Button variant="outline" onClick={onPrevious} disabled={!onPrevious}>
             Back
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={onNext}
-            disabled={!onNext}
-          >
+          </Button>
+          <Button className="btn-brass" onClick={onNext} disabled={!onNext}>
             Continue
-          </button>
+          </Button>
         </div>
       )}
     </div>

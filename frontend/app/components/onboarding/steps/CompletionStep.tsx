@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "../../ui/button";
 import {
   Card,
   CardContent,
@@ -179,20 +180,20 @@ export function CompletionStep({
             voyage!
           </p>
           <div className="flex justify-between pt-4">
-            <button
-              className="btn btn-outline"
+            <Button
+              variant="outline"
               onClick={onPrevious}
               disabled={!onPrevious}
             >
               Back
-            </button>
-            <button
-              className="btn btn-primary"
+            </Button>
+            <Button
+              className="btn-brass"
               onClick={onComplete}
               disabled={!onComplete}
             >
               Start Planning
-            </button>
+            </Button>
           </div>
         </CardContent>
       </Card>

@@ -1,63 +1,69 @@
-'use client'
+"use client";
 
-import { Label } from '../../ui/label'
-import { Input } from '../../ui/input'
-import { RadioGroup, RadioGroupItem } from '../../ui/radio-group'
-import { Card, CardContent } from '../../ui/card'
-import { Sailboat, Anchor, Ship } from 'lucide-react'
+import { Button } from "../../ui/button";
+import { Label } from "../../ui/label";
+import { Input } from "../../ui/input";
+import { RadioGroup, RadioGroupItem } from "../../ui/radio-group";
+import { Card, CardContent } from "../../ui/card";
+import { Sailboat, Anchor, Ship } from "lucide-react";
 
 export interface BoatSetupStepProps {
-  data: any
-  onUpdate: (data: any) => void
-  onNext?: () => void
-  onPrevious?: () => void
+  data: any;
+  onUpdate: (data: any) => void;
+  onNext?: () => void;
+  onPrevious?: () => void;
 }
 
 const boatTypes = [
   {
-    value: 'sailboat',
-    label: 'Sailboat',
+    value: "sailboat",
+    label: "Sailboat",
     icon: Sailboat,
-    description: 'Monohull sailing vessel',
+    description: "Monohull sailing vessel",
   },
   {
-    value: 'powerboat',
-    label: 'Powerboat',
+    value: "powerboat",
+    label: "Powerboat",
     icon: Ship,
-    description: 'Motor-powered vessel',
+    description: "Motor-powered vessel",
   },
   {
-    value: 'catamaran',
-    label: 'Catamaran',
+    value: "catamaran",
+    label: "Catamaran",
     icon: Anchor,
-    description: 'Multi-hull sailing vessel',
+    description: "Multi-hull sailing vessel",
   },
-]
+];
 
 const experienceLevels = [
   {
-    value: 'beginner',
-    label: 'Beginner',
-    description: 'New to sailing or limited experience',
+    value: "beginner",
+    label: "Beginner",
+    description: "New to sailing or limited experience",
   },
   {
-    value: 'intermediate',
-    label: 'Intermediate',
-    description: 'Comfortable with day sailing and short passages',
+    value: "intermediate",
+    label: "Intermediate",
+    description: "Comfortable with day sailing and short passages",
   },
   {
-    value: 'advanced',
-    label: 'Advanced',
-    description: 'Experienced with offshore and overnight passages',
+    value: "advanced",
+    label: "Advanced",
+    description: "Experienced with offshore and overnight passages",
   },
   {
-    value: 'professional',
-    label: 'Professional',
-    description: 'Licensed captain or extensive blue water experience',
+    value: "professional",
+    label: "Professional",
+    description: "Licensed captain or extensive blue water experience",
   },
-]
+];
 
-export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupStepProps) {
+export function BoatSetupStep({
+  data,
+  onUpdate,
+  onNext,
+  onPrevious,
+}: BoatSetupStepProps) {
   return (
     <div className="space-y-6">
       <div className="text-center mb-6">
@@ -71,12 +77,12 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
       <div className="space-y-3">
         <Label className="text-base font-semibold">Vessel Type</Label>
         <RadioGroup
-          value={data.boatType || ''}
+          value={data.boatType || ""}
           onValueChange={(value) => onUpdate({ boatType: value })}
         >
           <div className="grid gap-3">
             {boatTypes.map((type) => {
-              const Icon = type.icon
+              const Icon = type.icon;
               return (
                 <label
                   key={type.value}
@@ -86,8 +92,8 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
                   <Card
                     className={`transition-all ${
                       data.boatType === type.value
-                        ? 'ring-2 ring-primary'
-                        : 'hover:shadow-md'
+                        ? "ring-2 ring-primary"
+                        : "hover:shadow-md"
                     }`}
                   >
                     <CardContent className="flex items-center p-4">
@@ -106,7 +112,7 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
                     </CardContent>
                   </Card>
                 </label>
-              )
+              );
             })}
           </div>
         </RadioGroup>
@@ -118,7 +124,7 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
           <Label htmlFor="boatName">Vessel Name</Label>
           <Input
             id="boatName"
-            value={data.boatName || ''}
+            value={data.boatName || ""}
             onChange={(e) => onUpdate({ boatName: e.target.value })}
             placeholder="e.g., Serenity"
           />
@@ -129,7 +135,7 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
           <Input
             id="boatLength"
             type="number"
-            value={data.boatLength || ''}
+            value={data.boatLength || ""}
             onChange={(e) =>
               onUpdate({ boatLength: parseFloat(e.target.value) || undefined })
             }
@@ -143,7 +149,7 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
           <Input
             id="boatDraft"
             type="number"
-            value={data.boatDraft || ''}
+            value={data.boatDraft || ""}
             onChange={(e) =>
               onUpdate({ boatDraft: parseFloat(e.target.value) || undefined })
             }
@@ -162,7 +168,7 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
           <Input
             id="boatBeam"
             type="number"
-            value={data.boatBeam || ''}
+            value={data.boatBeam || ""}
             onChange={(e) =>
               onUpdate({ boatBeam: parseFloat(e.target.value) || undefined })
             }
@@ -176,9 +182,11 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
           <Input
             id="fuelCapacity"
             type="number"
-            value={data.fuelCapacity || ''}
+            value={data.fuelCapacity || ""}
             onChange={(e) =>
-              onUpdate({ fuelCapacity: parseFloat(e.target.value) || undefined })
+              onUpdate({
+                fuelCapacity: parseFloat(e.target.value) || undefined,
+              })
             }
             placeholder="e.g., 80"
             step="1"
@@ -190,9 +198,11 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
           <Input
             id="waterCapacity"
             type="number"
-            value={data.waterCapacity || ''}
+            value={data.waterCapacity || ""}
             onChange={(e) =>
-              onUpdate({ waterCapacity: parseFloat(e.target.value) || undefined })
+              onUpdate({
+                waterCapacity: parseFloat(e.target.value) || undefined,
+              })
             }
             placeholder="e.g., 100"
             step="1"
@@ -205,7 +215,7 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
         <Label htmlFor="homePort">Home Port</Label>
         <Input
           id="homePort"
-          value={data.homePort || ''}
+          value={data.homePort || ""}
           onChange={(e) => onUpdate({ homePort: e.target.value })}
           placeholder="e.g., Boston, MA"
         />
@@ -218,7 +228,7 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
       <div className="space-y-3">
         <Label className="text-base font-semibold">Sailing Experience</Label>
         <RadioGroup
-          value={data.sailingExperience || ''}
+          value={data.sailingExperience || ""}
           onValueChange={(value) => onUpdate({ sailingExperience: value })}
         >
           <div className="grid gap-3">
@@ -231,8 +241,8 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
                 <Card
                   className={`transition-all ${
                     data.sailingExperience === level.value
-                      ? 'ring-2 ring-primary'
-                      : 'hover:shadow-md'
+                      ? "ring-2 ring-primary"
+                      : "hover:shadow-md"
                   }`}
                 >
                   <CardContent className="flex items-center p-4">
@@ -257,10 +267,14 @@ export function BoatSetupStep({ data, onUpdate, onNext, onPrevious }: BoatSetupS
 
       {(onPrevious || onNext) && (
         <div className="flex justify-between pt-4">
-          <button className="btn btn-outline" onClick={onPrevious} disabled={!onPrevious}>Back</button>
-          <button className="btn btn-primary" onClick={onNext} disabled={!onNext}>Continue</button>
+          <Button variant="outline" onClick={onPrevious} disabled={!onPrevious}>
+            Back
+          </Button>
+          <Button className="btn-brass" onClick={onNext} disabled={!onNext}>
+            Continue
+          </Button>
         </div>
       )}
     </div>
-  )
-} 
+  );
+}

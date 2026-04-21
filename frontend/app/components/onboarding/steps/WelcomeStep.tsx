@@ -1,5 +1,4 @@
 import { Button } from "../../ui/button";
-import { Card } from "../../ui/card";
 import { Sailboat, Compass, MapPin, Wind, Anchor } from "lucide-react";
 
 interface WelcomeStepProps {
@@ -36,10 +35,14 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
   ];
 
   return (
-    <Card className="p-8">
+    <div className="card-nautical p-8">
       <div className="text-center mb-8">
-        <Sailboat className="h-16 w-16 mx-auto mb-4 text-primary" />
-        <h2 className="text-2xl font-bold mb-2">Welcome aboard! ⛵</h2>
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-4">
+          <Sailboat className="h-8 w-8" />
+        </div>
+        <h2 className="font-display text-2xl font-bold mb-2">
+          Welcome aboard! ⛵
+        </h2>
         <p className="text-muted-foreground">
           Let&apos;s get you set up for safe and enjoyable passage planning
         </p>
@@ -61,7 +64,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         ))}
       </div>
 
-      <div className="bg-primary/5 rounded-lg p-4 mb-6">
+      <div className="bg-primary/5 border border-primary/10 rounded-lg p-4 mb-6">
         <p className="text-sm">
           <strong>This quick setup will:</strong>
         </p>
@@ -75,9 +78,9 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         </p>
       </div>
 
-      <Button onClick={onNext} className="w-full" size="lg">
+      <Button onClick={onNext} className="btn-brass w-full h-12" size="lg">
         Let&apos;s Get Started
       </Button>
-    </Card>
+    </div>
   );
 }

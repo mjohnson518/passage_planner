@@ -152,12 +152,21 @@ export function OnboardingFlow() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-gray-900 dark:to-gray-800">
-      <div className="container max-w-3xl mx-auto px-4 py-8">
+    <div className="section-hero relative min-h-screen">
+      <div
+        className="absolute inset-0 chart-grid opacity-20 pointer-events-none"
+        aria-hidden
+      />
+      <div className="relative container max-w-3xl mx-auto px-4 py-10">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold">Welcome to Helmwise</h1>
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <span className="badge-brass mb-2 inline-block">Onboarding</span>
+              <h1 className="font-display text-3xl font-bold">
+                Welcome to <span className="text-gradient">Helmwise</span>
+              </h1>
+            </div>
             {currentStep < TOTAL_STEPS - 1 && (
               <Button
                 variant="ghost"
@@ -172,7 +181,7 @@ export function OnboardingFlow() {
           {/* Progress bar */}
           <div className="space-y-2">
             <Progress value={((currentStep + 1) / TOTAL_STEPS) * 100} />
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground font-mono">
               Step {currentStep + 1} of {TOTAL_STEPS}
             </p>
           </div>
