@@ -30,15 +30,16 @@ module.exports = {
   coverageDirectory: "coverage",
   // Regression-prevention floors set at current measured coverage.
   // These lock in today's baseline; ratchet up as new tests land.
-  // Phase 4.4 supplemental coverage (audit-logger-extra.test.ts +
-  // safety-index-extra.test.ts) raised global safety coverage from
-  // 89/82/93/90 → 95/89/99/95.
+  // Phase 4.4 + 4.5 supplemental coverage (audit-logger-extra.test.ts,
+  // safety-index-extra.test.ts, weather-pattern-analyzer-extra.test.ts)
+  // raised global safety coverage from 89/82/93/90 → 96/91/99/96 — all
+  // four dimensions now clear the CLAUDE.md 90% safety-critical target.
   coverageThreshold: {
     global: {
-      branches: 89,
+      branches: 91,
       functions: 99,
-      lines: 95,
-      statements: 95,
+      lines: 96,
+      statements: 96,
     },
   },
   testTimeout: 10000,
