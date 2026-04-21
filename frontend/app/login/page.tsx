@@ -306,7 +306,7 @@ export default function LoginPage() {
           </div>
 
           {/* Login Card */}
-          <div className="card p-8">
+          <div className="card-nautical p-8">
             {!supabaseConfigured && (
               <div className="mb-6 p-4 bg-warning/10 border border-warning/30 rounded-lg flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
@@ -416,7 +416,7 @@ export default function LoginPage() {
                 data-testid="login-submit"
                 fullWidth
                 disabled={loading || !supabaseConfigured}
-                className="btn-primary h-12"
+                className="btn-brass h-12"
               >
                 {loading ? (
                   <span className="flex items-center">
