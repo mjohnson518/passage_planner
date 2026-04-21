@@ -30,14 +30,15 @@ module.exports = {
   coverageDirectory: "coverage",
   // Regression-prevention floors set at current measured coverage.
   // These lock in today's baseline; ratchet up as new tests land.
-  // Adaptive emergency-guidance and extended audit-log paths added since
-  // the 92% peak brought statements and branches down.
+  // Phase 4.4 supplemental coverage (audit-logger-extra.test.ts +
+  // safety-index-extra.test.ts) raised global safety coverage from
+  // 89/82/93/90 → 95/89/99/95.
   coverageThreshold: {
     global: {
-      branches: 70,
-      functions: 78,
-      lines: 79,
-      statements: 78,
+      branches: 89,
+      functions: 99,
+      lines: 95,
+      statements: 95,
     },
   },
   testTimeout: 10000,
