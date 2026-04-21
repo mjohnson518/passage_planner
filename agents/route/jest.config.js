@@ -20,10 +20,10 @@ module.exports = {
   // These lock in today's baseline; ratchet up as new tests land.
   coverageThreshold: {
     global: {
-      branches: 44,
-      functions: 53,
-      lines: 51,
-      statements: 52,
+      branches: 83,
+      functions: 89,
+      lines: 91,
+      statements: 91,
     },
   },
   globals: {
