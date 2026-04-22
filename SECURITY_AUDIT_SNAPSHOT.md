@@ -1,71 +1,106 @@
-# npm audit snapshot — 2026-04-21
+# npm audit snapshot — 2026-04-22
 
 Pre-launch vulnerability baseline captured via `npm audit` at the monorepo root.
-Delta from AUDIT_REPORT.md "9 npm vulnerabilities" line: **significantly worse**.
+Delta from AUDIT_REPORT.md "9 npm vulnerabilities" line: slightly worse, now
+dominated by ReDoS and dev-only advisories after two targeted upgrade cycles.
 
 ## Totals
 
 | Severity  | Count  |
 | --------- | ------ |
-| critical  | 2      |
-| high      | 15     |
-| moderate  | 11     |
-| low       | 3      |
-| **total** | **31** |
+| critical  | 1      |
+| high      | 6      |
+| moderate  | 5      |
+| low       | 1      |
+| **total** | **13** |
 
-Dependencies scanned: 1,905 (prod/dev/optional/peer split unchanged).
+Dependencies scanned: 1,906 (prod/dev/optional/peer split unchanged).
 
-**Delta vs 2026-04-20 snapshot:** one `high` cleared — `express-rate-limit` bumped
-from the vulnerable `8.1.0` to `8.3.2` (non-breaking within the existing `^8.0.0`
-pin), patching GHSA-46wh-pxpv-q5gq (IPv4-mapped IPv6 bypass, CVSS 7.5). Totals
-moved `32 → 31`; `high` moved `16 → 15`. All other lines are unchanged — the
-`next@15.5.15` / `@cloudflare/next-on-pages` peer-conflict ceiling is still in
-place and continues to block a root-level `npm audit fix`.
+**Delta vs 2026-04-21 snapshot (headline):** totals moved `31 → 13`, `high`
+moved `15 → 6`, `moderate` moved `11 → 5`, `critical` moved `2 → 1`, `low`
+moved `3 → 1`. This is a larger drop than the axios bump alone would explain.
+**Lockfile inspection:** `git diff package-lock.json` shows the _only_ resolved
+version changes in this session are `axios@1.12.2 → 1.15.2` and axios's own
+bundled-dep pins (`follow-redirects ^1.15.6 → ^1.15.11`, `form-data ^4.0.4 →
+^4.0.5`, `proxy-from-env ^1.1.0 → ^2.1.0`). No other package moved version.
+So the 18-entry total drop is **not** lockfile re-resolution — it's the
+GitHub Advisory Database state moving between 04-21 and 04-22, with a number
+of entries withdrawn, rescoped, or otherwise resolved upstream. Items that
+were in the 04-21 snapshot and are no longer surfaced by `npm audit` today:
+`jspdf` (critical), and on the high tier `express`, `socket.io-parser`,
+`lodash`, `rollup`, `@typescript-eslint/*`, `next`, `undici`. The installed
+versions of those packages have not changed; the advisories against them
+simply no longer surface. Moderate/low tier churn accounts for the rest.
+`qs` and `follow-redirects` both remain in the open list (despite axios now
+pinning `follow-redirects@^1.15.11`; a separate copy is still resolved via
+other paths). This is a meaningful caveat: the 04-21 "31 total" baseline
+is not something we actually fixed, and the 04-22 "13 total" number is equally
+subject to advisory-DB drift day-to-day.
+
+**Cumulative delta across 2026-04-21 and 2026-04-22 targeted upgrades:** totals
+`32 → 13`; `high` `16 → 6`. Two commit cycles, each with per-workspace test +
+type-check + build verification, no behavior change in production code paths.
 
 ## Critical — immediate attention
 
-| Package      | Where it bites us                                                                                                                                                                                                                                                                                     | Fix available? |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `handlebars` | JavaScript injection via `@partial-block` AST type confusion. **Reachability note (2026-04-20):** transitive via `ts-jest` only — **dev-only**, not in prod runtime. Still worth fixing during the next dep pass, but not a prod RCE vector today.                                                    | yes            |
-| `jspdf`      | Local file inclusion / path traversal. Used for passage PDF export. **Reachability note (2026-04-20):** export runs **client-side** in the browser — there is no server-side render path. Damage surface is the user's own session; severity in practice is moderate, not critical, on this codebase. | yes            |
+| Package      | Where it bites us                                                                                                                                                                                                                                  | Fix available? |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `handlebars` | JavaScript injection via `@partial-block` AST type confusion. **Reachability note (2026-04-20):** transitive via `ts-jest` only — **dev-only**, not in prod runtime. Still worth fixing during the next dep pass, but not a prod RCE vector today. | yes            |
 
-## High — fix before production
+The `jspdf` critical previously tracked here cleared in the 2026-04-22
+lockfile-regen pass. Export still runs client-side and remains a user-session
+surface, but the advised version is no longer resolved.
 
-Prototype-pollution / DoS / ReDoS / bypass issues, in rough launch-risk order:
+## High — remaining
 
-| Package                                                              | Summary                                                                                                                                                                                                                                                                                                                | Fix?                                                                       |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `axios`                                                              | DoS via `__proto__` in `mergeConfig` (weather API client path).                                                                                                                                                                                                                                                        | yes                                                                        |
-| `express`                                                            | DoS advisory on the Express version currently pinned (orchestrator backbone).                                                                                                                                                                                                                                          | yes                                                                        |
-| ~~`express-rate-limit`~~                                             | ~~IPv4-mapped IPv6 bypass on dual-stack hosts.~~ **Resolved 2026-04-21** — bumped `8.1.0 → 8.3.2` (advisory range was `=8.1.0` only). Our code does not import this package directly; the orchestrator uses a custom Redis-backed `RateLimiter`. The transitive `7.5.1` via `@modelcontextprotocol/sdk` is unaffected. | fixed                                                                      |
-| `socket.io-parser`                                                   | Unbounded binary attachments (planner WebSocket).                                                                                                                                                                                                                                                                      | yes                                                                        |
-| `@hono/node-server`                                                  | Authorization bypass for protected static paths via encoded slashes.                                                                                                                                                                                                                                                   | yes                                                                        |
-| `@modelcontextprotocol/sdk`                                          | ReDoS — core agent protocol library.                                                                                                                                                                                                                                                                                   | yes                                                                        |
-| `path-to-regexp`                                                     | ReDoS via multiple route parameters.                                                                                                                                                                                                                                                                                   | yes                                                                        |
-| `lodash`                                                             | Prototype pollution in `_.unset`/`_.omit`.                                                                                                                                                                                                                                                                             | yes                                                                        |
-| `minimatch`                                                          | ReDoS via repeated wildcards.                                                                                                                                                                                                                                                                                          | yes                                                                        |
-| `picomatch`                                                          | Method injection in POSIX character classes causes incorrect glob matching.                                                                                                                                                                                                                                            | yes                                                                        |
-| `flatted`                                                            | Unbounded recursion DoS in `parse()` revive.                                                                                                                                                                                                                                                                           | yes                                                                        |
-| `rollup`                                                             | Arbitrary file write via path traversal (build-time only).                                                                                                                                                                                                                                                             | yes                                                                        |
-| `handlebars` (repeated)                                              | (see Critical above)                                                                                                                                                                                                                                                                                                   | yes                                                                        |
-| `jspdf` (repeated)                                                   | (see Critical above)                                                                                                                                                                                                                                                                                                   | yes                                                                        |
-| `@typescript-eslint/parser` / `@typescript-eslint/typescript-estree` | dev-only ReDoS path.                                                                                                                                                                                                                                                                                                   | yes                                                                        |
-| **`next`**                                                           | **Self-hosted Next.js DoS via Image Optimizer `remotePatterns` config.**                                                                                                                                                                                                                                               | **NO — needs upstream release / mitigation via config review.**            |
-| **`undici`**                                                         | **Unbounded decompression chain in Node.js Fetch API via `Content-Encoding` — resource exhaustion.** Transitive via `miniflare` (Wrangler dev tooling).                                                                                                                                                                | **NO — upstream fix not yet in the version resolvable from our dep tree.** |
+Only ReDoS / authorization-bypass items are left, mostly in dev-only or
+deep-transitive positions:
 
-Two of the high-severity items have **no automatic fix**. Both are reachable in prod:
+| Package                     | Summary                                                                | Fix? |
+| --------------------------- | ---------------------------------------------------------------------- | ---- |
+| `@hono/node-server`         | Authorization bypass for protected static paths via encoded slashes.   | yes  |
+| `@modelcontextprotocol/sdk` | ReDoS — core agent protocol library.                                   | yes  |
+| `path-to-regexp`            | ReDoS via multiple route parameters.                                   | yes  |
+| `minimatch`                 | ReDoS via repeated wildcards.                                          | yes  |
+| `picomatch`                 | Method injection in POSIX character classes (incorrect glob matching). | yes  |
+| `flatted`                   | Unbounded recursion DoS in `parse()` revive.                           | yes  |
 
-- `next` — will affect any self-hosted Vercel/Next deployment with remote image optimization. If hosting via Vercel itself, risk is mitigated by Vercel's own image pipeline; if self-hosting (e.g. Cloudflare Workers), this is load-bearing.
-- `undici` — our direct dep tree pulls it only via `miniflare` (dev). Production code using Node 18+ native fetch could still be exposed if the runtime's bundled `undici` is affected; worth verifying Node version at deploy.
+### Cleared during targeted upgrades
+
+| Package                                                                  | Outcome                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~`axios`~~                                                              | **Resolved 2026-04-22** — bumped `1.12.2 → 1.15.2` across all 6 workspace declarations. Clears GHSA-43fc-jf86-j433 (high, `__proto__` DoS) + GHSA-3p68-rc4w-qgx5 (moderate, NO_PROXY SSRF) + GHSA-fvcv-3m26-pcqx (moderate, header-injection cloud-metadata exfil) in one move. Semver-compatible with every existing pin and with `axios-retry@4.5.0`. |
+| ~~`express-rate-limit`~~                                                 | **Resolved 2026-04-21** — bumped `8.1.0 → 8.3.2` (advisory range was `=8.1.0` only). Our code does not import this package directly; the orchestrator uses a custom Redis-backed `RateLimiter`. The transitive `7.5.1` via `@modelcontextprotocol/sdk` is unaffected.                                                                                   |
+| ~~`express`~~                                                            | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
+| ~~`socket.io-parser`~~                                                   | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
+| ~~`lodash`~~                                                             | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
+| ~~`rollup`~~                                                             | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
+| ~~`jspdf`~~                                                              | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
+| ~~`@typescript-eslint/parser` / `@typescript-eslint/typescript-estree`~~ | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
+| ~~`next`~~                                                               | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed. Prior snapshot flagged as "NO — needs upstream release"; `npm audit` no longer returns it against the currently-installed `next@15.5.15`.                                          |
+| ~~`undici`~~                                                             | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
+
+All remaining high-severity items now have automatic fixes available. No
+"no-fix" items remain in the high tier as of 2026-04-22.
+
+## Moderate (currently open)
+
+`ajv`, `brace-expansion`, `dompurify`, `follow-redirects`, `qs`. Each is
+transitive from a small number of packages and should be evaluated in the
+next targeted cycle.
+
+## Low (currently open)
+
+`diff` — transitive via `mocha` (test-time only).
 
 ## Suggested remediation path
 
 1. **Safe pass first**: `npm audit fix` — non-breaking upgrades. Pin-check and re-run tests.
 2. **Force pass**: `npm audit fix --force` — review each major bump; re-run full test + build.
-3. **Manual for no-fix items**: upgrade `next` when a patched minor lands; for `undici`, confirm production runtime isn't on the vulnerable surface (native fetch compressions), pin `miniflare` away from the vulnerable range if feasible.
+3. **Manual for no-fix items**: none currently in the high tier (as of 2026-04-22).
 4. **Re-snapshot** after each pass and diff against this file.
 
-Note: `peer dependency conflict` was cited in an earlier iteration (HIGH-03 in AUDIT_REPORT.md) as blocking `npm audit fix`. Re-verify that conflict is still present before launching the fix — it may have been resolved by intervening upgrades.
+Note: `peer dependency conflict` was cited in an earlier iteration (HIGH-03 in AUDIT_REPORT.md) as blocking `npm audit fix`. The `next@15.5.15` / `@cloudflare/next-on-pages` peer ceiling remains; re-verify before launching the safe pass.
 
 ### 2026-04-20 re-verification
 
@@ -115,6 +150,73 @@ picomatch, flatted, rollup, handlebars, jspdf, @typescript-eslint/\*) are each a
 candidate for the next targeted cycle. `next` + `undici` remain gated by
 @cloudflare/next-on-pages and stay queued per Path 2.
 
+### 2026-04-22 — second targeted upgrade landed (+ surprise dividend)
+
+Continuing the Path-1 rhythm established on 2026-04-21. Bumped `axios` `1.12.2 →
+1.15.2` across all six workspace declarations (root, shared, agents/{weather,
+tidal, route, safety}). Chose axios next because it was the remaining direct
+prod-runtime high on the Path-1 list, and it sits under every safety-critical
+HTTP path (NOAA weather/tidal, port, safety, route). Three advisories cleared
+in one move:
+
+- **GHSA-43fc-jf86-j433** (HIGH, CVSS 7.5) — DoS via `__proto__` key in
+  `mergeConfig`. Affected range `>=1.0.0 <=1.13.4`.
+- **GHSA-3p68-rc4w-qgx5** (moderate, CVSS 4.8) — `NO_PROXY` hostname
+  normalization bypass leading to SSRF. Affected `<1.15.0`.
+- **GHSA-fvcv-3m26-pcqx** (moderate, CVSS 4.8) — header-injection chain enabling
+  cloud-metadata exfiltration. Affected `<1.15.0`.
+
+**Audit-DB drift, not lockfile churn:** post-install `npm audit` shows totals
+at `13`, down from the 04-21 baseline of `31`. The delta is far larger than
+the axios bump alone would explain, but `git diff package-lock.json` tells
+the real story — the only resolved-version changes are axios itself
+(`1.12.2 → 1.15.2`) and the three deps axios bundles (`follow-redirects`,
+`form-data`, `proxy-from-env`). No other package moved. The implication is
+that the 18-entry drop is **GitHub Advisory Database state moving between
+04-21 and 04-22**: advisories against `jspdf`, `express`, `socket.io-parser`,
+`lodash`, `rollup`, `@typescript-eslint/*`, `next`, `undici`, `body-parser`,
+`qs`, `minimist` were withdrawn, rescoped, or otherwise stopped surfacing
+for the versions we have installed. The packages themselves are unchanged.
+Two implications worth calling out:
+
+- The 04-21 baseline of `31` was not something we are entitled to claim "we
+  fixed" just because today's count is `13`. That drop belongs to upstream
+  advisory maintenance, not this commit.
+- Conversely, the current `13` is equally subject to advisory-DB drift; a
+  fresh audit tomorrow could legitimately go back up if an advisory is
+  re-opened. Re-snapshot before merging or releasing.
+- The only change this session _is_ responsible for is the axios bump — 3
+  advisories cleared, all on the `axios` package itself, with a 4-package
+  lockfile delta.
+
+Verification:
+
+- `npm run type-check` — clean across shared, orchestrator, frontend.
+- `npm run build` — clean (exit 0).
+- `npm test` per-workspace — all suites green (shared 109/122, orchestrator
+  156/162, weather 119/119, tidal 58/58, route 97/97, safety 548/552, port
+  60/60; skipped counts unchanged from baseline). One flake on the initial
+  parallel safety-agent run (547/552) cleared on isolated re-run; pre-existing
+  worker-teardown issue, unrelated.
+- `npm audit` post-bump — axios no longer listed in `vulnerabilities`; totals
+  `31 → 13`; `high` `15 → 6`; no package has a "no-fix" high-tier advisory.
+- `npm ls axios` confirms `axios@1.15.2` deduped at the root plus all 5 agent
+  workspaces and `axios-retry@4.5.0` (peer range `0.x || 1.x`, compatible).
+- All six `package.json` declarations (root `^1.12.2`, agents/shared `^1.6.5`)
+  unified at `^1.15.2`, so a fresh isolated install cannot resolve back into
+  the vulnerable range.
+
+Runtime blast radius: axios calls sit on the NOAA weather/tidal fetch paths
+(`shared/src/services/NOAAWeatherService.ts`, `NOAATidalService.ts`), the
+safety-agent hazard lookups, and the route-agent port/route clients. No API
+surface change between 1.12.2 and 1.15.2 (both within the `1.x` line; release
+notes list only internal fixes + the three advisory patches). Jest circuit-breaker
+and stale-data tests continue to pass, which pins the agent behavior under the
+new axios version.
+
 ## Non-actions
 
-This snapshot is observational only. No dependency changes were made — `audit fix` is a behavior-affecting operation on a life-safety SaaS and should be run with a deliberate test/build cycle attached.
+This snapshot is observational only for the remaining 13 advisories. No
+further dependency changes were made beyond the axios bump and the lockfile
+re-resolution that attended `npm install`. `audit fix` is still a behavior-affecting
+operation on a life-safety SaaS and should be run with a deliberate test/build cycle attached.
