@@ -12,6 +12,11 @@ Date format: `YYYY-MM-DD` (UTC).
 
 Pre-launch production-readiness remediation.
 
+### Fixed
+
+- `/offline` page returned 500 in dev/local because it passed an `onClick` handler to `<Button>` without a `"use client"` directive (React Server Components cannot serialize event handlers). The `export const runtime = "edge"` directive was also removed — the page has no edge-specific needs (no cookies, no geo) and the directive complicated dev rendering. Live-verified: page now renders with the safety-warning copy and "Try Again" button intact.
+- Mobile hamburger menu in `components/layout/Header.tsx` had no `aria-label` / `aria-expanded` / `aria-controls` — screen readers announced it as an unlabelled button. Added labels (`"Open menu"` / `"Close menu"` matching state), `aria-expanded` bound to `mobileMenuOpen`, and `aria-controls="mobile-menu"` targeting the disclosure panel (now given a matching `id`).
+
 ### Security
 
 - Centralised admin role check as `requireAdminRole` middleware (`orchestrator/src/middleware/adminGuard.ts`). Replaces the inline `SELECT role FROM users` + compare pattern previously repeated across six admin endpoints (`/api/agents/health/detailed`, `/api/agents/:agentId/{status,restart,start,stop}`, `/api/agents/register`). One missed call site on a new admin endpoint would have been a privilege-escalation vector; the middleware is now the single enforcement point chained after `authenticate`. Behaviour preserved: same 403 response, same 401 when unauthenticated, same 500 on DB failure.

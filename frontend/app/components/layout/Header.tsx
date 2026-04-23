@@ -318,6 +318,9 @@ export function Header() {
             size="icon"
             className="lg:hidden h-10 w-10"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-menu"
           >
             {mobileMenuOpen ? (
               <X className="h-5 w-5" />
@@ -330,6 +333,7 @@ export function Header() {
 
       {/* Mobile menu */}
       <div
+        id="mobile-menu"
         className={cn(
           "lg:hidden overflow-hidden transition-all duration-300",
           mobileMenuOpen ? "max-h-screen" : "max-h-0",
