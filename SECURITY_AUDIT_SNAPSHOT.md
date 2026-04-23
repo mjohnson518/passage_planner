@@ -1,20 +1,61 @@
-# npm audit snapshot — 2026-04-22
+# npm audit snapshot — 2026-04-23
 
 Pre-launch vulnerability baseline captured via `npm audit` at the monorepo root.
 Delta from AUDIT_REPORT.md "9 npm vulnerabilities" line: slightly worse, now
-dominated by ReDoS and dev-only advisories after two targeted upgrade cycles.
+dominated by ReDoS and dev-only advisories after three targeted upgrade cycles.
 
 ## Totals
 
 | Severity  | Count  |
 | --------- | ------ |
-| critical  | 1      |
-| high      | 6      |
-| moderate  | 5      |
-| low       | 1      |
-| **total** | **13** |
+| critical  | 2      |
+| high      | 13     |
+| moderate  | 14     |
+| low       | 3      |
+| **total** | **32** |
 
-Dependencies scanned: 1,906 (prod/dev/optional/peer split unchanged).
+Dependencies scanned: ~2,060 (prod/dev/optional/peer split unchanged).
+
+**Delta vs 2026-04-22 snapshot:** totals moved `13 → 32`. This is _not_ a regression
+we caused — no package in our tree moved to a more-vulnerable version. Between
+04-22 and 04-23 the GitHub Advisory Database re-surfaced advisories against
+`jspdf`, `express`, `socket.io-parser`, `lodash`, `rollup`, `@typescript-eslint/*`,
+`next`, `undici`, and several moderate/low items that had briefly dropped out.
+The lesson from the 04-22 narrative stands even more firmly now: npm-audit totals
+are a noisy signal driven as much by GitHub advisory-DB maintenance as by our own
+dependency moves, and we should only claim credit for advisories we actually
+cleared via a lockfile-visible bump.
+
+**This session (04-23):** one targeted fix landed. `socket.io-parser` was re-surfaced
+in the 04-23 DB refresh (GHSA-cqmj-92xf-r6r9 — unbounded binary attachments → DoS,
+HIGH). Fixed via a root `overrides` entry pinning `socket.io-parser: ^4.2.6` so
+both the orchestrator's `socket.io@4.8.1` and the frontend's `socket.io-client@4.8.3`
+resolve to the patched parser without touching protocol surfaces on either end.
+Lockfile delta: 22 lines, version string only (4.2.4 → 4.2.6). Totals: `33 → 32`,
+`high` `14 → 13`; `socket.io-parser` and `socket.io` both drop out of the
+vulnerabilities list. Orchestrator tests 156/162 (same-count baseline) and
+shared tests 109/122 remain green post-override.
+
+An MCP SDK bump (`^1.24.0 → ^1.27.1`) was attempted and reverted in the same
+session — the 1.29.0 release forced per-workspace `node_modules` copies (shared's
+transitive `zod-to-json-schema` and orchestrator's nested `express` prevented
+hoisting), which in turn broke `jest.mock("@modelcontextprotocol/sdk/server/index.js")`-based
+tests in the weather agent by splitting module identity between the schema object
+captured at `setRequestHandler` and the one the test imports. The bump also
+cleared no actual MCP advisory (none existed at the bump time) and introduced
+~15 new transitive advisories via the 1.29 bundled express/body-parser/ajv/etc.
+Net-negative; reverted cleanly to the HEAD lockfile. Noted here as an explicit
+decision record so the bump isn't attempted again without addressing the
+hoisting trap.
+
+### Historical totals
+
+| Date       | Total | Critical | High | Moderate | Low | Note                                                |
+| ---------- | ----- | -------- | ---- | -------- | --- | --------------------------------------------------- |
+| 2026-04-20 | 32    | 2        | 16   | 11       | 3   | pre-launch baseline                                 |
+| 2026-04-21 | 31    | 2        | 15   | 11       | 3   | express-rate-limit 8.1.0 → 8.3.2                    |
+| 2026-04-22 | 13    | 1        | 6    | 5        | 1   | axios 1.12.2 → 1.15.2 + advisory-DB drift (−15)     |
+| 2026-04-23 | 32    | 2        | 13   | 14       | 3   | advisory-DB drift (+20) + socket.io-parser override |
 
 **Delta vs 2026-04-21 snapshot (headline):** totals moved `31 → 13`, `high`
 moved `15 → 6`, `moderate` moved `11 → 5`, `critical` moved `2 → 1`, `low`
@@ -67,18 +108,18 @@ deep-transitive positions:
 
 ### Cleared during targeted upgrades
 
-| Package                                                                  | Outcome                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ~~`axios`~~                                                              | **Resolved 2026-04-22** — bumped `1.12.2 → 1.15.2` across all 6 workspace declarations. Clears GHSA-43fc-jf86-j433 (high, `__proto__` DoS) + GHSA-3p68-rc4w-qgx5 (moderate, NO_PROXY SSRF) + GHSA-fvcv-3m26-pcqx (moderate, header-injection cloud-metadata exfil) in one move. Semver-compatible with every existing pin and with `axios-retry@4.5.0`. |
-| ~~`express-rate-limit`~~                                                 | **Resolved 2026-04-21** — bumped `8.1.0 → 8.3.2` (advisory range was `=8.1.0` only). Our code does not import this package directly; the orchestrator uses a custom Redis-backed `RateLimiter`. The transitive `7.5.1` via `@modelcontextprotocol/sdk` is unaffected.                                                                                   |
-| ~~`express`~~                                                            | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
-| ~~`socket.io-parser`~~                                                   | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
-| ~~`lodash`~~                                                             | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
-| ~~`rollup`~~                                                             | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
-| ~~`jspdf`~~                                                              | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
-| ~~`@typescript-eslint/parser` / `@typescript-eslint/typescript-estree`~~ | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
-| ~~`next`~~                                                               | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed. Prior snapshot flagged as "NO — needs upstream release"; `npm audit` no longer returns it against the currently-installed `next@15.5.15`.                                          |
-| ~~`undici`~~                                                             | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                    |
+| Package                                                                  | Outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~`axios`~~                                                              | **Resolved 2026-04-22** — bumped `1.12.2 → 1.15.2` across all 6 workspace declarations. Clears GHSA-43fc-jf86-j433 (high, `__proto__` DoS) + GHSA-3p68-rc4w-qgx5 (moderate, NO_PROXY SSRF) + GHSA-fvcv-3m26-pcqx (moderate, header-injection cloud-metadata exfil) in one move. Semver-compatible with every existing pin and with `axios-retry@4.5.0`.                                                                                                                                                                                                    |
+| ~~`express-rate-limit`~~                                                 | **Resolved 2026-04-21** — bumped `8.1.0 → 8.3.2` (advisory range was `=8.1.0` only). Our code does not import this package directly; the orchestrator uses a custom Redis-backed `RateLimiter`. The transitive `7.5.1` via `@modelcontextprotocol/sdk` is unaffected.                                                                                                                                                                                                                                                                                      |
+| ~~`express`~~                                                            | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                                                                                                                                                                                                                       |
+| ~~`socket.io-parser`~~                                                   | **Resolved 2026-04-23** — root `overrides` entry `socket.io-parser: ^4.2.6` bumps the transitive parser used by both `socket.io@4.8.1` (orchestrator) and `socket.io-client@4.8.3` (frontend) from 4.2.4 to 4.2.6. Clears GHSA-cqmj-92xf-r6r9 (HIGH — unbounded binary attachments DoS). Non-breaking patch bump; `~4.2.4` range on both parents already permits 4.2.6. (Previously briefly dropped from the advisory list on 04-22 via upstream advisory-DB drift, then re-surfaced on 04-23 — now fixed for real via a lockfile-visible version change.) |
+| ~~`lodash`~~                                                             | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                                                                                                                                                                                                                       |
+| ~~`rollup`~~                                                             | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                                                                                                                                                                                                                       |
+| ~~`jspdf`~~                                                              | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                                                                                                                                                                                                                       |
+| ~~`@typescript-eslint/parser` / `@typescript-eslint/typescript-estree`~~ | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                                                                                                                                                                                                                       |
+| ~~`next`~~                                                               | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed. Prior snapshot flagged as "NO — needs upstream release"; `npm audit` no longer returns it against the currently-installed `next@15.5.15`.                                                                                                                                                                                                                                             |
+| ~~`undici`~~                                                             | No longer surfaced as of 2026-04-22 — advisory-DB state moved; installed version unchanged, so this is upstream advisory maintenance rather than a fix we performed.                                                                                                                                                                                                                                                                                                                                                                                       |
 
 All remaining high-severity items now have automatic fixes available. No
 "no-fix" items remain in the high tier as of 2026-04-22.

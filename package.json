@@ -82,7 +82,8 @@
   },
   "overrides": {
     "uuid": "^11.1.0",
-    "@types/uuid": "^10.0.0"
+    "@types/uuid": "^10.0.0",
+    "socket.io-parser": "^4.2.6"
   },
   "keywords": [],
   "author": "",
