@@ -10,9 +10,9 @@ dominated by ReDoS and dev-only advisories after three targeted upgrade cycles.
 | --------- | ------ |
 | critical  | 2      |
 | high      | 13     |
-| moderate  | 14     |
+| moderate  | 12     |
 | low       | 3      |
-| **total** | **32** |
+| **total** | **30** |
 
 Dependencies scanned: ~2,060 (prod/dev/optional/peer split unchanged).
 
@@ -26,7 +26,7 @@ are a noisy signal driven as much by GitHub advisory-DB maintenance as by our ow
 dependency moves, and we should only claim credit for advisories we actually
 cleared via a lockfile-visible bump.
 
-**This session (04-23):** one targeted fix landed. `socket.io-parser` was re-surfaced
+**This session (04-23):** three targeted fixes landed. `socket.io-parser` was re-surfaced
 in the 04-23 DB refresh (GHSA-cqmj-92xf-r6r9 — unbounded binary attachments → DoS,
 HIGH). Fixed via a root `overrides` entry pinning `socket.io-parser: ^4.2.6` so
 both the orchestrator's `socket.io@4.8.1` and the frontend's `socket.io-client@4.8.3`
@@ -35,6 +35,28 @@ Lockfile delta: 22 lines, version string only (4.2.4 → 4.2.6). Totals: `33 →
 `high` `14 → 13`; `socket.io-parser` and `socket.io` both drop out of the
 vulnerabilities list. Orchestrator tests 156/162 (same-count baseline) and
 shared tests 109/122 remain green post-override.
+
+`follow-redirects` was then bumped from the axios-bundled 1.15.11 to 1.16.0 via
+a second root `overrides` entry, clearing GHSA-jchw-25xp-jwwc (MODERATE —
+custom Authorization headers leaked across cross-origin redirects). axios is
+the shared HTTP client for every safety-critical NOAA / OpenWeather fetch path
+in the weather, tidal, port, and safety agents, so the leak was directly
+reachable from prod. axios's own range `follow-redirects: ^1.15.6` already
+permits 1.16.0.
+
+`dompurify` was bumped from 3.3.0 to 3.4.1 via a third root `overrides` entry,
+clearing GHSA-gx9m-whjm-85jf (MODERATE — mutation-XSS via re-contextualization).
+Used via `isomorphic-dompurify` in `shared/src/middleware/RequestValidator.ts`
+to sanitize user-supplied text before it reaches the audit-log / safety
+surfaces — direct prod-runtime reachability. Both parents (`isomorphic-dompurify@2.29.0`
+already declaring `dompurify: ^3.4.1`, and `jspdf@3.0.3` declaring `dompurify: ^3.2.4`)
+permit the fix; the stale 3.3.0 resolution was lockfile stickiness from a prior install.
+
+Combined lockfile delta across the three overrides: 32 lines, four version
+strings only (socket.io-parser 4.2.4→4.2.6, follow-redirects 1.15.11→1.16.0,
+dompurify 3.3.0→3.4.1). `lodash` was evaluated and skipped — advisory is
+prototype pollution in `_.unset`, but a full-repo grep shows zero direct
+lodash imports in our source, so reachability is nil.
 
 An MCP SDK bump (`^1.24.0 → ^1.27.1`) was attempted and reverted in the same
 session — the 1.29.0 release forced per-workspace `node_modules` copies (shared's
@@ -50,12 +72,13 @@ hoisting trap.
 
 ### Historical totals
 
-| Date       | Total | Critical | High | Moderate | Low | Note                                                |
-| ---------- | ----- | -------- | ---- | -------- | --- | --------------------------------------------------- |
-| 2026-04-20 | 32    | 2        | 16   | 11       | 3   | pre-launch baseline                                 |
-| 2026-04-21 | 31    | 2        | 15   | 11       | 3   | express-rate-limit 8.1.0 → 8.3.2                    |
-| 2026-04-22 | 13    | 1        | 6    | 5        | 1   | axios 1.12.2 → 1.15.2 + advisory-DB drift (−15)     |
-| 2026-04-23 | 32    | 2        | 13   | 14       | 3   | advisory-DB drift (+20) + socket.io-parser override |
+| Date       | Total | Critical | High | Moderate | Low | Note                                                              |
+| ---------- | ----- | -------- | ---- | -------- | --- | ----------------------------------------------------------------- |
+| 2026-04-20 | 32    | 2        | 16   | 11       | 3   | pre-launch baseline                                               |
+| 2026-04-21 | 31    | 2        | 15   | 11       | 3   | express-rate-limit 8.1.0 → 8.3.2                                  |
+| 2026-04-22 | 13    | 1        | 6    | 5        | 1   | axios 1.12.2 → 1.15.2 + advisory-DB drift (−15)                   |
+| 2026-04-23 | 32    | 2        | 13   | 14       | 3   | advisory-DB drift (+20) + socket.io-parser override               |
+| 2026-04-23 | 30    | 2        | 13   | 12       | 3   | follow-redirects 1.15.11→1.16.0 + dompurify 3.3.0→3.4.1 overrides |
 
 **Delta vs 2026-04-21 snapshot (headline):** totals moved `31 → 13`, `high`
 moved `15 → 6`, `moderate` moved `11 → 5`, `critical` moved `2 → 1`, `low`
@@ -126,9 +149,13 @@ All remaining high-severity items now have automatic fixes available. No
 
 ## Moderate (currently open)
 
-`ajv`, `brace-expansion`, `dompurify`, `follow-redirects`, `qs`. Each is
+`ajv`, `brace-expansion`, `qs`, `lodash` (prototype pollution in `_.unset`;
+zero direct imports in our source, so reachability is nil — skip). Each is
 transitive from a small number of packages and should be evaluated in the
 next targeted cycle.
+
+`follow-redirects` and `dompurify` both cleared 2026-04-23 via root `overrides`
+— see the session-narrative section above.
 
 ## Low (currently open)
 

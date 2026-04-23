@@ -19,7 +19,10 @@ import {
 import { AuthMiddleware } from "./middleware/auth";
 import { AgentManager } from "./services/AgentManager";
 import { RateLimiter } from "./middleware/rateLimiter";
-import { createAdminGuard } from "./middleware/adminGuard";
+import {
+  createAdminGuard,
+  createRequireAdminRole,
+} from "./middleware/adminGuard";
 import { emailService } from "./services/EmailService";
 import { Pool } from "pg";
 import { createClient } from "redis";
@@ -486,13 +489,25 @@ export class HttpServer {
     );
 
     // Refresh endpoint — trade a valid refresh token for a new access token.
+    const refreshBodySchema = z
+      .object({ refreshToken: z.string().min(1).optional() })
+      .strict();
     this.app.post("/api/auth/refresh", async (req, res) => {
       try {
         const cookieHeader = req.headers.cookie || "";
         const match = cookieHeader.match(/(?:^|;)\s*refresh_token=([^;]+)/);
-        const refreshToken = match
-          ? decodeURIComponent(match[1])
-          : req.body?.refreshToken;
+        let bodyToken: string | undefined;
+        if (req.body && Object.keys(req.body).length > 0) {
+          const parsed = refreshBodySchema.safeParse(req.body);
+          if (!parsed.success) {
+            return res.status(400).json({
+              error: "Validation failed",
+              details: parsed.error.issues,
+            });
+          }
+          bodyToken = parsed.data.refreshToken;
+        }
+        const refreshToken = match ? decodeURIComponent(match[1]) : bodyToken;
         if (!refreshToken) {
           return res.status(401).json({ error: "Missing refresh token" });
         }
@@ -1483,22 +1498,15 @@ export class HttpServer {
       }
     });
 
+    const requireAdminRole = createRequireAdminRole(this.postgres, this.logger);
+
     // Detailed health check - requires authentication
     this.app.get(
       "/api/agents/health/detailed",
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      requireAdminRole,
       async (req, res) => {
         try {
-          // Check if user is admin
-          const userResult = await this.postgres.query(
-            "SELECT role FROM users WHERE id = $1",
-            [req.user!.id],
-          );
-
-          if (!userResult.rows[0] || userResult.rows[0].role !== "admin") {
-            return res.status(403).json({ error: "Admin access required" });
-          }
-
           const health = await this.agentManager.getHealthSummary();
           res.json(health);
         } catch (error) {
@@ -1511,18 +1519,9 @@ export class HttpServer {
     this.app.get(
       "/api/agents/:agentId/status",
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      requireAdminRole,
       async (req, res) => {
         try {
-          // Check if user is admin
-          const userResult = await this.postgres.query(
-            "SELECT role FROM users WHERE id = $1",
-            [req.user!.id],
-          );
-
-          if (!userResult.rows[0] || userResult.rows[0].role !== "admin") {
-            return res.status(403).json({ error: "Admin access required" });
-          }
-
           const { agentId } = req.params;
           const status = await this.agentManager.getAgentStatus(agentId);
 
@@ -1540,20 +1539,10 @@ export class HttpServer {
     this.app.post(
       "/api/agents/:agentId/restart",
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      requireAdminRole,
       async (req, res) => {
         try {
           const { agentId } = req.params;
-
-          // Check if user is admin by querying the database
-          const userResult = await this.postgres.query(
-            "SELECT role FROM users WHERE id = $1",
-            [req.user!.id],
-          );
-
-          if (!userResult.rows[0] || userResult.rows[0].role !== "admin") {
-            return res.status(403).json({ error: "Admin access required" });
-          }
-
           await this.agentManager.restartAgent(agentId);
           res.json({ message: `Agent ${agentId} restart initiated` });
         } catch (error: any) {
@@ -1896,6 +1885,7 @@ export class HttpServer {
     this.app.post(
       "/api/agents/register",
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      requireAdminRole,
       async (req, res) => {
         try {
           const agentRegisterSchema = z.object({
@@ -1910,18 +1900,6 @@ export class HttpServer {
               details: agentRegisterParsed.error.issues,
             });
           }
-          // Check if user is admin
-          const userResult = await this.postgres.query(
-            "SELECT role FROM users WHERE id = $1",
-            [req.user!.id],
-          );
-
-          if (!userResult.rows[0] || userResult.rows[0].role !== "admin") {
-            return res
-              .status(403)
-              .json({ error: "Admin access required for agent registration" });
-          }
-
           const agentSummary = req.body;
           this.orchestrator.emit("agent:register", agentSummary);
           res.json({ success: true });
@@ -2481,18 +2459,9 @@ export class HttpServer {
     this.app.post(
       "/api/agents/:agentId/start",
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      requireAdminRole,
       async (req, res) => {
         try {
-          // Check if user is admin
-          const userResult = await this.postgres.query(
-            "SELECT role FROM users WHERE id = $1",
-            [req.user!.id],
-          );
-
-          if (!userResult.rows[0] || userResult.rows[0].role !== "admin") {
-            return res.status(403).json({ error: "Admin access required" });
-          }
-
           const { agentId } = req.params;
           await this.agentManager.startAgent(agentId);
 
@@ -2511,18 +2480,9 @@ export class HttpServer {
     this.app.post(
       "/api/agents/:agentId/stop",
       this.authMiddleware.authenticate.bind(this.authMiddleware),
+      requireAdminRole,
       async (req, res) => {
         try {
-          // Check if user is admin
-          const userResult = await this.postgres.query(
-            "SELECT role FROM users WHERE id = $1",
-            [req.user!.id],
-          );
-
-          if (!userResult.rows[0] || userResult.rows[0].role !== "admin") {
-            return res.status(403).json({ error: "Admin access required" });
-          }
-
           const { agentId } = req.params;
           await this.agentManager.stopAgent(agentId);
 
