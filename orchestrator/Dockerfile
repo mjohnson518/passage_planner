@@ -49,8 +49,10 @@ COPY agents/safety/package*.json ./agents/safety/
 COPY agents/port/package*.json ./agents/port/
 COPY frontend/package*.json ./frontend/
 
-# Install production dependencies only
-RUN npm ci --omit=dev
+# Install production dependencies only. --ignore-scripts skips the root
+# `prepare: husky` script, which would otherwise fail (husky is a devDep and
+# is not installed with --omit=dev).
+RUN npm ci --omit=dev --ignore-scripts
 
 # Copy compiled output from builder stage
 COPY --from=builder /app/shared/dist ./shared/dist

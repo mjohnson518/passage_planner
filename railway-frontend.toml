@@ -1,5 +1,8 @@
 [build]
 dockerfilePath = "frontend/Dockerfile"
+# Include root manifests so monorepo-wide dep changes (e.g. lockfile override
+# edits that affect the Next.js tree) actually trigger a rebuild.
+watchPatterns = ["/frontend/**", "/shared/**", "/package.json", "/package-lock.json"]
 
 [deploy]
 startCommand = "node frontend/server.js"

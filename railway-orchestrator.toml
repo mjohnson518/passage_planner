@@ -1,5 +1,6 @@
 [build]
 dockerfilePath = "orchestrator/Dockerfile"
+watchPatterns = ["/orchestrator/**", "/agents/**", "/shared/**", "/package.json", "/package-lock.json"]
 
 [deploy]
 startCommand = "node orchestrator/dist/orchestrator/src/index.js"
