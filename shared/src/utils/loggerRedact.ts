@@ -23,7 +23,8 @@ export const REDACT_PATHS: readonly string[] = [
   "api_key",
   "authorization",
   "cookie",
-  "set-cookie",
+  // NOTE: bare "set-cookie" is rejected by fast-redact — hyphenated keys
+  // require bracket notation (covered by headers['set-cookie'] below).
   "headers.authorization",
   "headers.cookie",
   "headers['set-cookie']",
