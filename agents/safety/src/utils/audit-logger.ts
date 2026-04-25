@@ -10,10 +10,14 @@
  * - Regulatory audit trails
  */
 
-import { Logger } from 'pino';
-import { Pool } from 'pg';
-import { SafetyAuditLog, Waypoint, SafetyOverride } from '../../../../shared/src/types/safety';
-import { v4 as uuidv4 } from 'uuid';
+import { Logger } from "pino";
+import { Pool } from "pg";
+import {
+  SafetyAuditLog,
+  Waypoint,
+  SafetyOverride,
+} from "../../../../shared/src/types/safety";
+import { v4 as uuidv4 } from "uuid";
 
 // Database pool - can be initialized for persistence
 let dbPool: Pool | null = null;
@@ -47,14 +51,14 @@ export class SafetyAuditLogger {
     warningsIssued: number,
     safetyScore: string,
     dataSources: string[],
-    confidence: string
+    confidence: string,
   ): void {
     const auditLog: SafetyAuditLog = {
       id: uuidv4(),
       timestamp: new Date().toISOString(),
       userId,
       requestId,
-      action: 'route_analyzed',
+      action: "route_analyzed",
       details: {
         route,
         hazardsFound,
@@ -63,23 +67,26 @@ export class SafetyAuditLogger {
         dataSources,
         confidence,
       },
-      result: hazardsFound > 0 ? 'warning' : 'success',
+      result: hazardsFound > 0 ? "warning" : "success",
     };
 
     this.addLog(auditLog);
 
     // Structured logging
-    this.logger.info({
-      auditId: auditLog.id,
-      action: 'route_analyzed',
-      userId,
-      requestId,
-      waypoints: route.length,
-      hazardsFound,
-      warningsIssued,
-      safetyScore,
-      confidence,
-    }, 'Route safety analysis completed');
+    this.logger.info(
+      {
+        auditId: auditLog.id,
+        action: "route_analyzed",
+        userId,
+        requestId,
+        waypoints: route.length,
+        hazardsFound,
+        warningsIssued,
+        safetyScore,
+        confidence,
+      },
+      "Route safety analysis completed",
+    );
   }
 
   /**
@@ -91,14 +98,14 @@ export class SafetyAuditLogger {
     warningType: string,
     severity: string,
     location: Waypoint | undefined,
-    description: string
+    description: string,
   ): void {
     const auditLog: SafetyAuditLog = {
       id: uuidv4(),
       timestamp: new Date().toISOString(),
       userId,
       requestId,
-      action: 'warning_generated',
+      action: "warning_generated",
       details: {
         metadata: {
           warningType,
@@ -107,52 +114,58 @@ export class SafetyAuditLogger {
           description,
         },
       },
-      result: severity === 'critical' || severity === 'urgent' ? 'critical' : 'warning',
+      result:
+        severity === "critical" || severity === "urgent"
+          ? "critical"
+          : "warning",
     };
 
     this.addLog(auditLog);
 
-    this.logger.warn({
-      auditId: auditLog.id,
-      action: 'warning_generated',
-      userId,
-      requestId,
-      warningType,
-      severity,
-      location,
-    }, `Safety warning generated: ${description}`);
+    this.logger.warn(
+      {
+        auditId: auditLog.id,
+        action: "warning_generated",
+        userId,
+        requestId,
+        warningType,
+        severity,
+        location,
+      },
+      `Safety warning generated: ${description}`,
+    );
   }
 
   /**
    * Log a safety override (when user acknowledges and overrides a warning)
    */
-  logOverride(
-    requestId: string,
-    override: SafetyOverride
-  ): void {
+  logOverride(requestId: string, override: SafetyOverride): void {
     const auditLog: SafetyAuditLog = {
       id: uuidv4(),
       timestamp: new Date().toISOString(),
       userId: override.userId,
       requestId,
-      action: 'override_applied',
+      action: "override_applied",
       details: {
         overrideInfo: override,
       },
-      result: 'critical', // Always log overrides as critical for review
+      result: "critical", // Always log overrides as critical for review
     };
 
     this.addLog(auditLog);
 
-    this.logger.warn({
-      auditId: auditLog.id,
-      action: 'override_applied',
-      userId: override.userId,
-      requestId,
-      warningId: override.warningId,
-      warningType: override.warningType,
-      justification: override.justification,
-    }, 'SAFETY OVERRIDE APPLIED - User acknowledged and overrode safety warning');
+    this.logger.warn(
+      {
+        auditId: auditLog.id,
+        action: "override_applied",
+        userId: override.userId,
+        requestId,
+        warningId: override.warningId,
+        warningType: override.warningType,
+        justification: override.justification,
+      },
+      "SAFETY OVERRIDE APPLIED - User acknowledged and overrode safety warning",
+    );
   }
 
   /**
@@ -164,14 +177,14 @@ export class SafetyAuditLogger {
     hazardType: string,
     location: Waypoint,
     severity: string,
-    description: string
+    description: string,
   ): void {
     const auditLog: SafetyAuditLog = {
       id: uuidv4(),
       timestamp: new Date().toISOString(),
       userId,
       requestId,
-      action: 'hazard_detected',
+      action: "hazard_detected",
       details: {
         metadata: {
           hazardType,
@@ -180,20 +193,23 @@ export class SafetyAuditLogger {
           description,
         },
       },
-      result: severity === 'critical' ? 'critical' : 'warning',
+      result: severity === "critical" ? "critical" : "warning",
     };
 
     this.addLog(auditLog);
 
-    this.logger.warn({
-      auditId: auditLog.id,
-      action: 'hazard_detected',
-      userId,
-      requestId,
-      hazardType,
-      severity,
-      location,
-    }, `Hazard detected: ${description}`);
+    this.logger.warn(
+      {
+        auditId: auditLog.id,
+        action: "hazard_detected",
+        userId,
+        requestId,
+        hazardType,
+        severity,
+        location,
+      },
+      `Hazard detected: ${description}`,
+    );
   }
 
   /**
@@ -205,14 +221,14 @@ export class SafetyAuditLogger {
     dataType: string,
     source: string,
     confidence: string,
-    location?: Waypoint
+    location?: Waypoint,
   ): void {
     const auditLog: SafetyAuditLog = {
       id: uuidv4(),
       timestamp: new Date().toISOString(),
       userId: undefined,
       requestId,
-      action: 'data_source_used',
+      action: "data_source_used",
       details: {
         metadata: {
           dataType,
@@ -221,32 +237,41 @@ export class SafetyAuditLogger {
           location,
         },
       },
-      result: confidence === 'unknown' || confidence === 'low' ? 'warning' : 'success',
+      result:
+        confidence === "unknown" || confidence === "low"
+          ? "warning"
+          : "success",
     };
 
     this.addLog(auditLog);
 
     // Log at appropriate level based on confidence
-    if (confidence === 'unknown' || confidence === 'low') {
-      this.logger.warn({
-        auditId: auditLog.id,
-        action: 'data_source_used',
-        requestId,
-        dataType,
-        source,
-        confidence,
-        location,
-      }, `Low confidence data source used: ${source} for ${dataType}`);
+    if (confidence === "unknown" || confidence === "low") {
+      this.logger.warn(
+        {
+          auditId: auditLog.id,
+          action: "data_source_used",
+          requestId,
+          dataType,
+          source,
+          confidence,
+          location,
+        },
+        `Low confidence data source used: ${source} for ${dataType}`,
+      );
     } else {
-      this.logger.debug({
-        auditId: auditLog.id,
-        action: 'data_source_used',
-        requestId,
-        dataType,
-        source,
-        confidence,
-        location,
-      }, `Data source used: ${source} for ${dataType}`);
+      this.logger.debug(
+        {
+          auditId: auditLog.id,
+          action: "data_source_used",
+          requestId,
+          dataType,
+          source,
+          confidence,
+          location,
+        },
+        `Data source used: ${source} for ${dataType}`,
+      );
     }
   }
 
@@ -258,14 +283,14 @@ export class SafetyAuditLogger {
     userId: string | undefined,
     recommendationType: string,
     priority: string,
-    description: string
+    description: string,
   ): void {
     const auditLog: SafetyAuditLog = {
       id: uuidv4(),
       timestamp: new Date().toISOString(),
       userId,
       requestId,
-      action: 'recommendation_made',
+      action: "recommendation_made",
       details: {
         metadata: {
           recommendationType,
@@ -273,19 +298,76 @@ export class SafetyAuditLogger {
           description,
         },
       },
-      result: priority === 'critical' ? 'critical' : 'success',
+      result: priority === "critical" ? "critical" : "success",
     };
 
     this.addLog(auditLog);
 
-    this.logger.info({
-      auditId: auditLog.id,
-      action: 'recommendation_made',
+    this.logger.info(
+      {
+        auditId: auditLog.id,
+        action: "recommendation_made",
+        userId,
+        requestId,
+        recommendationType,
+        priority,
+      },
+      `Safety recommendation: ${description}`,
+    );
+  }
+
+  /**
+   * Log a passage planned outside Helmwise's validated coverage region.
+   *
+   * Helmwise's data sources (NOAA weather/tides, hardcoded port DB, US-only
+   * restricted areas) are accurate only inside specific bounding boxes. Outside
+   * those, hazard detection and tidal accuracy degrade silently. We log every
+   * such request so the team can quantify real demand and prioritize global
+   * data integrations.
+   */
+  logOutOfCoverage(
+    requestId: string,
+    userId: string | undefined,
+    departure: { latitude: number; longitude: number; name?: string },
+    destination: { latitude: number; longitude: number; name?: string },
+    firstOutOfCoveragePoint: { lat: number; lon: number; label?: string },
+    departureRegion: string | null,
+    destinationRegion: string | null,
+  ): void {
+    const auditLog: SafetyAuditLog = {
+      id: uuidv4(),
+      timestamp: new Date().toISOString(),
       userId,
       requestId,
-      recommendationType,
-      priority,
-    }, `Safety recommendation: ${description}`);
+      action: "out_of_coverage_request",
+      details: {
+        metadata: {
+          departure,
+          destination,
+          firstOutOfCoveragePoint,
+          departureRegion,
+          destinationRegion,
+        },
+      },
+      result: "warning",
+    };
+
+    this.addLog(auditLog);
+
+    this.logger.warn(
+      {
+        auditId: auditLog.id,
+        action: "out_of_coverage_request",
+        userId,
+        requestId,
+        departure,
+        destination,
+        firstOutOfCoveragePoint,
+        departureRegion,
+        destinationRegion,
+      },
+      "Passage planned outside validated coverage region",
+    );
   }
 
   /**
@@ -338,13 +420,13 @@ export class SafetyAuditLogger {
           JSON.stringify(log.details),
           log.result,
           log.metadata ? JSON.stringify(log.metadata) : null,
-        ]
+        ],
       );
     } catch (error) {
       // Log error but don't throw - audit logging failure shouldn't break safety checks
       this.logger.error(
         { error, logId: log.id, action: log.action },
-        'Failed to persist safety audit log to database'
+        "Failed to persist safety audit log to database",
       );
     }
   }
@@ -368,16 +450,14 @@ export class SafetyAuditLogger {
    * Get logs for a specific request
    */
   getLogsByRequestId(requestId: string): SafetyAuditLog[] {
-    return this.logs.filter(log => log.requestId === requestId);
+    return this.logs.filter((log) => log.requestId === requestId);
   }
 
   /**
    * Get critical logs (overrides and critical warnings)
    */
   getCriticalLogs(count: number = 50): SafetyAuditLog[] {
-    return this.logs
-      .filter(log => log.result === 'critical')
-      .slice(-count);
+    return this.logs.filter((log) => log.result === "critical").slice(-count);
   }
 
   /**
@@ -403,7 +483,7 @@ export class SafetyAuditLogger {
          FROM safety_audit_logs
          WHERE request_id = $1
          ORDER BY timestamp ASC`,
-        [requestId]
+        [requestId],
       );
 
       return result.rows.map((row) => ({
@@ -412,12 +492,22 @@ export class SafetyAuditLogger {
         userId: row.user_id,
         requestId: row.request_id,
         action: row.action,
-        details: typeof row.details === 'string' ? JSON.parse(row.details) : row.details,
+        details:
+          typeof row.details === "string"
+            ? JSON.parse(row.details)
+            : row.details,
         result: row.result,
-        metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : undefined,
+        metadata: row.metadata
+          ? typeof row.metadata === "string"
+            ? JSON.parse(row.metadata)
+            : row.metadata
+          : undefined,
       }));
     } catch (error) {
-      this.logger.error({ error, requestId }, 'Failed to query audit logs from database');
+      this.logger.error(
+        { error, requestId },
+        "Failed to query audit logs from database",
+      );
       // Fall back to in-memory logs
       return this.getLogsByRequestId(requestId);
     }
@@ -430,7 +520,7 @@ export class SafetyAuditLogger {
   async queryCriticalLogs(
     startDate: Date,
     endDate: Date,
-    limit: number = 100
+    limit: number = 100,
   ): Promise<SafetyAuditLog[]> {
     if (!dbPool) {
       return this.getCriticalLogs(limit);
@@ -445,7 +535,7 @@ export class SafetyAuditLogger {
            AND timestamp <= $2
          ORDER BY timestamp DESC
          LIMIT $3`,
-        [startDate.toISOString(), endDate.toISOString(), limit]
+        [startDate.toISOString(), endDate.toISOString(), limit],
       );
 
       return result.rows.map((row) => ({
@@ -454,12 +544,22 @@ export class SafetyAuditLogger {
         userId: row.user_id,
         requestId: row.request_id,
         action: row.action,
-        details: typeof row.details === 'string' ? JSON.parse(row.details) : row.details,
+        details:
+          typeof row.details === "string"
+            ? JSON.parse(row.details)
+            : row.details,
         result: row.result,
-        metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : undefined,
+        metadata: row.metadata
+          ? typeof row.metadata === "string"
+            ? JSON.parse(row.metadata)
+            : row.metadata
+          : undefined,
       }));
     } catch (error) {
-      this.logger.error({ error, startDate, endDate }, 'Failed to query critical logs from database');
+      this.logger.error(
+        { error, startDate, endDate },
+        "Failed to query critical logs from database",
+      );
       return this.getCriticalLogs(limit);
     }
   }
@@ -471,10 +571,10 @@ export class SafetyAuditLogger {
   async queryOverrides(
     startDate: Date,
     endDate: Date,
-    userId?: string
+    userId?: string,
   ): Promise<SafetyAuditLog[]> {
     if (!dbPool) {
-      return this.logs.filter((log) => log.action === 'override_applied');
+      return this.logs.filter((log) => log.action === "override_applied");
     }
 
     try {
@@ -485,7 +585,10 @@ export class SafetyAuditLogger {
           AND timestamp >= $1
           AND timestamp <= $2
       `;
-      const params: (string | Date)[] = [startDate.toISOString(), endDate.toISOString()];
+      const params: (string | Date)[] = [
+        startDate.toISOString(),
+        endDate.toISOString(),
+      ];
 
       if (userId) {
         query += ` AND user_id = $3`;
@@ -502,13 +605,23 @@ export class SafetyAuditLogger {
         userId: row.user_id,
         requestId: row.request_id,
         action: row.action,
-        details: typeof row.details === 'string' ? JSON.parse(row.details) : row.details,
+        details:
+          typeof row.details === "string"
+            ? JSON.parse(row.details)
+            : row.details,
         result: row.result,
-        metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : undefined,
+        metadata: row.metadata
+          ? typeof row.metadata === "string"
+            ? JSON.parse(row.metadata)
+            : row.metadata
+          : undefined,
       }));
     } catch (error) {
-      this.logger.error({ error, startDate, endDate, userId }, 'Failed to query overrides from database');
-      return this.logs.filter((log) => log.action === 'override_applied');
+      this.logger.error(
+        { error, startDate, endDate, userId },
+        "Failed to query overrides from database",
+      );
+      return this.logs.filter((log) => log.action === "override_applied");
     }
   }
 
@@ -517,7 +630,6 @@ export class SafetyAuditLogger {
    */
   clearLogs(): void {
     this.logs = [];
-    this.logger.info('Safety audit logs cleared');
+    this.logger.info("Safety audit logs cleared");
   }
 }
-

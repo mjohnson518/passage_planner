@@ -1,6 +1,6 @@
 /**
  * Safety Types for Helmwise Maritime System
- * 
+ *
  * These types define safety-critical structures used throughout the application.
  * All safety calculations and warnings must use these standardized types.
  */
@@ -14,9 +14,15 @@ export interface Waypoint {
 
 export interface SafetyHazard {
   id: string;
-  type: 'shallow_water' | 'traffic_separation' | 'restricted_area' | 'weather' | 'obstruction' | 'other';
+  type:
+    | "shallow_water"
+    | "traffic_separation"
+    | "restricted_area"
+    | "weather"
+    | "obstruction"
+    | "other";
   location: Waypoint;
-  severity: 'critical' | 'high' | 'moderate' | 'low';
+  severity: "critical" | "high" | "moderate" | "low";
   description: string;
   avoidance?: string;
   radius?: number; // Radius of hazard in nautical miles
@@ -25,12 +31,12 @@ export interface SafetyHazard {
 
 export interface SafetyWarning {
   id: string;
-  type: 'navigation' | 'weather' | 'regulatory' | 'operational';
+  type: "navigation" | "weather" | "regulatory" | "operational";
   location?: Waypoint;
   area?: GeographicBounds;
   description: string;
   action: string;
-  severity: 'urgent' | 'warning' | 'advisory' | 'info';
+  severity: "urgent" | "warning" | "advisory" | "info";
   issued: string;
   expires?: string;
   source: string;
@@ -46,7 +52,13 @@ export interface GeographicBounds {
 export interface RestrictedArea {
   id: string;
   name: string;
-  type: 'military' | 'marine_sanctuary' | 'shipping_lane' | 'anchor_prohibited' | 'speed_restricted' | 'other';
+  type:
+    | "military"
+    | "marine_sanctuary"
+    | "shipping_lane"
+    | "anchor_prohibited"
+    | "speed_restricted"
+    | "other";
   bounds?: GeographicBounds;
   polygon?: Waypoint[]; // For irregular shapes
   description: string;
@@ -62,7 +74,7 @@ export interface RestrictedArea {
 }
 
 export interface SafetyMargin {
-  type: 'depth' | 'distance' | 'weather' | 'time';
+  type: "depth" | "distance" | "weather" | "time";
   minimum: number;
   recommended: number;
   unit: string;
@@ -70,7 +82,7 @@ export interface SafetyMargin {
 }
 
 export interface CrewExperience {
-  level: 'novice' | 'intermediate' | 'advanced' | 'professional';
+  level: "novice" | "intermediate" | "advanced" | "professional";
   hoursLogged?: number;
   certificationsHeld: string[];
   nightExperienceHours?: number;
@@ -79,8 +91,14 @@ export interface CrewExperience {
 }
 
 export interface SafetyRecommendation {
-  priority: 'critical' | 'high' | 'medium' | 'low';
-  category: 'preparation' | 'equipment' | 'route' | 'timing' | 'crew' | 'communication';
+  priority: "critical" | "high" | "medium" | "low";
+  category:
+    | "preparation"
+    | "equipment"
+    | "route"
+    | "timing"
+    | "crew"
+    | "communication";
   description: string;
   action: string;
   rationale: string;
@@ -95,14 +113,22 @@ export interface WeatherHazardAssessment {
   };
   hazardsDetected: WeatherHazard[];
   marine: MarineConditions;
-  confidence: 'high' | 'medium' | 'low';
+  confidence: "high" | "medium" | "low";
   sources: string[]; // Which weather services provided data
   consensus: boolean; // Do multiple sources agree?
 }
 
 export interface WeatherHazard {
-  type: 'gale' | 'storm' | 'hurricane' | 'fog' | 'thunderstorm' | 'ice' | 'visibility' | 'small_craft';
-  severity: 'extreme' | 'high' | 'moderate' | 'low';
+  type:
+    | "gale"
+    | "storm"
+    | "hurricane"
+    | "fog"
+    | "thunderstorm"
+    | "ice"
+    | "visibility"
+    | "small_craft";
+  severity: "extreme" | "high" | "moderate" | "low";
   description: string;
   timing: string;
   action?: string;
@@ -114,18 +140,18 @@ export interface MarineConditions {
     min: number;
     max: number;
     average: number;
-    unit: 'knots' | 'mph' | 'mps';
+    unit: "knots" | "mph" | "mps";
   };
   waveHeight: {
     min: number;
     max: number;
     average: number;
-    unit: 'feet' | 'meters';
+    unit: "feet" | "meters";
   };
   visibility: {
     min: number;
     average: number;
-    unit: 'nm' | 'km';
+    unit: "nm" | "km";
   };
   seaState?: {
     douglasScale: number; // 0-9
@@ -150,7 +176,14 @@ export interface SafetyAuditLog {
   timestamp: string;
   userId?: string;
   requestId: string;
-  action: 'route_analyzed' | 'warning_generated' | 'override_applied' | 'hazard_detected' | 'recommendation_made' | 'data_source_used';
+  action:
+    | "route_analyzed"
+    | "warning_generated"
+    | "override_applied"
+    | "hazard_detected"
+    | "recommendation_made"
+    | "data_source_used"
+    | "out_of_coverage_request";
   details: {
     route?: Waypoint[];
     hazardsFound?: number;
@@ -161,7 +194,7 @@ export interface SafetyAuditLog {
     overrideInfo?: SafetyOverride;
     metadata?: Record<string, unknown>; // Additional context data
   };
-  result: 'success' | 'warning' | 'critical';
+  result: "success" | "warning" | "critical";
   metadata?: Record<string, unknown>;
 }
 
@@ -174,12 +207,17 @@ export interface DepthCalculation {
   minimumClearance: number; // 20% of draft or fixed minimum
   clearanceAvailable: number; // actualDepth - vesselDraft
   isGroundingRisk: boolean;
-  severity: 'critical' | 'high' | 'moderate' | 'safe';
+  severity: "critical" | "high" | "moderate" | "safe";
   recommendation: string;
 }
 
 export interface SevereWeatherPattern {
-  type: 'tropical_cyclone' | 'gale_series' | 'rapid_pressure_drop' | 'cold_front' | 'storm_system';
+  type:
+    | "tropical_cyclone"
+    | "gale_series"
+    | "rapid_pressure_drop"
+    | "cold_front"
+    | "storm_system";
   name?: string; // e.g., hurricane name
   currentPosition?: Waypoint;
   forecastTrack?: Waypoint[]; // Predicted path
@@ -191,9 +229,12 @@ export interface SevereWeatherPattern {
     timing: string;
     windSpeed: number;
     waveHeight: number;
-    recommendedAction: 'shelter_immediately' | 'delay_departure' | 'divert_route' | 'monitor_closely';
+    recommendedAction:
+      | "shelter_immediately"
+      | "delay_departure"
+      | "divert_route"
+      | "monitor_closely";
   };
   dataSource: string;
   lastUpdated: string;
 }
-

@@ -85,6 +85,7 @@ export * from "./utils/loggerRedact";
 
 // Export safety constants (single source of truth)
 export * from "./constants/safety-thresholds";
+export * from "./constants/coverage-regions";
 
 // Export plans config (single source of truth for subscription plans)
 export * from "./plans";

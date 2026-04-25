@@ -30,6 +30,9 @@ import {
   PLAN_STATUS,
   loggerRedactOptions,
   type PlanStatus,
+  COVERAGE_GAPS,
+  findOutOfCoverage,
+  getCoverageRegion,
 } from "@passage-planner/shared";
 
 const logger = pino({
@@ -759,10 +762,48 @@ export class SimpleOrchestrator {
         departureTimeForWatch,
       );
 
+      // SAFETY/HONESTY: Helmwise's data sources (NOAA, hardcoded port DB, US-only
+      // restricted areas) are accurate only inside specific bounding boxes. If the
+      // departure, destination, or any waypoint is outside coverage, mariners must
+      // see an explicit disclaimer rather than an over-confident green plan.
+      const coveragePoints = [
+        {
+          lat: request.departure.latitude,
+          lon: request.departure.longitude,
+          label: request.departure.name || "departure",
+        },
+        {
+          lat: request.destination.latitude,
+          lon: request.destination.longitude,
+          label: request.destination.name || "destination",
+        },
+        ...((route as any)?.waypoints || [])
+          .map((wp: any) => ({
+            lat: wp.latitude ?? wp.lat,
+            lon: wp.longitude ?? wp.lon,
+            label: wp.name || "waypoint",
+          }))
+          .filter((p: any) => Number.isFinite(p.lat) && Number.isFinite(p.lon)),
+      ];
+      const outOfCoveragePoint = findOutOfCoverage(coveragePoints);
+      const isCoverageLimited = outOfCoveragePoint !== null;
+      const departureRegion = getCoverageRegion(
+        request.departure.latitude,
+        request.departure.longitude,
+      );
+      const destinationRegion = getCoverageRegion(
+        request.destination.latitude,
+        request.destination.longitude,
+      );
+
       // Determine plan status based on safety findings
-      // SAFETY_WARNING: critical/severe hazards detected (e.g. grounding risk, gale force winds)
-      // SAFETY_UNVERIFIED: safety agent failed to run
-      // OK: no critical issues found
+      // Precedence (highest first):
+      //   SAFETY_UNVERIFIED  — safety agent failed to run (cannot trust the plan)
+      //   SAFETY_WARNING     — critical/severe hazards detected
+      //   COVERAGE_LIMITED   — request falls outside Helmwise's validated data region
+      //   OK                 — no critical issues found
+      // Coverage ranks below safety findings because a route with an active hazard
+      // is more urgent than one merely outside our preferred data region.
       const hasCriticalHazards =
         (finalSafetyRoute as any)?.hazards?.some(
           (h: any) => h.severity === "critical" || h.severity === "severe",
@@ -774,7 +815,22 @@ export class SimpleOrchestrator {
         ? PLAN_STATUS.SAFETY_UNVERIFIED
         : hasCriticalHazards
           ? PLAN_STATUS.SAFETY_WARNING
-          : PLAN_STATUS.OK;
+          : isCoverageLimited
+            ? PLAN_STATUS.COVERAGE_LIMITED
+            : PLAN_STATUS.OK;
+
+      const coverageDisclaimer = isCoverageLimited
+        ? {
+            outOfCoveragePoint,
+            departureRegion: departureRegion?.name || null,
+            destinationRegion: destinationRegion?.name || null,
+            gaps: [...COVERAGE_GAPS],
+            message:
+              "This passage extends outside Helmwise's validated coverage region. " +
+              "Tidal accuracy, hazard detection, and routing fidelity are degraded. " +
+              "Treat this plan as advisory and verify with official sources before departure.",
+          }
+        : null;
 
       // Compile comprehensive passage plan
       const passagePlan = {
@@ -827,6 +883,8 @@ export class SimpleOrchestrator {
           systemFailure: safetySystemFailed,
           disclaimer: safetyDisclaimer,
         },
+        // Honest scoping: surfaced when route exits validated coverage regions
+        coverageDisclaimer,
         summary: {
           totalDistance: route.totalDistance,
           estimatedDuration: bufferedDuration,
@@ -842,6 +900,9 @@ export class SimpleOrchestrator {
           // Combine ALL warnings: reserve checks first (most critical), then weather/safety
           warnings: [
             ...reserveWarnings, // fuel/water reserve violations (CRITICAL)
+            ...(coverageDisclaimer
+              ? [`⚠️ COVERAGE LIMITED: ${coverageDisclaimer.message}`]
+              : []),
             ...freshnessWarnings,
             ...weatherWarnings,
             ...weatherAggregation.warnings,
@@ -899,6 +960,26 @@ export class SimpleOrchestrator {
           ["weather-agent", "tidal-agent", "route-agent", "safety-agent"],
           safetySystemFailed ? "low" : "high",
         );
+
+        if (isCoverageLimited && outOfCoveragePoint) {
+          this.auditLogger.logOutOfCoverage(
+            planningId,
+            undefined,
+            {
+              latitude: request.departure.latitude,
+              longitude: request.departure.longitude,
+              name: request.departure.name,
+            },
+            {
+              latitude: request.destination.latitude,
+              longitude: request.destination.longitude,
+              name: request.destination.name,
+            },
+            outOfCoveragePoint,
+            departureRegion?.name || null,
+            destinationRegion?.name || null,
+          );
+        }
 
         // Log data sources for traceability
         this.auditLogger.logDataSource(
@@ -1741,12 +1822,10 @@ export class SimpleOrchestrator {
 
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      res
-        .status(401)
-        .json({
-          success: false,
-          error: "Authentication required. Provide a Bearer token.",
-        });
+      res.status(401).json({
+        success: false,
+        error: "Authentication required. Provide a Bearer token.",
+      });
       return false;
     }
 
@@ -1809,12 +1888,10 @@ export class SimpleOrchestrator {
       );
 
       if (current > limit) {
-        res
-          .status(429)
-          .json({
-            success: false,
-            error: "Rate limit exceeded. Try again shortly.",
-          });
+        res.status(429).json({
+          success: false,
+          error: "Rate limit exceeded. Try again shortly.",
+        });
         return false;
       }
       return true;

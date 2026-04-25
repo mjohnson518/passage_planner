@@ -11,9 +11,11 @@
  * 6. Port information
  */
 
-import { getSupabase } from '../../app/lib/supabase-client';
+import { getSupabase } from "../../app/lib/supabase-client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://passage-plannerorchestrator-production.up.railway.app';
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://passage-plannerorchestrator-production.up.railway.app";
 const TIMEOUT = 30000; // 30 second timeout
 
 /**
@@ -44,7 +46,7 @@ export interface PassagePlanningRequest {
   vessel?: {
     cruiseSpeed?: number;
     draft?: number;
-    crewExperience?: 'novice' | 'intermediate' | 'advanced' | 'professional';
+    crewExperience?: "novice" | "intermediate" | "advanced" | "professional";
     crewSize?: number;
   };
 }
@@ -54,8 +56,21 @@ export interface PassagePlanningRequest {
  * OK — no critical issues
  * SAFETY_WARNING — critical hazard detected on the route
  * SAFETY_UNVERIFIED — safety system failed to run (fail-closed, show caution)
+ * COVERAGE_LIMITED — route exits Helmwise's validated coverage region; data fidelity is degraded
  */
-export type PlanStatus = 'OK' | 'SAFETY_WARNING' | 'SAFETY_UNVERIFIED';
+export type PlanStatus =
+  | "OK"
+  | "SAFETY_WARNING"
+  | "SAFETY_UNVERIFIED"
+  | "COVERAGE_LIMITED";
+
+export interface CoverageDisclaimer {
+  outOfCoveragePoint: { lat: number; lon: number; label?: string };
+  departureRegion: string | null;
+  destinationRegion: string | null;
+  gaps: string[];
+  message: string;
+}
 
 export interface PassagePlanningResponse {
   success: boolean;
@@ -135,7 +150,7 @@ export interface PassagePlanningResponse {
       title: string;
       description: string;
       location: any;
-      severity: 'critical' | 'warning' | 'info';
+      severity: "critical" | "warning" | "info";
       effectiveDate: string;
       expiryDate?: string;
       source: string;
@@ -149,7 +164,7 @@ export interface PassagePlanningResponse {
       distance?: number;
       predictions: Array<{
         time: string;
-        type: 'high' | 'low';
+        type: "high" | "low";
         height: number;
         unit: string;
       }>;
@@ -164,7 +179,7 @@ export interface PassagePlanningResponse {
       distance?: number;
       predictions: Array<{
         time: string;
-        type: 'high' | 'low';
+        type: "high" | "low";
         height: number;
         unit: string;
       }>;
@@ -181,9 +196,9 @@ export interface PassagePlanningResponse {
     };
   };
   safety: {
-    safetyScore: 'Excellent' | 'Good' | 'Fair' | 'Poor';
-    goNoGo: 'GO' | 'CAUTION' | 'NO-GO';
-    overallRisk: 'low' | 'moderate' | 'high' | 'critical';
+    safetyScore: "Excellent" | "Good" | "Fair" | "Poor";
+    goNoGo: "GO" | "CAUTION" | "NO-GO";
+    overallRisk: "low" | "moderate" | "high" | "critical";
     riskFactors: string[];
     safetyWarnings: string[];
     recommendations: string[];
@@ -208,6 +223,8 @@ export interface PassagePlanningResponse {
       vesselDraftConsidered: boolean;
     };
   };
+  /** Honest scoping payload — present when route exits validated coverage */
+  coverageDisclaimer?: CoverageDisclaimer | null;
   port: {
     departure: {
       found?: boolean;
@@ -252,9 +269,9 @@ export interface PassagePlanningResponse {
   summary: {
     totalDistance: string;
     estimatedTime: string;
-    safetyDecision: 'GO' | 'CAUTION' | 'NO-GO';
-    safetyScore: 'Excellent' | 'Good' | 'Fair' | 'Poor';
-    overallRisk: 'low' | 'moderate' | 'high' | 'critical';
+    safetyDecision: "GO" | "CAUTION" | "NO-GO";
+    safetyScore: "Excellent" | "Good" | "Fair" | "Poor";
+    overallRisk: "low" | "moderate" | "high" | "critical";
     suitableForPassage: boolean;
     warnings: string[];
     recommendations: string[];
@@ -269,7 +286,7 @@ export interface PassagePlanningResponse {
  * @returns Complete passage plan with route, weather, tidal, navigation, safety, and port data
  */
 export async function planPassage(
-  request: PassagePlanningRequest
+  request: PassagePlanningRequest,
 ): Promise<PassagePlanningResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
@@ -277,14 +294,14 @@ export async function planPassage(
   try {
     const token = await getAuthToken();
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     };
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      headers["Authorization"] = `Bearer ${token}`;
     }
 
     const response = await fetch(`${API_URL}/api/passage-planning/analyze`, {
-      method: 'POST',
+      method: "POST",
       headers,
       body: JSON.stringify(request),
       signal: controller.signal,
@@ -293,25 +310,26 @@ export async function planPassage(
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }));
+      const error = await response
+        .json()
+        .catch(() => ({ error: "Request failed" }));
       throw new Error(error.error || `API returned ${response.status}`);
     }
 
     const data = await response.json();
-    
+
     if (!data.success) {
-      throw new Error(data.error || 'Passage planning failed');
+      throw new Error(data.error || "Passage planning failed");
     }
 
     return data;
-
   } catch (error: any) {
     clearTimeout(timeoutId);
-    
-    if (error.name === 'AbortError') {
-      throw new Error('Request timeout - please try again');
+
+    if (error.name === "AbortError") {
+      throw new Error("Request timeout - please try again");
     }
-    throw new Error(error.message || 'Failed to plan passage');
+    throw new Error(error.message || "Failed to plan passage");
   }
 }
 
@@ -326,14 +344,14 @@ export async function checkBackendHealth(): Promise<{
 }> {
   try {
     const response = await fetch(`${API_URL}/health`);
-    
+
     if (!response.ok) {
-      throw new Error('Health check failed');
+      throw new Error("Health check failed");
     }
-    
+
     return response.json();
   } catch (error) {
-    throw new Error('Backend is unavailable');
+    throw new Error("Backend is unavailable");
   }
 }
 
@@ -344,9 +362,8 @@ export async function checkBackendReady(): Promise<boolean> {
   try {
     const response = await fetch(`${API_URL}/ready`);
     const data = await response.json();
-    return data.status === 'ready';
+    return data.status === "ready";
   } catch (error) {
     return false;
   }
 }
-

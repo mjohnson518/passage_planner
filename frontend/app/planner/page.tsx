@@ -50,6 +50,7 @@ import RequireAuth from "../components/auth/RequireAuth";
 import { features } from "../lib/features";
 import { logger } from "../lib/logger";
 import type { PassageExport } from "../types/shared";
+import { isInCoverage } from "../../lib/coverage";
 
 // Dynamic import for map component to avoid SSR issues
 const RouteMap = dynamic(() => import("../components/map/RouteMap"), {
@@ -175,6 +176,24 @@ function PlannerPageInner() {
         "Could not determine coordinates for destination port. Please select from the dropdown.",
       );
       return;
+    }
+
+    // Honest scoping: warn (do not block) if either endpoint is outside Helmwise's
+    // validated coverage region. The full disclaimer is rendered with the result.
+    const departureInCoverage = isInCoverage(
+      formData.departureCoords.latitude,
+      formData.departureCoords.longitude,
+    );
+    const destinationInCoverage = isInCoverage(
+      formData.destinationCoords.latitude,
+      formData.destinationCoords.longitude,
+    );
+    if (!departureInCoverage || !destinationInCoverage) {
+      toast.warning(
+        "This passage extends outside Helmwise's validated coverage region. " +
+          "Tidal accuracy and hazard detection are degraded — verify with official sources.",
+        { duration: 8000 },
+      );
     }
 
     setLoading(true);
@@ -343,6 +362,37 @@ function PlannerPageInner() {
                   Do not depart without addressing every critical warning below.
                 </strong>
               </p>
+            </div>
+          )}
+
+          {/* COVERAGE_LIMITED banner — shown when route exits validated coverage region */}
+          {(passagePlan.status === "COVERAGE_LIMITED" ||
+            passagePlan.coverageDisclaimer) && (
+            <div
+              className="rounded-md border-2 border-warning bg-warning/5 px-5 py-4"
+              role="alert"
+              data-testid="planner-coverage-limited-banner"
+            >
+              <p className="font-bold text-warning text-base uppercase tracking-wide mb-1">
+                ⚠ Coverage Limited
+              </p>
+              <p className="text-warning/80 text-sm mb-3">
+                {passagePlan.coverageDisclaimer?.message ||
+                  "This passage extends outside Helmwise's validated coverage region. Treat the plan as advisory and verify with official sources before departure."}
+              </p>
+              {passagePlan.coverageDisclaimer?.gaps &&
+                passagePlan.coverageDisclaimer.gaps.length > 0 && (
+                  <div className="text-warning/80 text-sm">
+                    <p className="font-semibold mb-1">
+                      Known gaps in this region:
+                    </p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      {passagePlan.coverageDisclaimer.gaps.map((gap) => (
+                        <li key={gap}>{gap}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
             </div>
           )}
 
