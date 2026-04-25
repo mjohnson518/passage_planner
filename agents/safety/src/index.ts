@@ -1,15 +1,24 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { Logger } from 'pino';
-import pino from 'pino';
-import axios from 'axios';
-import { v4 as uuidv4 } from 'uuid';
-import { DepthCalculator } from './utils/depth-calculator';
-import { AreaChecker } from './utils/area-checker';
-import { SafetyAuditLogger } from './utils/audit-logger';
-import { WeatherPatternAnalyzer } from './utils/weather-pattern-analyzer';
-import { SafetyOverrideManager } from './utils/override-manager';
-import { CrewExperience, BathymetryService, DepthResult, NOAANavigationWarningsService, NOAATidalService, TidalData, CacheManager } from '@passage-planner/shared';
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { Logger } from "pino";
+import pino from "pino";
+import axios from "axios";
+import { v4 as uuidv4 } from "uuid";
+import { DepthCalculator } from "./utils/depth-calculator";
+import { AreaChecker } from "./utils/area-checker";
+import { SafetyAuditLogger } from "./utils/audit-logger";
+import { WeatherPatternAnalyzer } from "./utils/weather-pattern-analyzer";
+import { SafetyOverrideManager } from "./utils/override-manager";
+import {
+  CrewExperience,
+  BathymetryService,
+  DepthResult,
+  NOAANavigationWarningsService,
+  NOAATidalService,
+  TidalData,
+  CacheManager,
+  loggerRedactOptions,
+} from "@passage-planner/shared";
 
 export class SafetyAgent {
   private server: Server;
@@ -28,27 +37,28 @@ export class SafetyAgent {
 
   constructor() {
     this.logger = pino({
-      level: process.env.LOG_LEVEL || 'info',
+      level: process.env.LOG_LEVEL || "info",
       transport: {
-        target: 'pino-pretty',
-        options: { colorize: true }
-      }
+        target: "pino-pretty",
+        options: { colorize: true },
+      },
+      ...loggerRedactOptions,
     });
 
     this.server = new Server(
       {
-        name: 'Safety Planning Agent',
-        version: '1.0.0'
+        name: "Safety Planning Agent",
+        version: "1.0.0",
       },
       {
         capabilities: {
-          tools: {}
-        }
-      }
+          tools: {},
+        },
+      },
     );
 
-    this.noaaApiKey = process.env.NOAA_API_KEY || '';
-    
+    this.noaaApiKey = process.env.NOAA_API_KEY || "";
+
     // Initialize production-grade utilities
     this.depthCalculator = new DepthCalculator();
     this.areaChecker = new AreaChecker();
@@ -59,215 +69,252 @@ export class SafetyAgent {
 
     // Create cache for navigation warnings service
     const navWarningsCache = new CacheManager(this.logger);
-    this.navigationWarningsService = new NOAANavigationWarningsService(navWarningsCache, this.logger);
+    this.navigationWarningsService = new NOAANavigationWarningsService(
+      navWarningsCache,
+      this.logger,
+    );
 
     // Initialize tidal service for depth safety calculations
     // CRITICAL: Tidal data is essential for accurate grounding risk assessment
     const tidalCache = new CacheManager(this.logger);
     this.tidalService = new NOAATidalService(tidalCache, this.logger);
-    this.logger.info('Tidal service initialized for safety calculations');
+    this.logger.info("Tidal service initialized for safety calculations");
 
     this.setupTools();
   }
 
   async initialize(): Promise<void> {
-    this.logger.info('Safety Agent initialized');
+    this.logger.info("Safety Agent initialized");
   }
 
   async shutdown(): Promise<void> {
-    this.logger.info('Safety Agent shutdown');
+    this.logger.info("Safety Agent shutdown");
   }
 
   getTools(): Tool[] {
     // Return all 8 safety tools (5 original + 3 new production features)
     return [
       {
-        name: 'check_route_safety',
-        description: 'Analyze safety considerations along a planned route',
+        name: "check_route_safety",
+        description: "Analyze safety considerations along a planned route",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             route: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'object',
+                type: "object",
                 properties: {
-                  latitude: { type: 'number' },
-                  longitude: { type: 'number' }
+                  latitude: { type: "number" },
+                  longitude: { type: "number" },
                 },
-                required: ['latitude', 'longitude']
-              }
+                required: ["latitude", "longitude"],
+              },
             },
-            departure_time: { type: 'string', format: 'date-time' },
-            vessel_draft: { type: 'number' }
+            departure_time: { type: "string", format: "date-time" },
+            vessel_draft: { type: "number" },
           },
-          required: ['route']
-        }
+          required: ["route"],
+        },
       },
       {
-        name: 'get_navigation_warnings',
-        description: 'Get current navigation warnings for an area',
+        name: "get_navigation_warnings",
+        description: "Get current navigation warnings for an area",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             bounds: {
-              type: 'object',
+              type: "object",
               properties: {
-                north: { type: 'number' },
-                south: { type: 'number' },
-                east: { type: 'number' },
-                west: { type: 'number' }
+                north: { type: "number" },
+                south: { type: "number" },
+                east: { type: "number" },
+                west: { type: "number" },
               },
-              required: ['north', 'south', 'east', 'west']
-            }
+              required: ["north", "south", "east", "west"],
+            },
           },
-          required: ['bounds']
-        }
+          required: ["bounds"],
+        },
       },
       {
-        name: 'get_emergency_contacts',
-        description: 'Get emergency contact information for a region',
+        name: "get_emergency_contacts",
+        description: "Get emergency contact information for a region",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
-            latitude: { type: 'number' },
-            longitude: { type: 'number' },
-            country: { type: 'string' }
+            latitude: { type: "number" },
+            longitude: { type: "number" },
+            country: { type: "string" },
           },
-          required: ['latitude', 'longitude']
-        }
+          required: ["latitude", "longitude"],
+        },
       },
       {
-        name: 'generate_safety_brief',
-        description: 'Generate a comprehensive safety briefing for a passage',
+        name: "generate_safety_brief",
+        description: "Generate a comprehensive safety briefing for a passage",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
-            departure_port: { type: 'string' },
-            destination_port: { type: 'string' },
-            route_distance: { type: 'number' },
-            estimated_duration: { type: 'string' },
-            crew_size: { type: 'number' },
-            vessel_type: { type: 'string', enum: ['sailboat', 'powerboat', 'catamaran'] }
+            departure_port: { type: "string" },
+            destination_port: { type: "string" },
+            route_distance: { type: "number" },
+            estimated_duration: { type: "string" },
+            crew_size: { type: "number" },
+            vessel_type: {
+              type: "string",
+              enum: ["sailboat", "powerboat", "catamaran"],
+            },
           },
-          required: ['departure_port', 'destination_port']
-        }
+          required: ["departure_port", "destination_port"],
+        },
       },
       {
-        name: 'check_weather_hazards',
-        description: 'Check for weather-related safety hazards',
+        name: "check_weather_hazards",
+        description: "Check for weather-related safety hazards",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
-            latitude: { type: 'number' },
-            longitude: { type: 'number' },
+            latitude: { type: "number" },
+            longitude: { type: "number" },
             time_range: {
-              type: 'object',
+              type: "object",
               properties: {
-                start: { type: 'string', format: 'date-time' },
-                end: { type: 'string', format: 'date-time' }
-              }
-            }
+                start: { type: "string", format: "date-time" },
+                end: { type: "string", format: "date-time" },
+              },
+            },
           },
-          required: ['latitude', 'longitude']
-        }
+          required: ["latitude", "longitude"],
+        },
       },
       {
-        name: 'check_depth_safety',
-        description: 'Check for shallow water hazards with safety margins',
+        name: "check_depth_safety",
+        description: "Check for shallow water hazards with safety margins",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             location: {
-              type: 'object',
+              type: "object",
               properties: {
-                latitude: { type: 'number' },
-                longitude: { type: 'number' }
+                latitude: { type: "number" },
+                longitude: { type: "number" },
               },
-              required: ['latitude', 'longitude']
+              required: ["latitude", "longitude"],
             },
-            charted_depth: { type: 'number', description: 'Charted depth in feet at MLW' },
-            vessel_draft: { type: 'number', description: 'Vessel draft in feet' },
-            tidal_height: { type: 'number', description: 'Tidal height adjustment in feet (optional)' },
-            crew_experience: { 
-              type: 'string', 
-              enum: ['novice', 'intermediate', 'advanced', 'professional'],
-              description: 'Crew experience level affects safety margins'
-            }
+            charted_depth: {
+              type: "number",
+              description: "Charted depth in feet at MLW",
+            },
+            vessel_draft: {
+              type: "number",
+              description: "Vessel draft in feet",
+            },
+            tidal_height: {
+              type: "number",
+              description: "Tidal height adjustment in feet (optional)",
+            },
+            crew_experience: {
+              type: "string",
+              enum: ["novice", "intermediate", "advanced", "professional"],
+              description: "Crew experience level affects safety margins",
+            },
           },
-          required: ['location', 'charted_depth', 'vessel_draft']
-        }
+          required: ["location", "charted_depth", "vessel_draft"],
+        },
       },
       {
-        name: 'check_restricted_areas',
-        description: 'Check if route passes through restricted or hazardous areas',
+        name: "check_restricted_areas",
+        description:
+          "Check if route passes through restricted or hazardous areas",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             waypoints: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'object',
+                type: "object",
                 properties: {
-                  latitude: { type: 'number' },
-                  longitude: { type: 'number' }
+                  latitude: { type: "number" },
+                  longitude: { type: "number" },
                 },
-                required: ['latitude', 'longitude']
-              }
-            }
+                required: ["latitude", "longitude"],
+              },
+            },
           },
-          required: ['waypoints']
-        }
+          required: ["waypoints"],
+        },
       },
       {
-        name: 'apply_safety_override',
-        description: 'Apply user override to a safety warning (with justification)',
+        name: "apply_safety_override",
+        description:
+          "Apply user override to a safety warning (with justification)",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
-            user_id: { type: 'string' },
-            warning_id: { type: 'string' },
-            warning_type: { type: 'string' },
-            justification: { type: 'string', description: 'Minimum 10 characters explaining override decision' },
-            witnessed_by: { type: 'string', description: 'Crew member witness (required for critical warnings)' },
-            expiration_hours: { type: 'number', description: 'Hours until override expires (optional)' }
+            user_id: { type: "string" },
+            warning_id: { type: "string" },
+            warning_type: { type: "string" },
+            justification: {
+              type: "string",
+              description: "Minimum 10 characters explaining override decision",
+            },
+            witnessed_by: {
+              type: "string",
+              description:
+                "Crew member witness (required for critical warnings)",
+            },
+            expiration_hours: {
+              type: "number",
+              description: "Hours until override expires (optional)",
+            },
           },
-          required: ['user_id', 'warning_id', 'warning_type', 'justification']
-        }
-      }
+          required: ["user_id", "warning_id", "warning_type", "justification"],
+        },
+      },
     ];
   }
 
   async handleToolCall(name: string, args: any): Promise<any> {
     const requestId = uuidv4();
-    
+
     try {
-      this.logger.info({ tool: name, args, requestId }, 'Handling safety tool call');
+      this.logger.info(
+        { tool: name, args, requestId },
+        "Handling safety tool call",
+      );
 
       switch (name) {
-        case 'check_route_safety':
+        case "check_route_safety":
           return await this.checkRouteSafety(args, requestId);
-        case 'get_navigation_warnings':
+        case "get_navigation_warnings":
           return await this.getNavigationWarnings(args.bounds);
-        case 'get_emergency_contacts':
-          return await this.getEmergencyContacts(args.latitude, args.longitude, args.country);
-        case 'generate_safety_brief':
+        case "get_emergency_contacts":
+          return await this.getEmergencyContacts(
+            args.latitude,
+            args.longitude,
+            args.country,
+          );
+        case "generate_safety_brief":
           return await this.generateSafetyBrief(args);
-        case 'check_weather_hazards':
+        case "check_weather_hazards":
           return await this.checkWeatherHazards(args);
-        case 'check_depth_safety':
+        case "check_depth_safety":
           return await this.checkDepthSafety(args);
-        case 'check_restricted_areas':
+        case "check_restricted_areas":
           return await this.checkRestrictedAreas(args);
-        case 'apply_safety_override':
+        case "apply_safety_override":
           return await this.applySafetyOverride(args);
-        case 'health':
+        case "health":
           return await this.getHealthStatus();
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
     } catch (error) {
-      this.logger.error({ error, tool: name, requestId }, 'Safety tool call failed');
+      this.logger.error(
+        { error, tool: name, requestId },
+        "Safety tool call failed",
+      );
       throw error;
     }
   }
@@ -276,7 +323,7 @@ export class SafetyAgent {
     return {
       apiKeyConfigured: !!this.noaaApiKey,
       lastSafetyCheck: new Date(),
-      warningsActive: true
+      warningsActive: true,
     };
   }
 
@@ -285,55 +332,74 @@ export class SafetyAgent {
    * Returns status of all dependencies and services
    */
   private async getHealthStatus(): Promise<{
-    status: 'healthy' | 'degraded' | 'unhealthy';
+    status: "healthy" | "degraded" | "unhealthy";
     services: Record<string, { status: string; message?: string }>;
     timestamp: string;
   }> {
     const services: Record<string, { status: string; message?: string }> = {};
-    let overallStatus: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
+    let overallStatus: "healthy" | "degraded" | "unhealthy" = "healthy";
 
     // Check tidal service
     try {
-      const stations = await this.tidalService.findNearestStations(40.7128, -74.0060, 100);
+      const stations = await this.tidalService.findNearestStations(
+        40.7128,
+        -74.006,
+        100,
+      );
       services.tidalService = {
-        status: stations.length > 0 ? 'healthy' : 'degraded',
-        message: `${stations.length} stations available`
+        status: stations.length > 0 ? "healthy" : "degraded",
+        message: `${stations.length} stations available`,
       };
-      if (stations.length === 0) overallStatus = 'degraded';
+      if (stations.length === 0) overallStatus = "degraded";
     } catch (error: any) {
-      services.tidalService = { status: 'unhealthy', message: error.message };
-      overallStatus = 'degraded';
+      services.tidalService = { status: "unhealthy", message: error.message };
+      overallStatus = "degraded";
     }
 
     // Check bathymetry service
     try {
       // Simple ping check
-      services.bathymetryService = { status: 'healthy', message: 'Service available' };
+      services.bathymetryService = {
+        status: "healthy",
+        message: "Service available",
+      };
     } catch (error: any) {
-      services.bathymetryService = { status: 'unhealthy', message: error.message };
-      overallStatus = 'degraded';
+      services.bathymetryService = {
+        status: "unhealthy",
+        message: error.message,
+      };
+      overallStatus = "degraded";
     }
 
     // Check navigation warnings service
     try {
-      services.navigationWarningsService = { status: 'healthy', message: 'Service available' };
+      services.navigationWarningsService = {
+        status: "healthy",
+        message: "Service available",
+      };
     } catch (error: any) {
-      services.navigationWarningsService = { status: 'unhealthy', message: error.message };
-      overallStatus = 'degraded';
+      services.navigationWarningsService = {
+        status: "unhealthy",
+        message: error.message,
+      };
+      overallStatus = "degraded";
     }
 
     // Check NOAA API key
     if (!this.noaaApiKey) {
-      services.noaaApi = { status: 'degraded', message: 'API key not configured' };
-      overallStatus = 'degraded';
+      services.noaaApi = {
+        status: "degraded",
+        message: "API key not configured",
+      };
+      overallStatus = "degraded";
     } else {
-      services.noaaApi = { status: 'healthy', message: 'API key configured' };
+      services.noaaApi = { status: "healthy", message: "API key configured" };
     }
 
     return {
       status: overallStatus,
       services,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -357,49 +423,69 @@ export class SafetyAgent {
     latitude: number,
     longitude: number,
     departureTime: Date | string | undefined,
-    durationHours: number = 24
-  ): Promise<{ tidalHeight: number; stationId: string; stationName: string; confidence: 'high' | 'medium' | 'low' }> {
+    durationHours: number = 24,
+  ): Promise<{
+    tidalHeight: number;
+    stationId: string;
+    stationName: string;
+    confidence: "high" | "medium" | "low";
+  }> {
     try {
       // Parse departure time or default to now
       const startTime = departureTime ? new Date(departureTime) : new Date();
-      const endTime = new Date(startTime.getTime() + durationHours * 60 * 60 * 1000);
+      const endTime = new Date(
+        startTime.getTime() + durationHours * 60 * 60 * 1000,
+      );
 
       // Find nearest tidal station to the location
-      const stations = await this.tidalService.findNearestStations(latitude, longitude, 50);
+      const stations = await this.tidalService.findNearestStations(
+        latitude,
+        longitude,
+        50,
+      );
 
       if (stations.length === 0) {
-        this.logger.warn({ latitude, longitude }, 'No tidal stations found within 50nm - using conservative default');
+        this.logger.warn(
+          { latitude, longitude },
+          "No tidal stations found within 50nm - using conservative default",
+        );
         // Return conservative estimate of -3 feet if no station available
         return {
           tidalHeight: -3.0,
-          stationId: 'UNKNOWN',
-          stationName: 'No station available - conservative estimate',
-          confidence: 'low'
+          stationId: "UNKNOWN",
+          stationName: "No station available - conservative estimate",
+          confidence: "low",
         };
       }
 
       const nearestStation = stations[0];
-      this.logger.info({
-        stationId: nearestStation.id,
-        stationName: nearestStation.name,
-        latitude,
-        longitude
-      }, 'Found nearest tidal station for safety calculation');
+      this.logger.info(
+        {
+          stationId: nearestStation.id,
+          stationName: nearestStation.name,
+          latitude,
+          longitude,
+        },
+        "Found nearest tidal station for safety calculation",
+      );
 
       // Get tidal predictions for the passage window
       const tidalData: TidalData = await this.tidalService.getTidalPredictions(
         nearestStation.id,
         startTime,
-        endTime
+        endTime,
       );
 
       if (!tidalData.predictions || tidalData.predictions.length === 0) {
-        this.logger.warn({ stationId: nearestStation.id }, 'No tidal predictions available - using conservative default');
+        this.logger.warn(
+          { stationId: nearestStation.id },
+          "No tidal predictions available - using conservative default",
+        );
         return {
           tidalHeight: -3.0,
           stationId: nearestStation.id,
           stationName: nearestStation.name,
-          confidence: 'low'
+          confidence: "low",
         };
       }
 
@@ -411,32 +497,38 @@ export class SafetyAgent {
 
       // Determine confidence based on station distance
       const stationDistance = (stations[0] as any).distance || 0;
-      let confidence: 'high' | 'medium' | 'low' = 'high';
-      if (stationDistance > 25) confidence = 'medium';
-      if (stationDistance > 40) confidence = 'low';
+      let confidence: "high" | "medium" | "low" = "high";
+      if (stationDistance > 25) confidence = "medium";
+      if (stationDistance > 40) confidence = "low";
 
-      this.logger.info({
-        stationId: nearestStation.id,
-        lowestTide: lowestTide.height,
-        lowestTideTime: lowestTide.time,
-        totalPredictions: tidalData.predictions.length,
-        confidence
-      }, 'Calculated lowest tidal adjustment for safety (MOST CONSERVATIVE)');
+      this.logger.info(
+        {
+          stationId: nearestStation.id,
+          lowestTide: lowestTide.height,
+          lowestTideTime: lowestTide.time,
+          totalPredictions: tidalData.predictions.length,
+          confidence,
+        },
+        "Calculated lowest tidal adjustment for safety (MOST CONSERVATIVE)",
+      );
 
       return {
         tidalHeight: lowestTide.height,
         stationId: nearestStation.id,
         stationName: nearestStation.name,
-        confidence
+        confidence,
       };
     } catch (error) {
-      this.logger.error({ error, latitude, longitude }, 'Failed to get tidal adjustment - using conservative default');
+      this.logger.error(
+        { error, latitude, longitude },
+        "Failed to get tidal adjustment - using conservative default",
+      );
       // On error, return conservative negative adjustment for safety
       return {
         tidalHeight: -3.0,
-        stationId: 'ERROR',
-        stationName: 'Error fetching tidal data - conservative estimate',
-        confidence: 'low'
+        stationId: "ERROR",
+        stationName: "Error fetching tidal data - conservative estimate",
+        confidence: "low",
       };
     }
   }
@@ -446,21 +538,29 @@ export class SafetyAgent {
 
     // Validate required parameters
     if (!route || !Array.isArray(route) || route.length === 0) {
-      throw new Error('Route is required and must be a non-empty array');
+      throw new Error("Route is required and must be a non-empty array");
     }
 
     // Validate each waypoint
     // SAFETY: Use explicit null/undefined checks — !value is truthy for lat=0 (equator)
     for (const waypoint of route) {
-      if (waypoint.latitude === undefined || waypoint.latitude === null ||
-          waypoint.longitude === undefined || waypoint.longitude === null) {
-        throw new Error('Each waypoint must have latitude and longitude');
+      if (
+        waypoint.latitude === undefined ||
+        waypoint.latitude === null ||
+        waypoint.longitude === undefined ||
+        waypoint.longitude === null
+      ) {
+        throw new Error("Each waypoint must have latitude and longitude");
       }
       if (waypoint.latitude < -90 || waypoint.latitude > 90) {
-        throw new Error(`Invalid latitude: ${waypoint.latitude}. Must be between -90 and 90`);
+        throw new Error(
+          `Invalid latitude: ${waypoint.latitude}. Must be between -90 and 90`,
+        );
       }
       if (waypoint.longitude < -180 || waypoint.longitude > 180) {
-        throw new Error(`Invalid longitude: ${waypoint.longitude}. Must be between -180 and 180`);
+        throw new Error(
+          `Invalid longitude: ${waypoint.longitude}. Must be between -180 and 180`,
+        );
       }
     }
 
@@ -470,24 +570,24 @@ export class SafetyAgent {
 
     // Check for restricted areas along the route
     const restrictedAreaConflicts = this.areaChecker.checkRoute(route);
-    
+
     for (const [areaId, area] of restrictedAreaConflicts) {
       warnings.push({
         id: uuidv4(),
-        type: 'regulatory',
+        type: "regulatory",
         area: area.bounds,
         description: `Route passes through ${area.name} (${area.type})`,
-        action: area.restrictions.join('; '),
-        severity: area.type === 'military' ? 'urgent' : 'warning',
+        action: area.restrictions.join("; "),
+        severity: area.type === "military" ? "urgent" : "warning",
         issued: new Date().toISOString(),
         source: area.authority,
       });
 
       hazards.push({
         id: areaId,
-        type: 'restricted_area',
+        type: "restricted_area",
         location: route[0], // Approximate
-        severity: area.type === 'military' ? 'high' : 'moderate',
+        severity: area.type === "military" ? "high" : "moderate",
         description: `${area.name}: ${area.description}`,
         avoidance: area.restrictions[0],
       });
@@ -495,79 +595,112 @@ export class SafetyAgent {
       this.auditLogger.logHazardDetected(
         requestId,
         undefined,
-        'restricted_area',
+        "restricted_area",
         route[0],
-        area.type === 'military' ? 'high' : 'moderate',
-        area.name
+        area.type === "military" ? "high" : "moderate",
+        area.name,
       );
     }
 
     // SAFETY: Helper to check depth at a single lat/lon point
-    const checkDepthAtPoint = async (point: { latitude: number; longitude: number }) => {
+    const checkDepthAtPoint = async (point: {
+      latitude: number;
+      longitude: number;
+    }) => {
       try {
-        const depthResult = await this.bathymetryService.getDepth(point.latitude, point.longitude);
+        const depthResult = await this.bathymetryService.getDepth(
+          point.latitude,
+          point.longitude,
+        );
 
-        if (isNaN(depthResult.depth) || depthResult.confidence === 'unknown') {
-          this.logger.warn({ location: point, source: depthResult.source, requestId },
-            'SAFETY WARNING: Unable to obtain reliable depth data');
+        if (isNaN(depthResult.depth) || depthResult.confidence === "unknown") {
+          this.logger.warn(
+            { location: point, source: depthResult.source, requestId },
+            "SAFETY WARNING: Unable to obtain reliable depth data",
+          );
           warnings.push({
             id: uuidv4(),
-            type: 'data_unavailable',
+            type: "data_unavailable",
             location: point,
-            description: 'Unable to obtain reliable depth data for this area. Exercise extreme caution.',
-            severity: 'warning',
+            description:
+              "Unable to obtain reliable depth data for this area. Exercise extreme caution.",
+            severity: "warning",
             issued: new Date().toISOString(),
-            source: 'BathymetryService',
+            source: "BathymetryService",
           });
         }
 
         const chartedDepthFeet = depthResult.depthFeet;
         const tidalResult = await this.getLowestTidalAdjustment(
-          point.latitude, point.longitude, departure_time, 24
+          point.latitude,
+          point.longitude,
+          departure_time,
+          24,
         );
         const tidalAdjustment = tidalResult.tidalHeight;
         const depthCalc = this.depthCalculator.calculateDepthSafety(
-          point, chartedDepthFeet, vessel_draft, tidalAdjustment
+          point,
+          chartedDepthFeet,
+          vessel_draft,
+          tidalAdjustment,
         );
 
-        this.auditLogger.logDataSource(requestId, 'bathymetry',
-          depthResult.source, depthResult.confidence, point);
-        this.auditLogger.logDataSource(requestId, 'tidal',
+        this.auditLogger.logDataSource(
+          requestId,
+          "bathymetry",
+          depthResult.source,
+          depthResult.confidence,
+          point,
+        );
+        this.auditLogger.logDataSource(
+          requestId,
+          "tidal",
           `NOAA Station: ${tidalResult.stationName} (${tidalResult.stationId})`,
-          tidalResult.confidence, point);
+          tidalResult.confidence,
+          point,
+        );
 
-        if (tidalResult.confidence === 'low') {
+        if (tidalResult.confidence === "low") {
           warnings.push({
             id: uuidv4(),
-            type: 'tidal_data_quality',
+            type: "tidal_data_quality",
             location: point,
-            description: `Tidal data confidence is low (Station: ${tidalResult.stationName}). ` +
-                         `Using conservative estimate of ${tidalResult.tidalHeight.toFixed(1)}ft. ` +
-                         `Verify local tide conditions independently.`,
-            severity: 'warning',
+            description:
+              `Tidal data confidence is low (Station: ${tidalResult.stationName}). ` +
+              `Using conservative estimate of ${tidalResult.tidalHeight.toFixed(1)}ft. ` +
+              `Verify local tide conditions independently.`,
+            severity: "warning",
             issued: new Date().toISOString(),
-            source: 'NOAATidalService',
+            source: "NOAATidalService",
           });
         }
 
         if (depthCalc.isGroundingRisk) {
           hazards.push({
             id: uuidv4(),
-            type: 'shallow_water',
+            type: "shallow_water",
             location: point,
             description: `Shallow water: ${depthCalc.recommendation}`,
             severity: depthCalc.severity,
-            avoidance: depthCalc.severity === 'critical'
-              ? 'DO NOT PROCEED - find alternative route'
-              : 'Monitor depth closely, consider waiting for higher tide',
+            avoidance:
+              depthCalc.severity === "critical"
+                ? "DO NOT PROCEED - find alternative route"
+                : "Monitor depth closely, consider waiting for higher tide",
           });
           this.auditLogger.logHazardDetected(
-            requestId, undefined, 'shallow_water', point,
-            depthCalc.severity, depthCalc.recommendation
+            requestId,
+            undefined,
+            "shallow_water",
+            point,
+            depthCalc.severity,
+            depthCalc.recommendation,
           );
         }
       } catch (error) {
-        this.logger.warn({ error, point }, 'Depth calculation failed for point');
+        this.logger.warn(
+          { error, point },
+          "Depth calculation failed for point",
+        );
       }
     };
 
@@ -576,7 +709,7 @@ export class SafetyAgent {
       const segment = {
         from: route[i],
         to: route[i + 1],
-        distance: this.calculateDistance(route[i], route[i + 1])
+        distance: this.calculateDistance(route[i], route[i + 1]),
       };
 
       // Check for shallow water hazards if vessel draft is provided
@@ -588,12 +721,19 @@ export class SafetyAgent {
         const SAMPLE_INTERVAL_NM = 10; // sample every 10nm
         const MAX_INTERMEDIATE_SAMPLES = 5;
         if (segment.distance > SAMPLE_INTERVAL_NM) {
-          const numSamples = Math.min(Math.floor(segment.distance / SAMPLE_INTERVAL_NM), MAX_INTERMEDIATE_SAMPLES);
+          const numSamples = Math.min(
+            Math.floor(segment.distance / SAMPLE_INTERVAL_NM),
+            MAX_INTERMEDIATE_SAMPLES,
+          );
           for (let s = 1; s <= numSamples; s++) {
             const fraction = s / (numSamples + 1);
             const intPoint = {
-              latitude: segment.from.latitude + (segment.to.latitude - segment.from.latitude) * fraction,
-              longitude: segment.from.longitude + (segment.to.longitude - segment.from.longitude) * fraction,
+              latitude:
+                segment.from.latitude +
+                (segment.to.latitude - segment.from.latitude) * fraction,
+              longitude:
+                segment.from.longitude +
+                (segment.to.longitude - segment.from.longitude) * fraction,
             };
             await checkDepthAtPoint(intPoint);
           }
@@ -607,43 +747,55 @@ export class SafetyAgent {
     }
 
     // Add general safety recommendations
-    recommendations.push('Ensure all safety equipment is accessible and functional');
-    recommendations.push('File a float plan with a trusted contact');
-    recommendations.push('Monitor VHF Channel 16 continuously');
-    recommendations.push('Check weather updates every 4-6 hours');
+    recommendations.push(
+      "Ensure all safety equipment is accessible and functional",
+    );
+    recommendations.push("File a float plan with a trusted contact");
+    recommendations.push("Monitor VHF Channel 16 continuously");
+    recommendations.push("Check weather updates every 4-6 hours");
 
     // Adjust recommendations based on crew experience
     if (crew_experience) {
-      const experienceLevel = crew_experience as CrewExperience['level'];
-      if (experienceLevel === 'novice') {
-        recommendations.push('NOVICE CREW: Consider having experienced crew aboard or delaying until more experience gained');
-        recommendations.push('NOVICE CREW: Practice MOB drills before departure');
-        recommendations.push('NOVICE CREW: Avoid night passages and heavy weather');
-      } else if (experienceLevel === 'intermediate') {
-        recommendations.push('Consider weather conditions carefully given experience level');
-        recommendations.push('Have experienced crew available for consultation via radio');
+      const experienceLevel = crew_experience as CrewExperience["level"];
+      if (experienceLevel === "novice") {
+        recommendations.push(
+          "NOVICE CREW: Consider having experienced crew aboard or delaying until more experience gained",
+        );
+        recommendations.push(
+          "NOVICE CREW: Practice MOB drills before departure",
+        );
+        recommendations.push(
+          "NOVICE CREW: Avoid night passages and heavy weather",
+        );
+      } else if (experienceLevel === "intermediate") {
+        recommendations.push(
+          "Consider weather conditions carefully given experience level",
+        );
+        recommendations.push(
+          "Have experienced crew available for consultation via radio",
+        );
       }
     }
 
     if (route.length > 10) {
-      recommendations.push('Consider planning rest stops for long passage');
+      recommendations.push("Consider planning rest stops for long passage");
     }
 
     // Calculate safety score with crew experience factoring
     let safetyScore: string;
     const hazardCount = hazards.length;
     const warningCount = warnings.length;
-    
+
     if (hazardCount === 0 && warningCount === 0) {
-      safetyScore = 'Excellent';
+      safetyScore = "Excellent";
     } else if (hazardCount === 0 && warningCount < 2) {
-      safetyScore = 'Good';
+      safetyScore = "Good";
     } else if (hazardCount < 2 && warningCount < 4) {
-      safetyScore = crew_experience === 'novice' ? 'Fair' : 'Good';
+      safetyScore = crew_experience === "novice" ? "Fair" : "Good";
     } else if (hazardCount < 4) {
-      safetyScore = 'Fair';
+      safetyScore = "Fair";
     } else {
-      safetyScore = 'Poor';
+      safetyScore = "Poor";
     }
 
     const safetyAnalysis = {
@@ -655,7 +807,12 @@ export class SafetyAgent {
       hazards,
       recommendations,
       crewExperienceConsidered: !!crew_experience,
-      emergencyProcedures: this.buildAdaptiveEmergencyProcedures(hazards, warnings, route, crew_experience),
+      emergencyProcedures: this.buildAdaptiveEmergencyProcedures(
+        hazards,
+        warnings,
+        route,
+        crew_experience,
+      ),
     };
 
     // Log the analysis to audit trail
@@ -666,24 +823,31 @@ export class SafetyAgent {
       hazards.length,
       warnings.length,
       safetyScore,
-      ['Safety Agent Analysis', 'Restricted Area Database'],
-      hazards.length === 0 ? 'high' : 'medium'
+      ["Safety Agent Analysis", "Restricted Area Database"],
+      hazards.length === 0 ? "high" : "medium",
     );
 
-    this.logger.info({ hazards: hazards.length, warnings: warnings.length, requestId }, 'Route safety analyzed');
-    return { content: [{ type: 'text', text: JSON.stringify(safetyAnalysis, null, 2) }] };
+    this.logger.info(
+      { hazards: hazards.length, warnings: warnings.length, requestId },
+      "Route safety analyzed",
+    );
+    return {
+      content: [
+        { type: "text", text: JSON.stringify(safetyAnalysis, null, 2) },
+      ],
+    };
   }
 
   private async getNavigationWarnings(bounds: any): Promise<any> {
     // Validate bounds
     if (!bounds) {
-      throw new Error('Bounds are required');
+      throw new Error("Bounds are required");
     }
     if (!bounds.north || !bounds.south || !bounds.east || !bounds.west) {
-      throw new Error('Bounds must include north, south, east, and west');
+      throw new Error("Bounds must include north, south, east, and west");
     }
     if (bounds.north < bounds.south) {
-      throw new Error('North latitude must be greater than south latitude');
+      throw new Error("North latitude must be greater than south latitude");
     }
 
     try {
@@ -715,31 +879,40 @@ export class SafetyAgent {
       }));
 
       // Log data source for audit
-      this.logger.info({
-        source: response.source,
-        warningCount: response.totalCount,
-        fetchedAt: response.fetchedAt,
-      }, 'Navigation warnings retrieved from NOAA');
+      this.logger.info(
+        {
+          source: response.source,
+          warningCount: response.totalCount,
+          fetchedAt: response.fetchedAt,
+        },
+        "Navigation warnings retrieved from NOAA",
+      );
 
       return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            area: bounds,
-            warningCount: warnings.length,
-            warnings,
-            lastUpdated: response.fetchedAt.toISOString(),
-            source: response.source,
-            dataFreshness: {
-              fetchedAt: response.fetchedAt.toISOString(),
-              isStale: false,
-              note: 'Real-time data from NOAA National Weather Service',
-            },
-          }, null, 2)
-        }]
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                area: bounds,
+                warningCount: warnings.length,
+                warnings,
+                lastUpdated: response.fetchedAt.toISOString(),
+                source: response.source,
+                dataFreshness: {
+                  fetchedAt: response.fetchedAt.toISOString(),
+                  isStale: false,
+                  note: "Real-time data from NOAA National Weather Service",
+                },
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     } catch (error) {
-      this.logger.error({ error, bounds }, 'Failed to get navigation warnings');
+      this.logger.error({ error, bounds }, "Failed to get navigation warnings");
       throw error;
     }
   }
@@ -749,101 +922,112 @@ export class SafetyAgent {
    */
   private mapNWSSeverityToSafetyLevel(severity: string): string {
     switch (severity) {
-      case 'extreme':
-        return 'urgent';
-      case 'severe':
-        return 'urgent';
-      case 'moderate':
-        return 'warning';
-      case 'minor':
-        return 'advisory';
+      case "extreme":
+        return "urgent";
+      case "severe":
+        return "urgent";
+      case "moderate":
+        return "warning";
+      case "minor":
+        return "advisory";
       default:
-        return 'info';
+        return "info";
     }
   }
 
-  private async getEmergencyContacts(lat: number, lon: number, country?: string): Promise<any> {
+  private async getEmergencyContacts(
+    lat: number,
+    lon: number,
+    country?: string,
+  ): Promise<any> {
     // Validate coordinates
     if (lat === undefined || lon === undefined) {
-      throw new Error('Latitude and longitude are required');
+      throw new Error("Latitude and longitude are required");
     }
     if (lat < -90 || lat > 90) {
       throw new Error(`Invalid latitude: ${lat}. Must be between -90 and 90`);
     }
     if (lon < -180 || lon > 180) {
-      throw new Error(`Invalid longitude: ${lon}. Must be between -180 and 180`);
+      throw new Error(
+        `Invalid longitude: ${lon}. Must be between -180 and 180`,
+      );
     }
-    
+
     // Determine country from coordinates if not provided
-    const detectedCountry = country || 'US';
+    const detectedCountry = country || "US";
 
     const contacts = {
       location: { latitude: lat, longitude: lon },
       country: detectedCountry,
       emergency: {
         coastGuard: {
-          name: 'US Coast Guard',
-          vhf: 'Channel 16 (156.8 MHz)',
-          phone: '+1-800-368-5647',
-          mmsi: '003669999',
-          email: 'D1-SMB-D1CommandCenter@uscg.mil'
+          name: "US Coast Guard",
+          vhf: "Channel 16 (156.8 MHz)",
+          phone: "+1-800-368-5647",
+          mmsi: "003669999",
+          email: "D1-SMB-D1CommandCenter@uscg.mil",
         },
         rescue: {
-          name: 'Search and Rescue',
-          phone: '911 (US) or 112 (International)',
-          vhf: 'Channel 16'
-        }
+          name: "Search and Rescue",
+          phone: "911 (US) or 112 (International)",
+          vhf: "Channel 16",
+        },
       },
       towingServices: [
         {
-          name: 'SeaTow',
-          phone: '+1-800-473-2869',
-          vhf: 'Channel 16, then switch to working channel',
-          coverage: 'US Coastal waters',
-          membership: 'Required for free service'
+          name: "SeaTow",
+          phone: "+1-800-473-2869",
+          vhf: "Channel 16, then switch to working channel",
+          coverage: "US Coastal waters",
+          membership: "Required for free service",
         },
         {
-          name: 'BoatUS',
-          phone: '+1-800-391-4869',
-          vhf: 'Channel 16, then switch to working channel',
-          coverage: 'US Coastal waters',
-          membership: 'Required for free service'
-        }
+          name: "BoatUS",
+          phone: "+1-800-391-4869",
+          vhf: "Channel 16, then switch to working channel",
+          coverage: "US Coastal waters",
+          membership: "Required for free service",
+        },
       ],
       medical: {
-        poisonControl: '+1-800-222-1222',
+        poisonControl: "+1-800-222-1222",
         medicalAdvice: {
-          service: 'USCG Medical Advisory',
-          contact: 'Via Coast Guard on Channel 16'
+          service: "USCG Medical Advisory",
+          contact: "Via Coast Guard on Channel 16",
         },
         nearestHospital: {
-          name: 'Coastal Regional Medical Center',
-          distance: '15.3 nm',
-          phone: '+1-555-0199',
-          helicopterCapable: true
-        }
+          name: "Coastal Regional Medical Center",
+          distance: "15.3 nm",
+          phone: "+1-555-0199",
+          helicopterCapable: true,
+        },
       },
       weather: {
         vhf: {
-          wx1: '162.550 MHz',
-          wx2: '162.400 MHz',
-          wx3: '162.475 MHz'
+          wx1: "162.550 MHz",
+          wx2: "162.400 MHz",
+          wx3: "162.475 MHz",
         },
-        phone: '+1-800-472-0039',
-        text: 'Text WX to 77177'
+        phone: "+1-800-472-0039",
+        text: "Text WX to 77177",
       },
       customs: {
         cbp: {
-          name: 'Customs and Border Protection',
-          phone: '+1-800-973-2867',
-          app: 'CBP ROAM',
-          requirement: 'Report arrival immediately'
-        }
-      }
+          name: "Customs and Border Protection",
+          phone: "+1-800-973-2867",
+          app: "CBP ROAM",
+          requirement: "Report arrival immediately",
+        },
+      },
     };
 
-    this.logger.info({ lat, lon, country: detectedCountry }, 'Emergency contacts retrieved');
-    return { content: [{ type: 'text', text: JSON.stringify(contacts, null, 2) }] };
+    this.logger.info(
+      { lat, lon, country: detectedCountry },
+      "Emergency contacts retrieved",
+    );
+    return {
+      content: [{ type: "text", text: JSON.stringify(contacts, null, 2) }],
+    };
   }
 
   private async generateSafetyBrief(args: any): Promise<any> {
@@ -851,20 +1035,20 @@ export class SafetyAgent {
       departure_port,
       destination_port,
       route_distance = 100,
-      estimated_duration = '24 hours',
+      estimated_duration = "24 hours",
       crew_size = 2,
-      vessel_type = 'sailboat'
+      vessel_type = "sailboat",
     } = args;
 
     // Validate required parameters
     if (!departure_port) {
-      throw new Error('Departure port is required');
+      throw new Error("Departure port is required");
     }
     if (!destination_port) {
-      throw new Error('Destination port is required');
+      throw new Error("Destination port is required");
     }
     if (crew_size <= 0) {
-      throw new Error('Crew size must be greater than 0');
+      throw new Error("Crew size must be greater than 0");
     }
 
     const safetyBrief = {
@@ -874,105 +1058,113 @@ export class SafetyAgent {
         distance: `${route_distance} nm`,
         duration: estimated_duration,
         crew: crew_size,
-        vessel: vessel_type
+        vessel: vessel_type,
       },
       preDeparture: {
         checklist: [
-          'Weather briefing obtained and reviewed',
-          'Float plan filed with shore contact',
-          'All safety equipment checked and accessible',
-          'Life jackets fitted for all crew',
-          'Fire extinguishers checked and accessible',
-          'First aid kit stocked and location known',
-          'EPIRB/PLB registered and tested',
-          'Flares within date and accessible',
-          'Navigation lights tested',
-          'VHF radio tested on Channel 16',
-          'Engine and systems checked',
-          'Fuel and water supplies adequate (+30% reserve)',
-          'Provisions for duration plus 48 hours',
-          'Charts and navigation equipment ready',
-          'Anchor and ground tackle inspected'
-        ]
+          "Weather briefing obtained and reviewed",
+          "Float plan filed with shore contact",
+          "All safety equipment checked and accessible",
+          "Life jackets fitted for all crew",
+          "Fire extinguishers checked and accessible",
+          "First aid kit stocked and location known",
+          "EPIRB/PLB registered and tested",
+          "Flares within date and accessible",
+          "Navigation lights tested",
+          "VHF radio tested on Channel 16",
+          "Engine and systems checked",
+          "Fuel and water supplies adequate (+30% reserve)",
+          "Provisions for duration plus 48 hours",
+          "Charts and navigation equipment ready",
+          "Anchor and ground tackle inspected",
+        ],
       },
       crewBriefing: {
         topics: [
-          'Watch schedule and responsibilities',
-          'Location of all safety equipment',
-          'Man overboard procedures',
-          'Fire fighting procedures',
-          'Abandon ship procedures',
-          'Use of VHF radio and MAYDAY procedures',
-          'Location and use of through-hulls',
-          'Seasickness management',
-          'Harness and tether policy',
-          'Night watch procedures'
+          "Watch schedule and responsibilities",
+          "Location of all safety equipment",
+          "Man overboard procedures",
+          "Fire fighting procedures",
+          "Abandon ship procedures",
+          "Use of VHF radio and MAYDAY procedures",
+          "Location and use of through-hulls",
+          "Seasickness management",
+          "Harness and tether policy",
+          "Night watch procedures",
         ],
-        watchSchedule: this.generateWatchSchedule(crew_size, estimated_duration)
+        watchSchedule: this.generateWatchSchedule(
+          crew_size,
+          estimated_duration,
+        ),
       },
       emergencyProcedures: {
         manOverboard: [
           'Shout "MAN OVERBOARD"',
-          'Throw flotation immediately',
-          'Point continuously at person',
-          'Hit MOB on GPS',
-          'Execute Quick Stop or Williamson Turn',
-          'Prepare recovery equipment',
-          'Call MAYDAY if unable to recover'
+          "Throw flotation immediately",
+          "Point continuously at person",
+          "Hit MOB on GPS",
+          "Execute Quick Stop or Williamson Turn",
+          "Prepare recovery equipment",
+          "Call MAYDAY if unable to recover",
         ],
         fire: [
           'Shout "FIRE" and location',
-          'Attack base of fire with extinguisher',
-          'Turn off fuel/gas/electricity to area',
-          'If uncontrollable, prepare to abandon ship',
-          'Call MAYDAY with position'
+          "Attack base of fire with extinguisher",
+          "Turn off fuel/gas/electricity to area",
+          "If uncontrollable, prepare to abandon ship",
+          "Call MAYDAY with position",
         ],
         flooding: [
-          'Locate source of water ingress',
-          'Start manual and electric pumps',
-          'Use damage control kit if hull breach',
-          'Prepare to abandon if uncontrollable',
-          'Call MAYDAY with position and POB'
+          "Locate source of water ingress",
+          "Start manual and electric pumps",
+          "Use damage control kit if hull breach",
+          "Prepare to abandon if uncontrollable",
+          "Call MAYDAY with position and POB",
         ],
         medicalEmergency: [
-          'Administer first aid as trained',
-          'Call Coast Guard on Ch 16 for medical advice',
-          'Document symptoms and vital signs',
-          'Prepare for medevac if advised',
-          'Divert to nearest port if necessary'
-        ]
+          "Administer first aid as trained",
+          "Call Coast Guard on Ch 16 for medical advice",
+          "Document symptoms and vital signs",
+          "Prepare for medevac if advised",
+          "Divert to nearest port if necessary",
+        ],
       },
       communication: {
         vhf: {
-          emergency: 'Channel 16',
-          working: 'Channel 68, 69, 71, 72, 78A',
-          weather: 'WX1-7 as appropriate for area'
+          emergency: "Channel 16",
+          working: "Channel 68, 69, 71, 72, 78A",
+          weather: "WX1-7 as appropriate for area",
         },
         checkIn: {
-          schedule: 'Every 6 hours or at waypoints',
-          contact: 'Shore contact via phone/text when in range',
-          backup: 'Email via satellite if equipped'
-        }
+          schedule: "Every 6 hours or at waypoints",
+          contact: "Shore contact via phone/text when in range",
+          backup: "Email via satellite if equipped",
+        },
       },
       weatherMonitoring: {
         sources: [
-          'VHF Weather broadcasts',
-          'Weather apps when in cell range',
-          'Barometer readings every 4 hours',
-          'Visual observation of clouds and seas'
+          "VHF Weather broadcasts",
+          "Weather apps when in cell range",
+          "Barometer readings every 4 hours",
+          "Visual observation of clouds and seas",
         ],
         abortCriteria: [
-          'Sustained winds over 30 kts',
-          'Seas over 10 ft',
-          'Visibility under 1 nm',
-          'Thunderstorms likely',
-          'Crew injury or severe seasickness'
-        ]
-      }
+          "Sustained winds over 30 kts",
+          "Seas over 10 ft",
+          "Visibility under 1 nm",
+          "Thunderstorms likely",
+          "Crew injury or severe seasickness",
+        ],
+      },
     };
 
-    this.logger.info({ from: departure_port, to: destination_port }, 'Safety brief generated');
-    return { content: [{ type: 'text', text: JSON.stringify(safetyBrief, null, 2) }] };
+    this.logger.info(
+      { from: departure_port, to: destination_port },
+      "Safety brief generated",
+    );
+    return {
+      content: [{ type: "text", text: JSON.stringify(safetyBrief, null, 2) }],
+    };
   }
 
   private async checkWeatherHazards(args: any): Promise<any> {
@@ -980,13 +1172,17 @@ export class SafetyAgent {
 
     // Validate coordinates
     if (latitude === undefined || longitude === undefined) {
-      throw new Error('Latitude and longitude are required');
+      throw new Error("Latitude and longitude are required");
     }
     if (latitude < -90 || latitude > 90) {
-      throw new Error(`Invalid latitude: ${latitude}. Must be between -90 and 90`);
+      throw new Error(
+        `Invalid latitude: ${latitude}. Must be between -90 and 90`,
+      );
     }
     if (longitude < -180 || longitude > 180) {
-      throw new Error(`Invalid longitude: ${longitude}. Must be between -180 and 180`);
+      throw new Error(
+        `Invalid longitude: ${longitude}. Must be between -180 and 180`,
+      );
     }
 
     // Mock weather hazard analysis
@@ -994,57 +1190,66 @@ export class SafetyAgent {
       location: { latitude, longitude },
       timeRange: time_range || {
         start: new Date().toISOString(),
-        end: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+        end: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
       },
       hazardsDetected: [],
       marine: {
-        windSpeed: { max: 25, average: 15, unit: 'knots' },
-        waveHeight: { max: 8, average: 4, unit: 'feet' },
-        visibility: { min: 3, unit: 'nm' }
-      }
+        windSpeed: { max: 25, average: 15, unit: "knots" },
+        waveHeight: { max: 8, average: 4, unit: "feet" },
+        visibility: { min: 3, unit: "nm" },
+      },
     };
 
     // Check for various weather hazards
     if (hazards.marine.windSpeed.max > 30) {
       hazards.hazardsDetected.push({
-        type: 'gale_warning',
-        severity: 'high',
-        description: 'Gale force winds expected',
-        timing: '12-24 hours'
+        type: "gale_warning",
+        severity: "high",
+        description: "Gale force winds expected",
+        timing: "12-24 hours",
       });
     }
 
     if (hazards.marine.windSpeed.max > 20) {
       hazards.hazardsDetected.push({
-        type: 'small_craft_advisory',
-        severity: 'moderate',
-        description: 'Small craft should exercise caution',
-        timing: 'Next 24 hours'
+        type: "small_craft_advisory",
+        severity: "moderate",
+        description: "Small craft should exercise caution",
+        timing: "Next 24 hours",
       });
     }
 
     if (hazards.marine.visibility.min < 1) {
       hazards.hazardsDetected.push({
-        type: 'fog',
-        severity: 'moderate',
-        description: 'Dense fog possible',
-        timing: 'Early morning hours'
+        type: "fog",
+        severity: "moderate",
+        description: "Dense fog possible",
+        timing: "Early morning hours",
       });
     }
 
     // Add thunderstorm risk (mock)
     if (Math.random() > 0.7) {
       hazards.hazardsDetected.push({
-        type: 'thunderstorms',
-        severity: 'high',
-        description: 'Thunderstorms possible with dangerous lightning',
-        timing: 'Afternoon hours',
-        action: 'Seek shelter, avoid being highest point'
+        type: "thunderstorms",
+        severity: "high",
+        description: "Thunderstorms possible with dangerous lightning",
+        timing: "Afternoon hours",
+        action: "Seek shelter, avoid being highest point",
       });
     }
 
-    this.logger.info({ lat: latitude, lon: longitude, hazards: hazards.hazardsDetected.length }, 'Weather hazards checked');
-    return { content: [{ type: 'text', text: JSON.stringify(hazards, null, 2) }] };
+    this.logger.info(
+      {
+        lat: latitude,
+        lon: longitude,
+        hazards: hazards.hazardsDetected.length,
+      },
+      "Weather hazards checked",
+    );
+    return {
+      content: [{ type: "text", text: JSON.stringify(hazards, null, 2) }],
+    };
   }
 
   /**
@@ -1059,22 +1264,31 @@ export class SafetyAgent {
     hazards: any[],
     warnings: any[],
     route: any[],
-    crewExperience?: string
+    crewExperience?: string,
   ): Record<string, string> {
     const procedures: Record<string, string> = {
-      manOverboard: 'Shout "MOB", throw flotation, mark GPS, execute Quick Stop or Williamson Turn, call MAYDAY on Ch 16 if recovery in doubt',
-      engineFailure: 'Maintain steerage under sail or sea anchor; diagnose (fuel/electrical/cooling); call TowBoatUS/Sea Tow or PAN-PAN on Ch 16 if drifting toward hazards',
-      medicalEmergency: 'Administer first aid, contact USCG on Ch 16 for medical advice; prepare for medevac and divert to nearest port if advised',
-      collision: 'Check crew for injuries; assess hull integrity; plug/brace hull breach; launch life raft with grab bag if sinking; MAYDAY with position and POB',
+      manOverboard:
+        'Shout "MOB", throw flotation, mark GPS, execute Quick Stop or Williamson Turn, call MAYDAY on Ch 16 if recovery in doubt',
+      engineFailure:
+        "Maintain steerage under sail or sea anchor; diagnose (fuel/electrical/cooling); call TowBoatUS/Sea Tow or PAN-PAN on Ch 16 if drifting toward hazards",
+      medicalEmergency:
+        "Administer first aid, contact USCG on Ch 16 for medical advice; prepare for medevac and divert to nearest port if advised",
+      collision:
+        "Check crew for injuries; assess hull integrity; plug/brace hull breach; launch life raft with grab bag if sinking; MAYDAY with position and POB",
     };
 
-    const hasShallow = hazards.some(h => h.type === 'shallow_water');
-    const hasRestricted = hazards.some(h => h.type === 'restricted_area');
+    const hasShallow = hazards.some((h) => h.type === "shallow_water");
+    const hasRestricted = hazards.some((h) => h.type === "restricted_area");
     const hasWeatherWarning = warnings.some(
-      w => w.type === 'weather' || w.severity === 'urgent' || w.severity === 'critical'
+      (w) =>
+        w.type === "weather" ||
+        w.severity === "urgent" ||
+        w.severity === "critical",
     );
-    const hasTidalUncertainty = warnings.some(w => w.type === 'tidal_data_quality');
-    const hasDataGap = warnings.some(w => w.type === 'data_unavailable');
+    const hasTidalUncertainty = warnings.some(
+      (w) => w.type === "tidal_data_quality",
+    );
+    const hasDataGap = warnings.some((w) => w.type === "data_unavailable");
 
     // Route length heuristics
     let routeDistanceNm = 0;
@@ -1085,41 +1299,41 @@ export class SafetyAgent {
 
     if (hasShallow) {
       procedures.grounding =
-        'If you touch bottom: reduce sail immediately, check tide state (rising = wait for lift, falling = kedge off fast); ' +
-        'sound bilges for breach; do not attempt power refloat on a falling tide';
+        "If you touch bottom: reduce sail immediately, check tide state (rising = wait for lift, falling = kedge off fast); " +
+        "sound bilges for breach; do not attempt power refloat on a falling tide";
     }
 
     if (hasRestricted) {
       procedures.restrictedAreaIncursion =
-        'If hailed by USCG / naval authority on Ch 16: acknowledge, state intentions, alter course as directed immediately. ' +
-        'Do not stop, do not argue on-channel. Note position, time, and hailing vessel for log';
+        "If hailed by USCG / naval authority on Ch 16: acknowledge, state intentions, alter course as directed immediately. " +
+        "Do not stop, do not argue on-channel. Note position, time, and hailing vessel for log";
     }
 
     if (hasWeatherWarning) {
       procedures.heavyWeather =
-        'Reef early (first reef by 18kt, second by 25kt, storm jib by 35kt); harness + tether for everyone on deck; ' +
-        'close companionway; secure loose gear below; update position to shore contact; consider heave-to or running off';
+        "Reef early (first reef by 18kt, second by 25kt, storm jib by 35kt); harness + tether for everyone on deck; " +
+        "close companionway; secure loose gear below; update position to shore contact; consider heave-to or running off";
     }
 
     if (hasTidalUncertainty || hasDataGap) {
       procedures.navigationalUncertainty =
-        'Treat current position as an estimate: cross-check with 2 independent sources (GPS + visual/radar bearing), ' +
-        'shorten intervals between position fixes, bias toward deeper water when in doubt';
+        "Treat current position as an estimate: cross-check with 2 independent sources (GPS + visual/radar bearing), " +
+        "shorten intervals between position fixes, bias toward deeper water when in doubt";
     }
 
     if (isLongPassage) {
       procedures.abandonShip =
-        'Brief all crew on life raft location and grab-bag contents; activate EPIRB before stepping up into raft; ' +
-        'maintain VHF DSC + Ch 16 until the last possible moment; if offshore, activate PLBs individually';
+        "Brief all crew on life raft location and grab-bag contents; activate EPIRB before stepping up into raft; " +
+        "maintain VHF DSC + Ch 16 until the last possible moment; if offshore, activate PLBs individually";
       procedures.offshoreComms =
-        'Daily position report to shore contact on predetermined schedule; SSB/satellite for offshore weather updates; ' +
-        'test EPIRB/PLB registration and battery before departure';
+        "Daily position report to shore contact on predetermined schedule; SSB/satellite for offshore weather updates; " +
+        "test EPIRB/PLB registration and battery before departure";
     }
 
-    if (crewExperience === 'novice') {
+    if (crewExperience === "novice") {
       procedures.novicReinforcement =
-        'Novice crew: run a deck-tour MOB drill before leaving the dock; confirm each person can operate VHF Ch 16, ' +
-        'start the engine, and trigger the EPIRB without assistance';
+        "Novice crew: run a deck-tour MOB drill before leaving the dock; confirm each person can operate VHF Ch 16, " +
+        "start the engine, and trigger the EPIRB without assistance";
     }
 
     return procedures;
@@ -1128,14 +1342,17 @@ export class SafetyAgent {
   private calculateDistance(from: any, to: any): number {
     // Haversine formula for distance between two points
     const R = 3440; // Earth radius in nautical miles
-    const lat1 = from.latitude * Math.PI / 180;
-    const lat2 = to.latitude * Math.PI / 180;
-    const deltaLat = (to.latitude - from.latitude) * Math.PI / 180;
-    const deltaLon = (to.longitude - from.longitude) * Math.PI / 180;
+    const lat1 = (from.latitude * Math.PI) / 180;
+    const lat2 = (to.latitude * Math.PI) / 180;
+    const deltaLat = ((to.latitude - from.latitude) * Math.PI) / 180;
+    const deltaLon = ((to.longitude - from.longitude) * Math.PI) / 180;
 
-    const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-              Math.cos(lat1) * Math.cos(lat2) *
-              Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+    const a =
+      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+      Math.cos(lat1) *
+        Math.cos(lat2) *
+        Math.sin(deltaLon / 2) *
+        Math.sin(deltaLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return Math.round(R * c * 10) / 10;
@@ -1144,32 +1361,32 @@ export class SafetyAgent {
   private generateWatchSchedule(crewSize: number, duration: string): any {
     if (crewSize === 1) {
       return {
-        type: 'single-handed',
-        notes: 'Set alarms every 20 minutes, heave-to for rest when needed'
+        type: "single-handed",
+        notes: "Set alarms every 20 minutes, heave-to for rest when needed",
       };
     } else if (crewSize === 2) {
       return {
-        type: 'two-watch',
+        type: "two-watch",
         schedule: [
-          '0000-0400: Crew A',
-          '0400-0800: Crew B',
-          '0800-1200: Crew A',
-          '1200-1600: Crew B',
-          '1600-2000: Crew A',
-          '2000-0000: Crew B'
-        ]
+          "0000-0400: Crew A",
+          "0400-0800: Crew B",
+          "0800-1200: Crew A",
+          "1200-1600: Crew B",
+          "1600-2000: Crew A",
+          "2000-0000: Crew B",
+        ],
       };
     } else {
       return {
-        type: 'three-watch',
+        type: "three-watch",
         schedule: [
-          '0000-0400: Watch 1',
-          '0400-0800: Watch 2',
-          '0800-1200: Watch 3',
-          '1200-1600: Watch 1',
-          '1600-2000: Watch 2',
-          '2000-0000: Watch 3'
-        ]
+          "0000-0400: Watch 1",
+          "0400-0800: Watch 2",
+          "0800-1200: Watch 3",
+          "1200-1600: Watch 1",
+          "1600-2000: Watch 2",
+          "2000-0000: Watch 3",
+        ],
       };
     }
   }
@@ -1178,17 +1395,23 @@ export class SafetyAgent {
    * NEW TOOL: Check depth safety with comprehensive margin calculations
    */
   private async checkDepthSafety(args: any): Promise<any> {
-    const { location, charted_depth, vessel_draft, tidal_height, crew_experience } = args;
+    const {
+      location,
+      charted_depth,
+      vessel_draft,
+      tidal_height,
+      crew_experience,
+    } = args;
 
     // Validate inputs
     if (!location || !location.latitude || !location.longitude) {
-      throw new Error('Location with latitude and longitude is required');
+      throw new Error("Location with latitude and longitude is required");
     }
     if (charted_depth === undefined || charted_depth < 0) {
-      throw new Error('Charted depth is required and must be non-negative');
+      throw new Error("Charted depth is required and must be non-negative");
     }
     if (vessel_draft === undefined || vessel_draft <= 0) {
-      throw new Error('Vessel draft is required and must be positive');
+      throw new Error("Vessel draft is required and must be positive");
     }
 
     // Calculate depth safety
@@ -1196,41 +1419,50 @@ export class SafetyAgent {
       location,
       charted_depth,
       vessel_draft,
-      tidal_height || 0
+      tidal_height || 0,
     );
 
     // Adjust clearance requirements based on crew experience
     if (crew_experience) {
       const adjustedClearance = this.depthCalculator.adjustForCrewExperience(
         depthAnalysis.minimumClearance,
-        crew_experience
+        crew_experience,
       );
-      
+
       depthAnalysis.minimumClearance = adjustedClearance;
-      depthAnalysis.isGroundingRisk = depthAnalysis.clearanceAvailable < adjustedClearance;
+      depthAnalysis.isGroundingRisk =
+        depthAnalysis.clearanceAvailable < adjustedClearance;
     }
 
     const result = {
       location,
       analysis: depthAnalysis,
       crewExperienceAdjusted: !!crew_experience,
-      chartDatum: 'MLW', // Mean Low Water
+      chartDatum: "MLW", // Mean Low Water
       safetyMargins: {
-        standard: '20% of draft or 2ft minimum',
-        applied: crew_experience === 'novice' ? '30% of draft (novice crew)' : '20% of draft (standard)'
-      }
+        standard: "20% of draft or 2ft minimum",
+        applied:
+          crew_experience === "novice"
+            ? "30% of draft (novice crew)"
+            : "20% of draft (standard)",
+      },
     };
 
-    this.logger.info({ 
-      location, 
-      chartedDepth: charted_depth, 
-      vesselDraft: vessel_draft,
-      clearance: depthAnalysis.clearanceAvailable,
-      isGroundingRisk: depthAnalysis.isGroundingRisk,
-      severity: depthAnalysis.severity
-    }, 'Depth safety checked');
+    this.logger.info(
+      {
+        location,
+        chartedDepth: charted_depth,
+        vesselDraft: vessel_draft,
+        clearance: depthAnalysis.clearanceAvailable,
+        isGroundingRisk: depthAnalysis.isGroundingRisk,
+        severity: depthAnalysis.severity,
+      },
+      "Depth safety checked",
+    );
 
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
   }
 
   /**
@@ -1241,7 +1473,7 @@ export class SafetyAgent {
 
     // Validate inputs
     if (!waypoints || !Array.isArray(waypoints) || waypoints.length === 0) {
-      throw new Error('Waypoints array is required and must not be empty');
+      throw new Error("Waypoints array is required and must not be empty");
     }
 
     // Check route against restricted areas
@@ -1250,7 +1482,7 @@ export class SafetyAgent {
     const result = {
       waypoints_checked: waypoints.length,
       restricted_areas_found: conflicts.size,
-      conflicts: Array.from(conflicts.values()).map(area => ({
+      conflicts: Array.from(conflicts.values()).map((area) => ({
         id: area.id,
         name: area.name,
         type: area.type,
@@ -1259,26 +1491,48 @@ export class SafetyAgent {
         authority: area.authority,
         penalty: area.penalty,
         schedule: area.schedule,
-        severity: area.type === 'military' ? 'critical' : area.type === 'marine_sanctuary' ? 'high' : 'moderate'
+        severity:
+          area.type === "military"
+            ? "critical"
+            : area.type === "marine_sanctuary"
+              ? "high"
+              : "moderate",
       })),
-      recommendations: conflicts.size > 0 
-        ? ['Adjust route to avoid restricted areas', 'Contact authorities for permission if area must be transited', 'Maintain required distance from boundaries']
-        : ['No restricted area conflicts detected']
+      recommendations:
+        conflicts.size > 0
+          ? [
+              "Adjust route to avoid restricted areas",
+              "Contact authorities for permission if area must be transited",
+              "Maintain required distance from boundaries",
+            ]
+          : ["No restricted area conflicts detected"],
     };
 
-    this.logger.info({ 
-      waypointsChecked: waypoints.length, 
-      conflictsFound: conflicts.size 
-    }, 'Restricted areas checked');
+    this.logger.info(
+      {
+        waypointsChecked: waypoints.length,
+        conflictsFound: conflicts.size,
+      },
+      "Restricted areas checked",
+    );
 
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
   }
 
   /**
    * NEW TOOL: Apply safety override with justification
    */
   private async applySafetyOverride(args: any): Promise<any> {
-    const { user_id, warning_id, warning_type, justification, witnessed_by, expiration_hours } = args;
+    const {
+      user_id,
+      warning_id,
+      warning_type,
+      justification,
+      witnessed_by,
+      expiration_hours,
+    } = args;
 
     // Validate override request
     const validation = this.overrideManager.validateOverride({
@@ -1292,16 +1546,23 @@ export class SafetyAgent {
 
     if (!validation.isValid || !validation.canOverride) {
       return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            success: false,
-            canOverride: validation.canOverride,
-            reason: validation.reason,
-            requiresWitness: validation.requiresWitness,
-            requiresAdditionalApproval: validation.requiresAdditionalApproval,
-          }, null, 2)
-        }]
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                success: false,
+                canOverride: validation.canOverride,
+                reason: validation.reason,
+                requiresWitness: validation.requiresWitness,
+                requiresAdditionalApproval:
+                  validation.requiresAdditionalApproval,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     }
 
@@ -1327,17 +1588,24 @@ export class SafetyAgent {
         justification: override.justification,
         witnessedBy: override.witnessedBy,
       },
-      warning: '⚠️ SAFETY OVERRIDE APPLIED - You have acknowledged and accepted responsibility for overriding this safety warning. This override has been logged and may be reviewed in case of incident.',
-      acknowledgment: 'I understand that by overriding this safety warning, I accept full responsibility for any consequences.'
+      warning:
+        "⚠️ SAFETY OVERRIDE APPLIED - You have acknowledged and accepted responsibility for overriding this safety warning. This override has been logged and may be reviewed in case of incident.",
+      acknowledgment:
+        "I understand that by overriding this safety warning, I accept full responsibility for any consequences.",
     };
 
-    this.logger.warn({ 
-      userId: user_id,
-      warningId: warning_id,
-      overrideId: override.id 
-    }, '⚠️ SAFETY OVERRIDE APPLIED');
+    this.logger.warn(
+      {
+        userId: user_id,
+        warningId: warning_id,
+        overrideId: override.id,
+      },
+      "⚠️ SAFETY OVERRIDE APPLIED",
+    );
 
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
   }
 
   /**
@@ -1353,9 +1621,12 @@ export class SafetyAgent {
 /* istanbul ignore next */
 if (require.main === module) {
   const agent = new SafetyAgent();
-  agent.initialize().then(() => {
-    console.log('Safety Agent running...');
-  }).catch(console.error);
+  agent
+    .initialize()
+    .then(() => {
+      console.log("Safety Agent running...");
+    })
+    .catch(console.error);
 }
 
 export default SafetyAgent;

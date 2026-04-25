@@ -4,7 +4,11 @@ watchPatterns = ["/orchestrator/**", "/agents/**", "/shared/**", "/package.json"
 
 [deploy]
 startCommand = "node orchestrator/dist/orchestrator/src/index.js"
-healthcheckPath = "/health"
+# Use /ready (zero-dependency liveness probe) rather than /health, which
+# queries Redis per-agent and hangs indefinitely when the internal DNS
+# for redis.railway.internal can't resolve. /health remains available as
+# a detailed diagnostic endpoint.
+healthcheckPath = "/ready"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3

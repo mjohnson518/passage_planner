@@ -75,3 +75,15 @@ export function createAdminGuard(logger: Logger) {
     return next();
   };
 }
+
+/**
+ * SECURITY: Composed admin middleware — IP/country guard PLUS role check.
+ * Use this on every admin route instead of chaining the two guards by hand.
+ * Composing them here removes the privilege-escalation risk of forgetting one
+ * at a call site (SEC-H4). Must run AFTER `authenticate` so `req.user` is set.
+ */
+export function createAdminOnly(pool: Pool, logger: Logger) {
+  const guard = createAdminGuard(logger);
+  const role = createRequireAdminRole(pool, logger);
+  return [guard, role] as const;
+}

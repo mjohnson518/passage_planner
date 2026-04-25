@@ -1,9 +1,13 @@
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 import pino from "pino";
+import { loggerRedactOptions } from "@passage-planner/shared";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const logger = pino({ level: process.env.LOG_LEVEL || "info" });
+const logger = pino({
+  level: process.env.LOG_LEVEL || "info",
+  ...loggerRedactOptions,
+});
 
 export class EmailService {
   private supabase: any;

@@ -2,6 +2,7 @@ import {
   BaseAgent,
   NOAATidalService,
   CacheManager,
+  loggerRedactOptions,
 } from "@passage-planner/shared";
 import { Logger } from "pino";
 import pino from "pino";
@@ -54,6 +55,7 @@ export class TidalAgent extends BaseAgent {
         target: "pino-pretty",
         options: { colorize: true },
       },
+      ...loggerRedactOptions,
     });
 
     super(

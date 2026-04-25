@@ -3,15 +3,16 @@
  * Uses async-retry library for robust retry logic
  */
 
-import retry from 'async-retry';
-import { Logger } from 'pino';
-import pino from 'pino';
+import retry from "async-retry";
+import { Logger } from "pino";
+import pino from "pino";
+import { loggerRedactOptions } from "../../utils/loggerRedact";
 
 // Create custom AbortError since async-retry doesn't export one
 class AbortError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'AbortError';
+    this.name = "AbortError";
   }
 }
 
@@ -24,7 +25,10 @@ export interface RetryOptions {
 }
 
 export class RetryClient {
-  private static logger: Logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+  private static logger: Logger = pino({
+    level: process.env.LOG_LEVEL || "info",
+    ...loggerRedactOptions,
+  });
 
   /**
    * Retry with exponential backoff
@@ -32,64 +36,70 @@ export class RetryClient {
    */
   static async retryWithBackoff<T>(
     fn: () => Promise<T>,
-    options?: RetryOptions
+    options?: RetryOptions,
   ): Promise<T> {
     const defaultOptions: RetryOptions = {
       retries: 3,
-      minTimeout: 1000,  // Start at 1 second
+      minTimeout: 1000, // Start at 1 second
       maxTimeout: 10000, // Max 10 seconds
-      factor: 2          // Double each time
+      factor: 2, // Double each time
     };
 
     const finalOptions = { ...defaultOptions, ...options };
 
     let attemptNumber = 0;
-    
-    return retry(async (bail) => {
-      attemptNumber++;
-      
-      try {
-        return await fn();
-      } catch (error: any) {
-        this.logger.warn({
-          attemptNumber,
-          retriesLeft: (finalOptions.retries || 3) - attemptNumber,
-          error: error.message || error.toString()
-        }, `Retry attempt ${attemptNumber} failed`);
 
-        if (finalOptions.onFailedAttempt) {
-          finalOptions.onFailedAttempt({
-            ...error,
-            attemptNumber,
-            retriesLeft: (finalOptions.retries || 3) - attemptNumber
-          });
-        }
+    return retry(
+      async (bail) => {
+        attemptNumber++;
 
-        // Check if error is retryable FIRST (before client error check)
-        // This ensures 429 (rate limit) is retried even though it's a 4xx code
-        if (this.isRetryableError(error)) {
-          throw error; // Will trigger retry
-        }
+        try {
+          return await fn();
+        } catch (error: any) {
+          this.logger.warn(
+            {
+              attemptNumber,
+              retriesLeft: (finalOptions.retries || 3) - attemptNumber,
+              error: error.message || error.toString(),
+            },
+            `Retry attempt ${attemptNumber} failed`,
+          );
 
-        // Don't retry on client errors (400-499 except retryable ones)
-        if (this.isClientError(error)) {
-          const statusCode = error.statusCode || error.response?.status;
+          if (finalOptions.onFailedAttempt) {
+            finalOptions.onFailedAttempt({
+              ...error,
+              attemptNumber,
+              retriesLeft: (finalOptions.retries || 3) - attemptNumber,
+            });
+          }
+
+          // Check if error is retryable FIRST (before client error check)
+          // This ensures 429 (rate limit) is retried even though it's a 4xx code
+          if (this.isRetryableError(error)) {
+            throw error; // Will trigger retry
+          }
+
+          // Don't retry on client errors (400-499 except retryable ones)
+          if (this.isClientError(error)) {
+            const statusCode = error.statusCode || error.response?.status;
+            const message = error.message || error.toString();
+            bail(new AbortError(`Client error ${statusCode}: ${message}`));
+            return;
+          }
+
+          // Non-retryable server/unknown errors - abort
           const message = error.message || error.toString();
-          bail(new AbortError(`Client error ${statusCode}: ${message}`));
-          return;
+          bail(new AbortError(`Non-retryable error: ${message}`));
+          return; // bail() will throw
         }
-
-        // Non-retryable server/unknown errors - abort
-        const message = error.message || error.toString();
-        bail(new AbortError(`Non-retryable error: ${message}`));
-        return; // bail() will throw
-      }
-    }, {
-      retries: finalOptions.retries!,
-      minTimeout: finalOptions.minTimeout!,
-      maxTimeout: finalOptions.maxTimeout!,
-      factor: finalOptions.factor!
-    });
+      },
+      {
+        retries: finalOptions.retries!,
+        minTimeout: finalOptions.minTimeout!,
+        maxTimeout: finalOptions.maxTimeout!,
+        factor: finalOptions.factor!,
+      },
+    );
   }
 
   /**
@@ -98,41 +108,44 @@ export class RetryClient {
   static async fetchWithRetry(
     url: string,
     options?: RequestInit,
-    retryOptions?: RetryOptions
+    retryOptions?: RetryOptions,
   ): Promise<Response> {
-    return this.retryWithBackoff(
-      async () => {
-        const response = await fetch(url, options);
-        
-        // Check for retryable status codes
-        if (response.status === 503 || response.status === 429) {
-          const error: any = new Error(`HTTP ${response.status}: ${response.statusText}`);
-          error.statusCode = response.status;
-          error.response = response;
-          throw error;
-        }
-        
-        // Check for client errors (don't retry these)
-        if (response.status >= 400 && response.status < 500) {
-          const error: any = new Error(`HTTP ${response.status}: ${response.statusText}`);
-          error.statusCode = response.status;
-          error.response = response;
-          error.isClientError = true;
-          throw error;
-        }
-        
-        // Network or server errors
-        if (!response.ok) {
-          const error: any = new Error(`HTTP ${response.status}: ${response.statusText}`);
-          error.statusCode = response.status;
-          error.response = response;
-          throw error;
-        }
-        
-        return response;
-      },
-      retryOptions
-    );
+    return this.retryWithBackoff(async () => {
+      const response = await fetch(url, options);
+
+      // Check for retryable status codes
+      if (response.status === 503 || response.status === 429) {
+        const error: any = new Error(
+          `HTTP ${response.status}: ${response.statusText}`,
+        );
+        error.statusCode = response.status;
+        error.response = response;
+        throw error;
+      }
+
+      // Check for client errors (don't retry these)
+      if (response.status >= 400 && response.status < 500) {
+        const error: any = new Error(
+          `HTTP ${response.status}: ${response.statusText}`,
+        );
+        error.statusCode = response.status;
+        error.response = response;
+        error.isClientError = true;
+        throw error;
+      }
+
+      // Network or server errors
+      if (!response.ok) {
+        const error: any = new Error(
+          `HTTP ${response.status}: ${response.statusText}`,
+        );
+        error.statusCode = response.status;
+        error.response = response;
+        throw error;
+      }
+
+      return response;
+    }, retryOptions);
   }
 
   /**
@@ -140,31 +153,31 @@ export class RetryClient {
    */
   static async requestWithRetry<T>(
     requestFn: () => Promise<{ data: T; status: number }>,
-    retryOptions?: RetryOptions
+    retryOptions?: RetryOptions,
   ): Promise<T> {
-    return this.retryWithBackoff(
-      async () => {
-        try {
-          const response = await requestFn();
-          return response.data;
-        } catch (error: any) {
-          // Add status code to error if available
-          if (error.response) {
-            error.statusCode = error.response.status;
-          }
-          
-          // Log the attempt
-          this.logger.debug({
+    return this.retryWithBackoff(async () => {
+      try {
+        const response = await requestFn();
+        return response.data;
+      } catch (error: any) {
+        // Add status code to error if available
+        if (error.response) {
+          error.statusCode = error.response.status;
+        }
+
+        // Log the attempt
+        this.logger.debug(
+          {
             error: error.message,
             statusCode: error.statusCode,
-            url: error.config?.url
-          }, 'Request attempt failed');
-          
-          throw error;
-        }
-      },
-      retryOptions
-    );
+            url: error.config?.url,
+          },
+          "Request attempt failed",
+        );
+
+        throw error;
+      }
+    }, retryOptions);
   }
 
   /**
@@ -174,11 +187,11 @@ export class RetryClient {
     // Network errors are retryable
     if (!error.statusCode && error.code) {
       const networkErrorCodes = [
-        'ECONNRESET',
-        'ETIMEDOUT',
-        'ECONNREFUSED',
-        'ENOTFOUND',
-        'ENETUNREACH'
+        "ECONNRESET",
+        "ETIMEDOUT",
+        "ECONNREFUSED",
+        "ENOTFOUND",
+        "ENETUNREACH",
       ];
       return networkErrorCodes.includes(error.code);
     }
@@ -189,7 +202,7 @@ export class RetryClient {
       503, // Service Unavailable
       502, // Bad Gateway
       504, // Gateway Timeout
-      500  // Internal Server Error (sometimes transient)
+      500, // Internal Server Error (sometimes transient)
     ];
 
     // Handle both string and number status codes
@@ -212,7 +225,7 @@ export class RetryClient {
 // Export convenience function
 export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
-  options?: RetryOptions
+  options?: RetryOptions,
 ): Promise<T> {
   return RetryClient.retryWithBackoff(fn, options);
 }
@@ -221,7 +234,7 @@ export async function retryWithBackoff<T>(
 export async function fetchWithRetry(
   url: string,
   options?: RequestInit,
-  retryOptions?: RetryOptions
+  retryOptions?: RetryOptions,
 ): Promise<Response> {
   return RetryClient.fetchWithRetry(url, options, retryOptions);
 }

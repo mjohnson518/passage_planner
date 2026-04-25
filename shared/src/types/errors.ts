@@ -1,6 +1,6 @@
 /**
  * Typed Error Classes for Helmwise
- * 
+ *
  * Provides structured, informative errors with context for debugging.
  * All errors include correlation IDs for request tracing.
  */
@@ -25,10 +25,10 @@ export class ApplicationError extends Error {
 
   constructor(
     message: string,
-    code: string = 'APPLICATION_ERROR',
+    code: string = "APPLICATION_ERROR",
     statusCode: number = 500,
     context?: ErrorContext,
-    isOperational: boolean = true
+    isOperational: boolean = true,
   ) {
     super(message);
     this.name = this.constructor.name;
@@ -36,10 +36,10 @@ export class ApplicationError extends Error {
     this.statusCode = statusCode;
     this.context = context || {};
     this.isOperational = isOperational;
-    
+
     // Ensure proper prototype chain for instanceof checks
     Object.setPrototypeOf(this, new.target.prototype);
-    
+
     // Capture stack trace
     Error.captureStackTrace(this, this.constructor);
   }
@@ -60,16 +60,8 @@ export class ApplicationError extends Error {
  * Weather Service Error
  */
 export class WeatherServiceError extends ApplicationError {
-  constructor(
-    message: string,
-    context?: ErrorContext
-  ) {
-    super(
-      message,
-      'WEATHER_SERVICE_ERROR',
-      503,
-      context
-    );
+  constructor(message: string, context?: ErrorContext) {
+    super(message, "WEATHER_SERVICE_ERROR", 503, context);
   }
 }
 
@@ -77,16 +69,8 @@ export class WeatherServiceError extends ApplicationError {
  * Tidal Service Error
  */
 export class TidalServiceError extends ApplicationError {
-  constructor(
-    message: string,
-    context?: ErrorContext
-  ) {
-    super(
-      message,
-      'TIDAL_SERVICE_ERROR',
-      503,
-      context
-    );
+  constructor(message: string, context?: ErrorContext) {
+    super(message, "TIDAL_SERVICE_ERROR", 503, context);
   }
 }
 
@@ -94,16 +78,8 @@ export class TidalServiceError extends ApplicationError {
  * Route Calculation Error
  */
 export class RouteCalculationError extends ApplicationError {
-  constructor(
-    message: string,
-    context?: ErrorContext
-  ) {
-    super(
-      message,
-      'ROUTE_CALCULATION_ERROR',
-      400,
-      context
-    );
+  constructor(message: string, context?: ErrorContext) {
+    super(message, "ROUTE_CALCULATION_ERROR", 400, context);
   }
 }
 
@@ -111,16 +87,8 @@ export class RouteCalculationError extends ApplicationError {
  * Safety Validation Error
  */
 export class SafetyValidationError extends ApplicationError {
-  constructor(
-    message: string,
-    context?: ErrorContext
-  ) {
-    super(
-      message,
-      'SAFETY_VALIDATION_ERROR',
-      400,
-      context
-    );
+  constructor(message: string, context?: ErrorContext) {
+    super(message, "SAFETY_VALIDATION_ERROR", 400, context);
   }
 }
 
@@ -135,14 +103,9 @@ export class ValidationError extends ApplicationError {
     message: string,
     field?: string,
     value?: any,
-    context?: ErrorContext
+    context?: ErrorContext,
   ) {
-    super(
-      message,
-      'VALIDATION_ERROR',
-      400,
-      context
-    );
+    super(message, "VALIDATION_ERROR", 400, context);
     this.field = field;
     this.value = value;
   }
@@ -154,17 +117,8 @@ export class ValidationError extends ApplicationError {
 export class NotFoundError extends ApplicationError {
   public readonly resource: string;
 
-  constructor(
-    message: string,
-    resource: string,
-    context?: ErrorContext
-  ) {
-    super(
-      message,
-      'NOT_FOUND',
-      404,
-      context
-    );
+  constructor(message: string, resource: string, context?: ErrorContext) {
+    super(message, "NOT_FOUND", 404, context);
     this.resource = resource;
   }
 }
@@ -173,16 +127,8 @@ export class NotFoundError extends ApplicationError {
  * Authentication Error
  */
 export class AuthenticationError extends ApplicationError {
-  constructor(
-    message: string,
-    context?: ErrorContext
-  ) {
-    super(
-      message,
-      'AUTHENTICATION_ERROR',
-      401,
-      context
-    );
+  constructor(message: string, context?: ErrorContext) {
+    super(message, "AUTHENTICATION_ERROR", 401, context);
   }
 }
 
@@ -195,14 +141,9 @@ export class AuthorizationError extends ApplicationError {
   constructor(
     message: string,
     requiredPermission?: string,
-    context?: ErrorContext
+    context?: ErrorContext,
   ) {
-    super(
-      message,
-      'AUTHORIZATION_ERROR',
-      403,
-      context
-    );
+    super(message, "AUTHORIZATION_ERROR", 403, context);
     this.requiredPermission = requiredPermission;
   }
 }
@@ -213,17 +154,8 @@ export class AuthorizationError extends ApplicationError {
 export class RateLimitError extends ApplicationError {
   public readonly retryAfter?: number; // seconds
 
-  constructor(
-    message: string,
-    retryAfter?: number,
-    context?: ErrorContext
-  ) {
-    super(
-      message,
-      'RATE_LIMIT_EXCEEDED',
-      429,
-      context
-    );
+  constructor(message: string, retryAfter?: number, context?: ErrorContext) {
+    super(message, "RATE_LIMIT_EXCEEDED", 429, context);
     this.retryAfter = retryAfter;
   }
 }
@@ -239,14 +171,9 @@ export class ExternalAPIError extends ApplicationError {
     message: string,
     apiName: string,
     apiStatusCode?: number,
-    context?: ErrorContext
+    context?: ErrorContext,
   ) {
-    super(
-      message,
-      'EXTERNAL_API_ERROR',
-      503,
-      context
-    );
+    super(message, "EXTERNAL_API_ERROR", 503, context);
     this.apiName = apiName;
     this.apiStatusCode = apiStatusCode;
   }
@@ -263,14 +190,9 @@ export class DataFreshnessError extends ApplicationError {
     message: string,
     dataAge: number,
     maxAge: number,
-    context?: ErrorContext
+    context?: ErrorContext,
   ) {
-    super(
-      message,
-      'DATA_FRESHNESS_ERROR',
-      500,
-      context
-    );
+    super(message, "DATA_FRESHNESS_ERROR", 500, context);
     this.dataAge = dataAge;
     this.maxAge = maxAge;
   }
@@ -282,17 +204,13 @@ export class DataFreshnessError extends ApplicationError {
 export class DatabaseError extends ApplicationError {
   public readonly operation: string;
 
-  constructor(
-    message: string,
-    operation: string,
-    context?: ErrorContext
-  ) {
+  constructor(message: string, operation: string, context?: ErrorContext) {
     super(
       message,
-      'DATABASE_ERROR',
+      "DATABASE_ERROR",
       500,
       context,
-      false // Database errors are not operational
+      false, // Database errors are not operational
     );
     this.operation = operation;
   }
@@ -304,17 +222,13 @@ export class DatabaseError extends ApplicationError {
 export class ConfigurationError extends ApplicationError {
   public readonly configKey: string;
 
-  constructor(
-    message: string,
-    configKey: string,
-    context?: ErrorContext
-  ) {
+  constructor(message: string, configKey: string, context?: ErrorContext) {
     super(
       message,
-      'CONFIGURATION_ERROR',
+      "CONFIGURATION_ERROR",
       500,
       context,
-      false // Configuration errors are not operational
+      false, // Configuration errors are not operational
     );
     this.configKey = configKey;
   }
@@ -326,17 +240,8 @@ export class ConfigurationError extends ApplicationError {
 export class ServiceUnavailableError extends ApplicationError {
   public readonly serviceName: string;
 
-  constructor(
-    message: string,
-    serviceName: string,
-    context?: ErrorContext
-  ) {
-    super(
-      message,
-      'SERVICE_UNAVAILABLE',
-      503,
-      context
-    );
+  constructor(message: string, serviceName: string, context?: ErrorContext) {
+    super(message, "SERVICE_UNAVAILABLE", 503, context);
     this.serviceName = serviceName;
   }
 }
@@ -362,15 +267,26 @@ export function getErrorStatusCode(error: Error): number {
 }
 
 /**
- * Format error for API response
+ * Format error for API response.
+ *
+ * SECURITY (SEC-M2): The caller can request `includeStack: true` for dev
+ * tooling, but we hard-force it OFF in production regardless of caller intent.
+ * Stack traces leak internal file paths, dependency versions, and call graphs
+ * that attackers use to fingerprint the build and chain exploits.
  */
-export function formatErrorResponse(error: Error, includeStack: boolean = false) {
+export function formatErrorResponse(
+  error: Error,
+  includeStack: boolean = false,
+) {
+  const safeIncludeStack =
+    includeStack && process.env.NODE_ENV !== "production";
+
   if (error instanceof ApplicationError) {
     return {
       error: {
         message: error.message,
         code: error.code,
-        ...(includeStack ? { stack: error.stack } : {}),
+        ...(safeIncludeStack ? { stack: error.stack } : {}),
         ...(error.context || {}),
       },
     };
@@ -379,9 +295,8 @@ export function formatErrorResponse(error: Error, includeStack: boolean = false)
   return {
     error: {
       message: error.message,
-      code: 'INTERNAL_ERROR',
-      ...(includeStack ? { stack: error.stack } : {}),
+      code: "INTERNAL_ERROR",
+      ...(safeIncludeStack ? { stack: error.stack } : {}),
     },
   };
 }
-

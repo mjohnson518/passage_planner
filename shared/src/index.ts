@@ -1,51 +1,51 @@
 // Export all types
-export * from './types/core';
-export { 
+export * from "./types/core";
+export {
   Passage,
   WeatherSegment,
   TidalEvent,
   RouteSegment,
-  SafetyInfo
-} from './types/passage';
-export * from './types/boat';
-export * from './types/fleet';
+  SafetyInfo,
+} from "./types/passage";
+export * from "./types/boat";
+export * from "./types/fleet";
 
 // Export agents
-export * from './agents/BaseAgent';
+export * from "./agents/BaseAgent";
 
 // Export services
-export * from './services/APIFallbackManager';
-export * from './services/AuthService';
-export * from './services/CacheManager';
-export * from './services/ErrorHandler';
-export * from './services/MetricsService';
-export * from './services/RateLimiter';
-export * from './services/RequestValidator';
-export * from './services/StripeService';
-export * from './services/FeatureGate';
-export * from './services/NOAAWeatherService';
-export * from './services/NOAATidalService';
-export * from './services/OpenSeaMapService';
-export { 
-  PortDetails, 
-  PortFacilities, 
-  PortContact, 
-  PortNavigation, 
+export * from "./services/APIFallbackManager";
+export * from "./services/AuthService";
+export * from "./services/CacheManager";
+export * from "./services/ErrorHandler";
+export * from "./services/MetricsService";
+export * from "./services/RateLimiter";
+export * from "./services/RequestValidator";
+export * from "./services/StripeService";
+export * from "./services/FeatureGate";
+export * from "./services/NOAAWeatherService";
+export * from "./services/NOAATidalService";
+export * from "./services/OpenSeaMapService";
+export {
+  PortDetails,
+  PortFacilities,
+  PortContact,
+  PortNavigation,
   PortDatabaseService,
-  Port as PortInfo 
-} from './services/PortDatabaseService';
-export * from './services/SafetyService';
-export * from './services/BathymetryService';
-export * from './services/NOAANavigationWarningsService';
-export * from './services/NDBCBuoyService';
-export * from './services/GribService';
+  Port as PortInfo,
+} from "./services/PortDatabaseService";
+export * from "./services/SafetyService";
+export * from "./services/BathymetryService";
+export * from "./services/NOAANavigationWarningsService";
+export * from "./services/NDBCBuoyService";
+export * from "./services/GribService";
 
 // Export middleware
-export * from './middleware/InputValidation';
-export * from './middleware/SecurityHeaders';
+export * from "./middleware/InputValidation";
+export * from "./middleware/SecurityHeaders";
 
 // Export new Phase 1 enhancements - avoid duplicates with SafetyService
-export type { 
+export type {
   RestrictedArea,
   SafetyMargin,
   CrewExperience,
@@ -55,15 +55,15 @@ export type {
   SafetyOverride,
   SafetyAuditLog,
   DepthCalculation,
-  SevereWeatherPattern
-} from './types/safety';
+  SevereWeatherPattern,
+} from "./types/safety";
 // Note: Waypoint, SafetyHazard, SafetyWarning, GeographicBounds, WeatherHazard already exported
-export * from './types/errors';
-export * from './services/retry';
-export * from './services/circuit-breaker';
-export * from './services/api-client';
-export * from './services/data-freshness';
-export { CircuitBreakerFactory } from './services/resilience/circuit-breaker';
+export * from "./types/errors";
+export * from "./services/retry";
+export * from "./services/circuit-breaker";
+export * from "./services/api-client";
+export * from "./services/data-freshness";
+export { CircuitBreakerFactory } from "./services/resilience/circuit-breaker";
 
 // Export MCP errors (selective to avoid name conflicts with ErrorHandler, types/errors, types/core)
 export {
@@ -77,13 +77,14 @@ export {
   ValidationError as MCPValidationError,
   AgentError as MCPAgentError,
   ErrorCode as MCPErrorCode,
-} from './errors/mcp-errors';
+} from "./errors/mcp-errors";
 
 // Export utilities
-export * from './utils/validateEnv';
+export * from "./utils/validateEnv";
+export * from "./utils/loggerRedact";
 
 // Export safety constants (single source of truth)
-export * from './constants/safety-thresholds';
+export * from "./constants/safety-thresholds";
 
 // Export plans config (single source of truth for subscription plans)
-export * from './plans';
+export * from "./plans";

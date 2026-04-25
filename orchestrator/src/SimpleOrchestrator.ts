@@ -1,31 +1,41 @@
 // Simplified orchestrator without MCP SDK (HTTP + WebSocket only)
-import Redis from 'ioredis';
-import { WeatherAgent } from '../../agents/weather/src/index';
-import { TidalAgent } from '../../agents/tidal/src/index';
-import { RouteAgent } from '../../agents/route/src';
-import { SafetyAgent } from '../../agents/safety/src/index';
-import { PortAgent } from '../../agents/port/src/index';
-import { SafetyAuditLogger } from '../../agents/safety/src/utils/audit-logger';
-import { WeatherAggregator, AggregateForecast } from './services/weather-aggregator';
-import { WeatherRoutingService, WeatherRoute } from './services/weather-routing';
-import { BaseAgent } from '@passage-planner/shared';
-import { WebSocketServer, WebSocket } from 'ws';
-import { v4 as uuidv4 } from 'uuid';
-import express from 'express';
-import http from 'http';
-import pino from 'pino';
-import jwt from 'jsonwebtoken';
-import { z } from 'zod';
+import Redis from "ioredis";
+import { WeatherAgent } from "../../agents/weather/src/index";
+import { TidalAgent } from "../../agents/tidal/src/index";
+import { RouteAgent } from "../../agents/route/src";
+import { SafetyAgent } from "../../agents/safety/src/index";
+import { PortAgent } from "../../agents/port/src/index";
+import { SafetyAuditLogger } from "../../agents/safety/src/utils/audit-logger";
+import {
+  WeatherAggregator,
+  AggregateForecast,
+} from "./services/weather-aggregator";
+import {
+  WeatherRoutingService,
+  WeatherRoute,
+} from "./services/weather-routing";
+import { BaseAgent } from "@passage-planner/shared";
+import { WebSocketServer, WebSocket } from "ws";
+import { v4 as uuidv4 } from "uuid";
+import express from "express";
+import http from "http";
+import pino from "pino";
+import jwt from "jsonwebtoken";
+import { z } from "zod";
 import {
   WEATHER_WARN_AGE_MS,
   WEATHER_REJECT_AGE_MS,
   WEATHER_DELAY_FACTOR,
   FUEL_WATER_RESERVE_FACTOR,
   PLAN_STATUS,
+  loggerRedactOptions,
   type PlanStatus,
-} from '@passage-planner/shared';
+} from "@passage-planner/shared";
 
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+const logger = pino({
+  level: process.env.LOG_LEVEL || "info",
+  ...loggerRedactOptions,
+});
 
 interface AgentRegistry {
   [key: string]: BaseAgent | SafetyAgent;
@@ -45,7 +55,9 @@ export class SimpleOrchestrator {
   constructor() {
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) {
-      logger.warn('REDIS_URL not set — running without Redis (no caching/rate limiting)');
+      logger.warn(
+        "REDIS_URL not set — running without Redis (no caching/rate limiting)",
+      );
       this.redis = null;
     } else {
       // SAFETY/RELIABILITY: A single network blip must not take the orchestrator
@@ -55,25 +67,29 @@ export class SimpleOrchestrator {
       // hanging on cached reads).
       this.redis = new Redis(redisUrl, {
         maxRetriesPerRequest: 3,
-        retryStrategy: (times: number) => Math.min(50 * Math.pow(2, times - 1), 2000),
+        retryStrategy: (times: number) =>
+          Math.min(50 * Math.pow(2, times - 1), 2000),
         reconnectOnError: (err: Error) => {
-          const targetErrors = ['READONLY', 'ECONNRESET', 'ETIMEDOUT'];
-          return targetErrors.some(e => err.message.includes(e));
+          const targetErrors = ["READONLY", "ECONNRESET", "ETIMEDOUT"];
+          return targetErrors.some((e) => err.message.includes(e));
         },
         enableOfflineQueue: true,
         connectTimeout: 10000,
       });
-      this.redis.on('error', (err) => {
-        logger.warn({ err: err.message }, 'Redis connection error — continuing with degraded cache');
+      this.redis.on("error", (err) => {
+        logger.warn(
+          { err: err.message },
+          "Redis connection error — continuing with degraded cache",
+        );
       });
-      this.redis.on('reconnecting', (delay: number) => {
-        logger.info({ delayMs: delay }, 'Redis reconnecting');
+      this.redis.on("reconnecting", (delay: number) => {
+        logger.info({ delayMs: delay }, "Redis reconnecting");
       });
-      this.redis.on('ready', () => {
-        logger.info('Redis connection ready');
+      this.redis.on("ready", () => {
+        logger.info("Redis connection ready");
       });
     }
-    
+
     this.app = express();
     this.httpServer = http.createServer(this.app);
     this.wss = new WebSocketServer({ server: this.httpServer });
@@ -88,255 +104,353 @@ export class SimpleOrchestrator {
   }
 
   private async initializeAgents() {
-    logger.info('Initializing agents...');
+    logger.info("Initializing agents...");
 
     // Initialize all four agents - including CRITICAL SafetyAgent
-    this.agents['weather'] = new WeatherAgent();
-    logger.info('Weather agent initialized');
+    this.agents["weather"] = new WeatherAgent();
+    logger.info("Weather agent initialized");
 
-    this.agents['tidal'] = new TidalAgent();
-    logger.info('Tidal agent initialized');
+    this.agents["tidal"] = new TidalAgent();
+    logger.info("Tidal agent initialized");
 
     // RouteAgent now working with geolib (no more Turf.js ESM issues)
-    this.agents['route'] = new RouteAgent();
-    logger.info('Route agent initialized');
+    this.agents["route"] = new RouteAgent();
+    logger.info("Route agent initialized");
 
     // CRITICAL: SafetyAgent for hazard detection, depth checks, and safety warnings
     // This is life-safety infrastructure - never skip safety checks
-    this.agents['safety'] = new SafetyAgent();
-    await (this.agents['safety'] as SafetyAgent).initialize();
-    logger.info('Safety agent initialized - CRITICAL for mariner safety');
+    this.agents["safety"] = new SafetyAgent();
+    await (this.agents["safety"] as SafetyAgent).initialize();
+    logger.info("Safety agent initialized - CRITICAL for mariner safety");
 
     // PortAgent for port/marina information and emergency harbors
     await this.portAgent.initialize();
-    logger.info('Port agent initialized');
+    logger.info("Port agent initialized");
 
-    logger.info('All agents initialized');
+    logger.info("All agents initialized");
   }
 
   private async planPassage(request: any): Promise<any> {
     const planningId = uuidv4();
     const startTime = Date.now();
-    
+
     // Broadcast planning start
     this.broadcastUpdate({
-      type: 'planning_started',
+      type: "planning_started",
       planningId,
-      request
+      request,
     });
-    
-    logger.info({ planningId, request }, 'Starting passage planning with PARALLEL execution');
+
+    logger.info(
+      { planningId, request },
+      "Starting passage planning with PARALLEL execution",
+    );
 
     try {
       // PARALLEL EXECUTION - All agents at once for <3 second response!
-      logger.info({ planningId }, 'Executing all agents in parallel');
-      
+      logger.info({ planningId }, "Executing all agents in parallel");
+
       // Prepare all agent calls with timeout protection
       const agentTimeout = 30000; // 30 second timeout
-      
+
       const routePromise = Promise.race([
-        this.agents['route'].callTool('calculate_route', {
+        this.agents["route"].callTool("calculate_route", {
           startLat: request.departure.latitude,
           startLon: request.departure.longitude,
           endLat: request.destination.latitude,
           endLon: request.destination.longitude,
-          speed: request.vessel?.cruiseSpeed || 5
+          speed: request.vessel?.cruiseSpeed || 5,
         }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Route calculation timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.error({ error }, 'Route agent error');
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Route calculation timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.error({ error }, "Route agent error");
         // Fallback to simple calculation
         const distance = this.calculateSimpleDistance(
           request.departure.latitude,
           request.departure.longitude,
           request.destination.latitude,
-          request.destination.longitude
+          request.destination.longitude,
         );
         return {
           waypoints: [request.departure, request.destination],
           totalDistance: distance,
-          estimatedDuration: distance / (request.vessel?.cruiseSpeed || 5)
+          estimatedDuration: distance / (request.vessel?.cruiseSpeed || 5),
         };
       });
-      
+
       const weatherDeparturePromise = Promise.race([
-        this.agents['weather'].callTool('get_marine_weather', {
+        this.agents["weather"].callTool("get_marine_weather", {
           latitude: request.departure.latitude,
           longitude: request.departure.longitude,
-          days: 3
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Weather fetch timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.error({ error }, 'Weather departure error');
-        return null;
-      });
-      
-      const weatherArrivalPromise = Promise.race([
-        this.agents['weather'].callTool('get_marine_weather', {
-          latitude: request.destination.latitude,
-          longitude: request.destination.longitude,
-          days: 3
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Weather fetch timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.error({ error }, 'Weather arrival error');
-        return null;
-      });
-      
-      const tidalDeparturePromise = Promise.race([
-        this.agents['tidal'].callTool('get_tides', {
-          latitude: request.departure.latitude,
-          longitude: request.departure.longitude,
-          startDate: request.departure.time || new Date().toISOString(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Tidal fetch timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.error({ error }, 'Tidal departure error');
-        return null;
-      });
-      
-      const tidalArrivalPromise = Promise.race([
-        this.agents['tidal'].callTool('get_tides', {
-          latitude: request.destination.latitude,
-          longitude: request.destination.longitude,
-          startDate: request.departure.time || new Date().toISOString(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          days: 3,
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Tidal fetch timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.error({ error }, 'Tidal arrival error');
+          setTimeout(
+            () => reject(new Error("Weather fetch timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.error({ error }, "Weather departure error");
+        return null;
+      });
+
+      const weatherArrivalPromise = Promise.race([
+        this.agents["weather"].callTool("get_marine_weather", {
+          latitude: request.destination.latitude,
+          longitude: request.destination.longitude,
+          days: 3,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Weather fetch timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.error({ error }, "Weather arrival error");
+        return null;
+      });
+
+      const tidalDeparturePromise = Promise.race([
+        this.agents["tidal"].callTool("get_tides", {
+          latitude: request.departure.latitude,
+          longitude: request.departure.longitude,
+          startDate: request.departure.time || new Date().toISOString(),
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        }),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Tidal fetch timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.error({ error }, "Tidal departure error");
+        return null;
+      });
+
+      const tidalArrivalPromise = Promise.race([
+        this.agents["tidal"].callTool("get_tides", {
+          latitude: request.destination.latitude,
+          longitude: request.destination.longitude,
+          startDate: request.departure.time || new Date().toISOString(),
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        }),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Tidal fetch timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.error({ error }, "Tidal arrival error");
         return null;
       });
 
       // CRITICAL: Safety Agent checks - LIFE SAFETY INFRASTRUCTURE
       // These checks detect hazards, verify depths, and provide safety warnings
       const routeWaypoints = [
-        { latitude: request.departure.latitude, longitude: request.departure.longitude },
-        { latitude: request.destination.latitude, longitude: request.destination.longitude }
+        {
+          latitude: request.departure.latitude,
+          longitude: request.departure.longitude,
+        },
+        {
+          latitude: request.destination.latitude,
+          longitude: request.destination.longitude,
+        },
       ];
 
       const safetyRoutePromise = Promise.race([
-        this.agents['safety'].callTool('check_route_safety', {
+        this.agents["safety"].callTool("check_route_safety", {
           route: routeWaypoints,
           departure_time: request.departure.time || new Date().toISOString(),
-          vessel_draft: request.vessel?.draft || 6
+          vessel_draft: request.vessel?.draft || 6,
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Safety check timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.error({ error }, 'Safety route check error - CRITICAL');
+          setTimeout(
+            () => reject(new Error("Safety check timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.error({ error }, "Safety route check error - CRITICAL");
         // CRITICAL: Log safety system failure to audit trail
         this.auditLogger.logWarningGenerated(
-          planningId, undefined, 'system_failure', 'critical', undefined,
-          `SafetyAgent failed: ${error.message || 'Unknown error'}`
+          planningId,
+          undefined,
+          "system_failure",
+          "critical",
+          undefined,
+          `SafetyAgent failed: ${error.message || "Unknown error"}`,
         );
         // Return enriched fallback — populate warnings so they surface to the mariner
         return {
           warnings: [
-            { id: 'sf-1', type: 'system_failure', severity: 'critical', description: 'DO NOT depart without completing manual safety verification' },
-            { id: 'sf-2', type: 'system_failure', severity: 'critical', description: 'Consult official nautical charts for the entire route' },
-            { id: 'sf-3', type: 'manual_check', severity: 'critical', description: 'Check NOAA marine weather warnings for your route area' },
-            { id: 'sf-4', type: 'manual_check', severity: 'critical', description: 'Verify water depths against official nautical charts (NOAA/UKHO)' },
-            { id: 'sf-5', type: 'manual_check', severity: 'critical', description: 'Check for restricted areas and active NOTAMs along route' },
-            { id: 'sf-6', type: 'manual_check', severity: 'critical', description: 'Verify tidal heights are safe for vessel draft at all waypoints' },
-            { id: 'sf-7', type: 'manual_check', severity: 'critical', description: 'File a float plan with a trusted shore contact' },
-            { id: 'sf-8', type: 'manual_check', severity: 'critical', description: 'Monitor VHF Channel 16 continuously during passage' },
+            {
+              id: "sf-1",
+              type: "system_failure",
+              severity: "critical",
+              description:
+                "DO NOT depart without completing manual safety verification",
+            },
+            {
+              id: "sf-2",
+              type: "system_failure",
+              severity: "critical",
+              description:
+                "Consult official nautical charts for the entire route",
+            },
+            {
+              id: "sf-3",
+              type: "manual_check",
+              severity: "critical",
+              description:
+                "Check NOAA marine weather warnings for your route area",
+            },
+            {
+              id: "sf-4",
+              type: "manual_check",
+              severity: "critical",
+              description:
+                "Verify water depths against official nautical charts (NOAA/UKHO)",
+            },
+            {
+              id: "sf-5",
+              type: "manual_check",
+              severity: "critical",
+              description:
+                "Check for restricted areas and active NOTAMs along route",
+            },
+            {
+              id: "sf-6",
+              type: "manual_check",
+              severity: "critical",
+              description:
+                "Verify tidal heights are safe for vessel draft at all waypoints",
+            },
+            {
+              id: "sf-7",
+              type: "manual_check",
+              severity: "critical",
+              description: "File a float plan with a trusted shore contact",
+            },
+            {
+              id: "sf-8",
+              type: "manual_check",
+              severity: "critical",
+              description: "Monitor VHF Channel 16 continuously during passage",
+            },
           ],
           hazards: [],
-          recommendations: ['Safety check failed - exercise extreme caution'],
+          recommendations: ["Safety check failed - exercise extreme caution"],
           safetyCheckFailed: true,
           failureDetails: {
-            reason: error.message || 'Safety system unavailable',
+            reason: error.message || "Safety system unavailable",
             timestamp: new Date().toISOString(),
-          }
+          },
         };
       });
 
       const safetyBriefPromise = Promise.race([
-        this.agents['safety'].callTool('generate_safety_brief', {
-          departure_port: request.departure.name || 'Unknown',
-          destination_port: request.destination.name || 'Unknown',
+        this.agents["safety"].callTool("generate_safety_brief", {
+          departure_port: request.departure.name || "Unknown",
+          destination_port: request.destination.name || "Unknown",
           route_distance: 0, // Will be updated after route calculation
-          estimated_duration: '0h',
+          estimated_duration: "0h",
           crew_size: request.crew?.size || 2,
-          vessel_type: request.vessel?.type || 'sailboat'
+          vessel_type: request.vessel?.type || "sailboat",
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Safety brief timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.error({ error }, 'Safety brief generation error');
+          setTimeout(
+            () => reject(new Error("Safety brief timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.error({ error }, "Safety brief generation error");
         return null;
       });
 
       // Fetch real-time buoy wave data along route
       const buoyDataPromise = Promise.race([
-        this.agents['weather'].callTool('get_buoy_wave_data', {
+        this.agents["weather"].callTool("get_buoy_wave_data", {
           waypoints: routeWaypoints,
-          radius_nm: 50
+          radius_nm: 50,
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Buoy data fetch timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.warn({ error }, 'Buoy data fetch failed - using forecast-only wave estimates');
+          setTimeout(
+            () => reject(new Error("Buoy data fetch timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.warn(
+          { error },
+          "Buoy data fetch failed - using forecast-only wave estimates",
+        );
         return null;
       });
 
       // Gridded wind field for weather routing
       const windFieldPromise = Promise.race([
-        this.agents['weather'].callTool('get_route_wind_field', {
+        this.agents["weather"].callTool("get_route_wind_field", {
           waypoints: routeWaypoints,
-          forecastHours: [0, 6, 12, 18, 24, 36, 48, 72, 96, 120]
+          forecastHours: [0, 6, 12, 18, 24, 36, 48, 72, 96, 120],
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Wind field fetch timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.warn({ error }, 'Wind field fetch failed - weather routing unavailable');
+          setTimeout(
+            () => reject(new Error("Wind field fetch timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.warn(
+          { error },
+          "Wind field fetch failed - weather routing unavailable",
+        );
         return null;
       });
 
       // Port information for departure and arrival
       const departurePortPromise = Promise.race([
-        this.portAgent.handleToolCall('search_ports', {
+        this.portAgent.handleToolCall("search_ports", {
           latitude: request.departure.latitude,
           longitude: request.departure.longitude,
           radius: 25,
-          draft: request.vessel?.draft
+          draft: request.vessel?.draft,
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Port search timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.warn({ error }, 'Departure port search failed');
+          setTimeout(
+            () => reject(new Error("Port search timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.warn({ error }, "Departure port search failed");
         return null;
       });
 
       const arrivalPortPromise = Promise.race([
-        this.portAgent.handleToolCall('search_ports', {
+        this.portAgent.handleToolCall("search_ports", {
           latitude: request.destination.latitude,
           longitude: request.destination.longitude,
           radius: 25,
-          draft: request.vessel?.draft
+          draft: request.vessel?.draft,
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Port search timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.warn({ error }, 'Arrival port search failed');
+          setTimeout(
+            () => reject(new Error("Port search timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.warn({ error }, "Arrival port search failed");
         return null;
       });
 
@@ -346,28 +460,32 @@ export class SimpleOrchestrator {
       const depLon = request.departure.longitude;
       const destLat = request.destination.latitude;
       const destLon = request.destination.longitude;
-      const quarterPoints = [0.25, 0.5, 0.75].map(f => ({
+      const quarterPoints = [0.25, 0.5, 0.75].map((f) => ({
         latitude: depLat + (destLat - depLat) * f,
         longitude: depLon + (destLon - depLon) * f,
       }));
 
       const emergencyHarborsPromise = Promise.race([
         Promise.all(
-          quarterPoints.map(pt =>
-            this.portAgent.handleToolCall('find_emergency_harbors', {
-              latitude: pt.latitude,
-              longitude: pt.longitude,
-              maxDistance: 100,
-              draft: request.vessel?.draft
-            }).catch(() => null)
-          )
-        ).then(results => {
+          quarterPoints.map((pt) =>
+            this.portAgent
+              .handleToolCall("find_emergency_harbors", {
+                latitude: pt.latitude,
+                longitude: pt.longitude,
+                maxDistance: 100,
+                draft: request.vessel?.draft,
+              })
+              .catch(() => null),
+          ),
+        ).then((results) => {
           // Merge and deduplicate harbors from all three search points
           const seen = new Set<string>();
           const harbors: any[] = [];
           for (const result of results) {
             if (!result) continue;
-            const content = result?.content?.find((c: any) => c.type === 'data')?.data?.harbors || [];
+            const content =
+              result?.content?.find((c: any) => c.type === "data")?.data
+                ?.harbors || [];
             for (const h of content) {
               const key = h.id || h.name;
               if (key && !seen.has(key)) {
@@ -377,20 +495,36 @@ export class SimpleOrchestrator {
             }
           }
           // Return in same MCP content format as a single call
-          return { content: [{ type: 'data', data: { harbors } }] };
+          return { content: [{ type: "data", data: { harbors } }] };
         }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Emergency harbor search timeout')), agentTimeout)
-        )
-      ]).catch(error => {
-        logger.warn({ error }, 'Emergency harbor search failed');
+          setTimeout(
+            () => reject(new Error("Emergency harbor search timeout")),
+            agentTimeout,
+          ),
+        ),
+      ]).catch((error) => {
+        logger.warn({ error }, "Emergency harbor search failed");
         return null;
       });
 
       // EXECUTE ALL IN PARALLEL - THIS IS THE KEY!
       // Including CRITICAL safety checks in parallel execution
       const parallelStart = Date.now();
-      const [route, weatherDeparture, weatherArrival, tidalDeparture, tidalArrival, safetyRoute, safetyBrief, buoyData, windFieldResult, departurePort, arrivalPort, emergencyHarbors] = await Promise.all([
+      const [
+        route,
+        weatherDeparture,
+        weatherArrival,
+        tidalDeparture,
+        tidalArrival,
+        safetyRoute,
+        safetyBrief,
+        buoyData,
+        windFieldResult,
+        departurePort,
+        arrivalPort,
+        emergencyHarbors,
+      ] = await Promise.all([
         routePromise,
         weatherDeparturePromise,
         weatherArrivalPromise,
@@ -402,34 +536,49 @@ export class SimpleOrchestrator {
         windFieldPromise,
         departurePortPromise,
         arrivalPortPromise,
-        emergencyHarborsPromise
+        emergencyHarborsPromise,
       ]);
 
       const parallelTime = Date.now() - parallelStart;
-      logger.info({ parallelTime, planningId }, 'All agents completed in parallel execution (including safety)');
+      logger.info(
+        { parallelTime, planningId },
+        "All agents completed in parallel execution (including safety)",
+      );
 
       // Two-pass safety: if route agent produced intermediate waypoints, re-run safety
       // with the full waypoint list (initial safety check only had departure + destination)
       let finalSafetyRoute = safetyRoute;
       const routeWaypointsFull: any[] = (route as any)?.waypoints;
       if (Array.isArray(routeWaypointsFull) && routeWaypointsFull.length > 2) {
-        logger.info({ waypointCount: routeWaypointsFull.length, planningId },
-          'Running two-pass safety check with full route waypoints');
+        logger.info(
+          { waypointCount: routeWaypointsFull.length, planningId },
+          "Running two-pass safety check with full route waypoints",
+        );
         try {
           const fullSafetyResult = await Promise.race([
-            this.agents['safety'].callTool('check_route_safety', {
+            this.agents["safety"].callTool("check_route_safety", {
               route: routeWaypointsFull,
-              departure_time: request.departure.time || new Date().toISOString(),
-              vessel_draft: request.vessel?.draft || 6
+              departure_time:
+                request.departure.time || new Date().toISOString(),
+              vessel_draft: request.vessel?.draft || 6,
             }),
             new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Full-route safety check timeout')), agentTimeout)
-            )
+              setTimeout(
+                () => reject(new Error("Full-route safety check timeout")),
+                agentTimeout,
+              ),
+            ),
           ]);
           finalSafetyRoute = fullSafetyResult;
-          logger.info({ planningId }, 'Two-pass safety check complete — using full-route result');
+          logger.info(
+            { planningId },
+            "Two-pass safety check complete — using full-route result",
+          );
         } catch (error) {
-          logger.warn({ error, planningId }, 'Full-route safety check failed — using initial result');
+          logger.warn(
+            { error, planningId },
+            "Full-route safety check failed — using initial result",
+          );
         }
       }
 
@@ -438,44 +587,75 @@ export class SimpleOrchestrator {
 
       // Step 2: Validate weather data freshness (SAFETY CRITICAL - reject stale data)
       const freshnessWarnings: string[] = [];
-      freshnessWarnings.push(...this.validateWeatherFreshness(weatherDeparture, request.departure.name || 'departure'));
-      freshnessWarnings.push(...this.validateWeatherFreshness(weatherArrival, request.destination.name || 'arrival'));
+      freshnessWarnings.push(
+        ...this.validateWeatherFreshness(
+          weatherDeparture,
+          request.departure.name || "departure",
+        ),
+      );
+      freshnessWarnings.push(
+        ...this.validateWeatherFreshness(
+          weatherArrival,
+          request.destination.name || "arrival",
+        ),
+      );
 
       // Step 3: Extract tidal freshness warnings from agent responses
-      const tidalWarnings = this.extractTidalWarnings(tidalDeparture, tidalArrival);
+      const tidalWarnings = this.extractTidalWarnings(
+        tidalDeparture,
+        tidalArrival,
+      );
 
       // Step 3b: Multi-source weather aggregation for consensus and confidence
       // SAFETY: CLAUDE.md requires "always present worst-case scenario when forecasts disagree"
       const weatherAggregation = this.aggregateWeatherSources(
-        weatherDeparture, weatherArrival, request
+        weatherDeparture,
+        weatherArrival,
+        request,
       );
 
       // Step 4: Detect if safety system failed and build appropriate disclaimer
       const safetySystemFailed = !!(finalSafetyRoute as any)?.safetyCheckFailed;
       const safetyDisclaimer = safetySystemFailed
-        ? 'WARNING: Automated safety checks failed. Manual verification is REQUIRED before departure. Skipper retains ultimate responsibility for vessel safety.'
-        : 'This safety analysis is advisory only. Skipper retains ultimate responsibility for vessel safety.';
+        ? "WARNING: Automated safety checks failed. Manual verification is REQUIRED before departure. Skipper retains ultimate responsibility for vessel safety."
+        : "This safety analysis is advisory only. Skipper retains ultimate responsibility for vessel safety.";
 
       // Step 5: Generate weather warnings using worst-case values
-      const weatherWarnings = this.generateWarnings([weatherDeparture, weatherArrival]);
+      const weatherWarnings = this.generateWarnings([
+        weatherDeparture,
+        weatherArrival,
+      ]);
 
       // Step 6: Adjust route ETA for tidal currents (SAFETY CRITICAL)
       const vesselSpeed = request.vessel?.cruiseSpeed || 5;
-      const currentAdjustment = this.adjustRouteForCurrents(route, tidalDeparture, tidalArrival, vesselSpeed);
+      const currentAdjustment = this.adjustRouteForCurrents(
+        route,
+        tidalDeparture,
+        tidalArrival,
+        vesselSpeed,
+      );
 
       // Step 7: Extract buoy wave warnings if available
       const buoyWarnings: string[] = [];
       if (buoyData?.content) {
-        const buoyContent = buoyData.content.find((c: any) => c.type === 'data');
+        const buoyContent = buoyData.content.find(
+          (c: any) => c.type === "data",
+        );
         if (buoyContent?.data) {
           const { overallHazard, coverage, worstConditions } = buoyContent.data;
-          if (overallHazard === 'dangerous') {
-            buoyWarnings.push(`DANGEROUS WAVE CONDITIONS: NDBC buoys report ${worstConditions?.significantWaveHeight?.toFixed(1) || '>3.0'}m waves along route`);
-          } else if (overallHazard === 'elevated') {
-            buoyWarnings.push(`Elevated wave conditions: NDBC buoys report ${worstConditions?.significantWaveHeight?.toFixed(1) || '>1.8'}m waves along route`);
+          if (overallHazard === "dangerous") {
+            buoyWarnings.push(
+              `DANGEROUS WAVE CONDITIONS: NDBC buoys report ${worstConditions?.significantWaveHeight?.toFixed(1) || ">3.0"}m waves along route`,
+            );
+          } else if (overallHazard === "elevated") {
+            buoyWarnings.push(
+              `Elevated wave conditions: NDBC buoys report ${worstConditions?.significantWaveHeight?.toFixed(1) || ">1.8"}m waves along route`,
+            );
           }
-          if (coverage === 'none') {
-            buoyWarnings.push('No real-time buoy data available along route - wave estimates are forecast-based only');
+          if (coverage === "none") {
+            buoyWarnings.push(
+              "No real-time buoy data available along route - wave estimates are forecast-based only",
+            );
           }
         }
       }
@@ -483,29 +663,45 @@ export class SimpleOrchestrator {
       // Step 8: Weather routing (isochrone algorithm) if wind field data available
       let weatherRoute: WeatherRoute | null = null;
       try {
-        const windFieldData = windFieldResult?.content?.find((c: any) => c.type === 'data')?.data;
-        if (windFieldData && windFieldData.source !== 'unavailable') {
+        const windFieldData = windFieldResult?.content?.find(
+          (c: any) => c.type === "data",
+        )?.data;
+        if (windFieldData && windFieldData.source !== "unavailable") {
           weatherRoute = this.weatherRouting.calculateOptimalRoute(
-            { latitude: request.departure.latitude, longitude: request.departure.longitude },
-            { latitude: request.destination.latitude, longitude: request.destination.longitude },
+            {
+              latitude: request.departure.latitude,
+              longitude: request.departure.longitude,
+            },
+            {
+              latitude: request.destination.latitude,
+              longitude: request.destination.longitude,
+            },
             new Date(request.departure.time || Date.now()),
             windFieldData,
-            vesselSpeed
+            vesselSpeed,
           );
-          logger.info({
-            planningId,
-            directDistance: weatherRoute.comparison.directRouteDistance,
-            routeDistance: weatherRoute.totalDistance,
-            timeSaved: weatherRoute.comparison.timeSaved,
-          }, 'Weather routing calculated');
+          logger.info(
+            {
+              planningId,
+              directDistance: weatherRoute.comparison.directRouteDistance,
+              routeDistance: weatherRoute.totalDistance,
+              timeSaved: weatherRoute.comparison.timeSaved,
+            },
+            "Weather routing calculated",
+          );
         }
       } catch (error) {
-        logger.warn({ error }, 'Weather routing calculation failed - using direct route');
+        logger.warn(
+          { error },
+          "Weather routing calculation failed - using direct route",
+        );
       }
 
       // Generate watch schedule
       const crewSize = request.crew?.size || request.vessel?.crewSize || 2;
-      const departureTimeForWatch = new Date(request.departure.time || Date.now());
+      const departureTimeForWatch = new Date(
+        request.departure.time || Date.now(),
+      );
 
       // SAFETY CRITICAL: Enforce 30% fuel/water reserves (CLAUDE.md non-negotiable)
       const reserveWarnings: string[] = [];
@@ -514,26 +710,35 @@ export class SimpleOrchestrator {
         const routeDistanceNm: number = (route as any)?.totalDistance || 0;
         const durationHours: number = (route as any)?.estimatedDuration || 0;
 
-        if (vessel.fuelCapacity && vessel.fuelRatePerHour && durationHours > 0) {
+        if (
+          vessel.fuelCapacity &&
+          vessel.fuelRatePerHour &&
+          durationHours > 0
+        ) {
           const estimatedFuelUse = vessel.fuelRatePerHour * durationHours;
           const requiredFuel = estimatedFuelUse * FUEL_WATER_RESERVE_FACTOR;
           if (vessel.fuelCapacity < requiredFuel) {
             reserveWarnings.push(
               `🔴 CRITICAL: Insufficient fuel for this passage with required 30% reserve. ` +
-              `Estimated use: ${estimatedFuelUse.toFixed(0)}L, Required with reserve: ${requiredFuel.toFixed(0)}L, ` +
-              `Vessel capacity: ${vessel.fuelCapacity}L. DO NOT depart without additional fuel.`
+                `Estimated use: ${estimatedFuelUse.toFixed(0)}L, Required with reserve: ${requiredFuel.toFixed(0)}L, ` +
+                `Vessel capacity: ${vessel.fuelCapacity}L. DO NOT depart without additional fuel.`,
             );
           }
         }
 
-        if (vessel.waterCapacity && vessel.waterRatePerDay && durationHours > 0) {
-          const estimatedWaterUse = vessel.waterRatePerDay * (durationHours / 24);
+        if (
+          vessel.waterCapacity &&
+          vessel.waterRatePerDay &&
+          durationHours > 0
+        ) {
+          const estimatedWaterUse =
+            vessel.waterRatePerDay * (durationHours / 24);
           const requiredWater = estimatedWaterUse * FUEL_WATER_RESERVE_FACTOR;
           if (vessel.waterCapacity < requiredWater) {
             reserveWarnings.push(
               `🔴 CRITICAL: Insufficient water for this passage with required 30% reserve. ` +
-              `Estimated use: ${estimatedWaterUse.toFixed(0)}L, Required with reserve: ${requiredWater.toFixed(0)}L, ` +
-              `Vessel capacity: ${vessel.waterCapacity}L. DO NOT depart without additional water.`
+                `Estimated use: ${estimatedWaterUse.toFixed(0)}L, Required with reserve: ${requiredWater.toFixed(0)}L, ` +
+                `Vessel capacity: ${vessel.waterCapacity}L. DO NOT depart without additional water.`,
             );
           }
         }
@@ -548,17 +753,23 @@ export class SimpleOrchestrator {
         ? tidalAdjustedDuration // weather routing service handles buffer internally
         : Math.ceil(tidalAdjustedDuration * WEATHER_DELAY_FACTOR * 10) / 10;
 
-      const watchSchedule = this.generateWatchSchedule(crewSize, bufferedDuration, departureTimeForWatch);
+      const watchSchedule = this.generateWatchSchedule(
+        crewSize,
+        bufferedDuration,
+        departureTimeForWatch,
+      );
 
       // Determine plan status based on safety findings
       // SAFETY_WARNING: critical/severe hazards detected (e.g. grounding risk, gale force winds)
       // SAFETY_UNVERIFIED: safety agent failed to run
       // OK: no critical issues found
-      const hasCriticalHazards = (finalSafetyRoute as any)?.hazards?.some(
-        (h: any) => h.severity === 'critical' || h.severity === 'severe'
-      ) || (finalSafetyRoute as any)?.warnings?.some(
-        (w: any) => w.severity === 'critical'
-      );
+      const hasCriticalHazards =
+        (finalSafetyRoute as any)?.hazards?.some(
+          (h: any) => h.severity === "critical" || h.severity === "severe",
+        ) ||
+        (finalSafetyRoute as any)?.warnings?.some(
+          (w: any) => w.severity === "critical",
+        );
       const planStatus: PlanStatus = safetySystemFailed
         ? PLAN_STATUS.SAFETY_UNVERIFIED
         : hasCriticalHazards
@@ -577,33 +788,36 @@ export class SimpleOrchestrator {
           arrival: weatherArrival,
           aggregation: weatherAggregation.summary,
           confidence: weatherAggregation.overallConfidence,
-          discrepancies: weatherAggregation.discrepancies
+          discrepancies: weatherAggregation.discrepancies,
         },
         tides: {
           departure: tidalDeparture,
           arrival: tidalArrival,
           currentEffect: currentAdjustment.currentEffect,
-          adjustedDuration: currentAdjustment.adjustedDuration
+          adjustedDuration: currentAdjustment.adjustedDuration,
         },
         // Real-time buoy observations (when available)
-        buoyData: buoyData?.content?.find((c: any) => c.type === 'data')?.data || null,
+        buoyData:
+          buoyData?.content?.find((c: any) => c.type === "data")?.data || null,
         // Watch schedule for crew management
         watchSchedule,
         // Weather-optimized route (isochrone algorithm)
-        weatherRoute: weatherRoute ? {
-          waypoints: weatherRoute.waypoints,
-          totalDistance: weatherRoute.totalDistance,
-          estimatedDuration: weatherRoute.estimatedDuration,
-          adjustedDuration: weatherRoute.adjustedDuration,
-          averageSpeed: weatherRoute.averageSpeed,
-          comparison: weatherRoute.comparison,
-          safetyWarnings: weatherRoute.safetyWarnings,
-        } : null,
+        weatherRoute: weatherRoute
+          ? {
+              waypoints: weatherRoute.waypoints,
+              totalDistance: weatherRoute.totalDistance,
+              estimatedDuration: weatherRoute.estimatedDuration,
+              adjustedDuration: weatherRoute.adjustedDuration,
+              averageSpeed: weatherRoute.averageSpeed,
+              comparison: weatherRoute.comparison,
+              safetyWarnings: weatherRoute.safetyWarnings,
+            }
+          : null,
         // Port information for departure/arrival and emergency options
         ports: {
           departure: this.extractPortData(departurePort),
           arrival: this.extractPortData(arrivalPort),
-          emergencyHarbors: this.extractEmergencyHarbors(emergencyHarbors)
+          emergencyHarbors: this.extractEmergencyHarbors(emergencyHarbors),
         },
         // CRITICAL: Safety data for mariner awareness
         safety: {
@@ -611,23 +825,23 @@ export class SimpleOrchestrator {
           brief: safetyBrief,
           warnings: safetyWarnings,
           systemFailure: safetySystemFailed,
-          disclaimer: safetyDisclaimer
+          disclaimer: safetyDisclaimer,
         },
         summary: {
           totalDistance: route.totalDistance,
           estimatedDuration: bufferedDuration,
           baseDuration: route.estimatedDuration,
           durationNote: usingWeatherRoute
-            ? 'Duration accounts for forecast wind/current conditions'
-            : 'Duration includes 20% weather delay buffer',
+            ? "Duration accounts for forecast wind/current conditions"
+            : "Duration includes 20% weather delay buffer",
           departureTime: request.departure.time,
           estimatedArrival: new Date(
             new Date(request.departure.time || Date.now()).getTime() +
-            bufferedDuration * 60 * 60 * 1000
+              bufferedDuration * 60 * 60 * 1000,
           ),
           // Combine ALL warnings: reserve checks first (most critical), then weather/safety
           warnings: [
-            ...reserveWarnings,       // fuel/water reserve violations (CRITICAL)
+            ...reserveWarnings, // fuel/water reserve violations (CRITICAL)
             ...freshnessWarnings,
             ...weatherWarnings,
             ...weatherAggregation.warnings,
@@ -635,73 +849,110 @@ export class SimpleOrchestrator {
             ...currentAdjustment.currentWarnings,
             ...buoyWarnings,
             ...(weatherRoute?.safetyWarnings || []),
-            ...safetyWarnings
+            ...safetyWarnings,
           ],
-          recommendations: this.generateRecommendations([weatherDeparture, weatherArrival], route)
+          recommendations: this.generateRecommendations(
+            [weatherDeparture, weatherArrival],
+            route,
+          ),
         },
         performance: {
           totalTime: Date.now() - startTime,
           parallelTime,
-          agentsUsed: ['weather', 'tidal', 'route', 'safety', 'ndbc-buoy', 'port']
-        }
+          agentsUsed: [
+            "weather",
+            "tidal",
+            "route",
+            "safety",
+            "ndbc-buoy",
+            "port",
+          ],
+        },
       };
 
-      logger.info({
-        planningId,
-        totalTime: passagePlan.performance.totalTime,
-        under3Seconds: passagePlan.performance.totalTime < 3000
-      }, 'Passage plan complete');
+      logger.info(
+        {
+          planningId,
+          totalTime: passagePlan.performance.totalTime,
+          under3Seconds: passagePlan.performance.totalTime < 3000,
+        },
+        "Passage plan complete",
+      );
 
       // Step 1: Audit logging - log the final safety decision for incident investigation
       try {
-        const routeWaypointsForAudit = (route.waypoints || []).map((wp: any) => ({
-          latitude: wp.latitude || wp.lat,
-          longitude: wp.longitude || wp.lon,
-          name: wp.name
-        }));
+        const routeWaypointsForAudit = (route.waypoints || []).map(
+          (wp: any) => ({
+            latitude: wp.latitude || wp.lat,
+            longitude: wp.longitude || wp.lon,
+            name: wp.name,
+          }),
+        );
 
         this.auditLogger.logRouteAnalysis(
           planningId,
           undefined,
           routeWaypointsForAudit,
-          safetyWarnings.filter((w: string) => w.includes('HAZARD')).length,
+          safetyWarnings.filter((w: string) => w.includes("HAZARD")).length,
           passagePlan.summary.warnings.length,
-          safetySystemFailed ? 'degraded' : 'normal',
-          ['weather-agent', 'tidal-agent', 'route-agent', 'safety-agent'],
-          safetySystemFailed ? 'low' : 'high'
+          safetySystemFailed ? "degraded" : "normal",
+          ["weather-agent", "tidal-agent", "route-agent", "safety-agent"],
+          safetySystemFailed ? "low" : "high",
         );
 
         // Log data sources for traceability
-        this.auditLogger.logDataSource(planningId, 'weather', weatherDeparture ? 'weather-agent' : 'unavailable', weatherDeparture ? 'medium' : 'unknown');
-        this.auditLogger.logDataSource(planningId, 'tidal', tidalDeparture ? 'tidal-agent' : 'unavailable', tidalDeparture ? 'medium' : 'unknown');
+        this.auditLogger.logDataSource(
+          planningId,
+          "weather",
+          weatherDeparture ? "weather-agent" : "unavailable",
+          weatherDeparture ? "medium" : "unknown",
+        );
+        this.auditLogger.logDataSource(
+          planningId,
+          "tidal",
+          tidalDeparture ? "tidal-agent" : "unavailable",
+          tidalDeparture ? "medium" : "unknown",
+        );
 
         // Log each warning shown to user for audit trail
         for (const warning of passagePlan.summary.warnings) {
-          const severity = warning.includes('CRITICAL') || warning.includes('REJECTED') ? 'critical'
-            : warning.includes('HAZARD') ? 'urgent'
-            : 'warning';
-          this.auditLogger.logWarningGenerated(planningId, undefined, 'passage_plan', severity, undefined, warning);
+          const severity =
+            warning.includes("CRITICAL") || warning.includes("REJECTED")
+              ? "critical"
+              : warning.includes("HAZARD")
+                ? "urgent"
+                : "warning";
+          this.auditLogger.logWarningGenerated(
+            planningId,
+            undefined,
+            "passage_plan",
+            severity,
+            undefined,
+            warning,
+          );
         }
       } catch (auditError) {
         // Audit logging must never break passage planning
-        logger.error({ auditError, planningId }, 'Audit logging failed - non-blocking');
+        logger.error(
+          { auditError, planningId },
+          "Audit logging failed - non-blocking",
+        );
       }
-      
+
       // Broadcast completion
       this.broadcastUpdate({
-        type: 'planning_completed',
+        type: "planning_completed",
         planningId,
-        plan: passagePlan
+        plan: passagePlan,
       });
-      
+
       return passagePlan;
-      
     } catch (error: any) {
-      logger.error({ error, planningId }, 'Planning error');
+      logger.error({ error, planningId }, "Planning error");
       this.broadcastUpdate({
-        type: 'planning_error',
+        type: "planning_error",
         planningId,
-        error: error.message
+        error: error.message,
       });
       throw error;
     }
@@ -716,18 +967,25 @@ export class SimpleOrchestrator {
    * Agent response is MCP format: { content: [{ type: 'data', data: forecast }] }
    * We extract issuedAt from the inner forecast object.
    */
-  private validateWeatherFreshness(weatherData: any, location: string): string[] {
+  private validateWeatherFreshness(
+    weatherData: any,
+    location: string,
+  ): string[] {
     const warnings: string[] = [];
 
     if (!weatherData) {
-      warnings.push(`⚠️ WEATHER UNAVAILABLE for ${location} - verify weather independently before departure`);
+      warnings.push(
+        `⚠️ WEATHER UNAVAILABLE for ${location} - verify weather independently before departure`,
+      );
       return warnings;
     }
 
     // Extract forecast from MCP content format: { content: [{ type: 'data', data: forecast }] }
     let forecast: any = weatherData;
     if (weatherData?.content && Array.isArray(weatherData.content)) {
-      const dataContent = weatherData.content.find((c: any) => c.type === 'data');
+      const dataContent = weatherData.content.find(
+        (c: any) => c.type === "data",
+      );
       if (dataContent?.data) forecast = dataContent.data;
     }
 
@@ -742,25 +1000,36 @@ export class SimpleOrchestrator {
       const ageMs = Date.now() - issuedAt.getTime();
       const ageMinutes = ageMs / (60 * 1000);
       const rejectAgeMinutes = WEATHER_REJECT_AGE_MS / (60 * 1000); // 60 min
-      const warnAgeMinutes = WEATHER_WARN_AGE_MS / (60 * 1000);     // 30 min
+      const warnAgeMinutes = WEATHER_WARN_AGE_MS / (60 * 1000); // 30 min
 
       if (ageMs > WEATHER_REJECT_AGE_MS) {
         // CLAUDE.md: "Reject stale data (weather >1hr)"
-        warnings.push(`🔴 CRITICAL: Weather data for ${location} is ${Math.round(ageMinutes)} minutes old - DATA REJECTED as stale. Verify weather independently before departure.`);
+        warnings.push(
+          `🔴 CRITICAL: Weather data for ${location} is ${Math.round(ageMinutes)} minutes old - DATA REJECTED as stale. Verify weather independently before departure.`,
+        );
       } else if (ageMs > WEATHER_WARN_AGE_MS) {
-        warnings.push(`⚠️ Weather data for ${location} is ${Math.round(ageMinutes)} minutes old and approaching staleness. Consider refreshing before departure.`);
+        warnings.push(
+          `⚠️ Weather data for ${location} is ${Math.round(ageMinutes)} minutes old and approaching staleness. Consider refreshing before departure.`,
+        );
       }
     } else {
       // No issuedAt timestamp — cannot verify freshness
-      warnings.push(`⚠️ Weather freshness for ${location} could not be verified - data age unknown. Verify independently before departure.`);
+      warnings.push(
+        `⚠️ Weather freshness for ${location} could not be verified - data age unknown. Verify independently before departure.`,
+      );
     }
 
     // Check for confidence level
-    const confidence = forecast?.confidence || weatherData?.metadata?.confidence;
-    if (confidence === 'low') {
-      warnings.push(`⚠️ Weather data for ${location} has LOW confidence - verify weather independently before departure`);
-    } else if (confidence === 'medium') {
-      warnings.push(`⚠️ Weather data for ${location} has moderate confidence - consider verifying independently`);
+    const confidence =
+      forecast?.confidence || weatherData?.metadata?.confidence;
+    if (confidence === "low") {
+      warnings.push(
+        `⚠️ Weather data for ${location} has LOW confidence - verify weather independently before departure`,
+      );
+    } else if (confidence === "medium") {
+      warnings.push(
+        `⚠️ Weather data for ${location} has moderate confidence - consider verifying independently`,
+      );
     }
 
     return warnings;
@@ -769,32 +1038,40 @@ export class SimpleOrchestrator {
   /**
    * Extract tidal freshness warnings from tidal agent responses
    */
-  private extractTidalWarnings(tidalDeparture: any, tidalArrival: any): string[] {
+  private extractTidalWarnings(
+    tidalDeparture: any,
+    tidalArrival: any,
+  ): string[] {
     const warnings: string[] = [];
 
     const extractFromResponse = (response: any, location: string) => {
       if (!response) {
-        warnings.push(`⚠️ TIDAL DATA UNAVAILABLE for ${location} - verify tidal conditions from official sources`);
+        warnings.push(
+          `⚠️ TIDAL DATA UNAVAILABLE for ${location} - verify tidal conditions from official sources`,
+        );
         return;
       }
 
       // Check content array for warnings from the tidal agent
       if (response.content && Array.isArray(response.content)) {
         for (const item of response.content) {
-          if (item.type === 'data' && item.data?.freshnessWarnings) {
+          if (item.type === "data" && item.data?.freshnessWarnings) {
             warnings.push(...item.data.freshnessWarnings);
           }
         }
       }
 
       // Check for direct freshnessWarnings property
-      if (response.freshnessWarnings && Array.isArray(response.freshnessWarnings)) {
+      if (
+        response.freshnessWarnings &&
+        Array.isArray(response.freshnessWarnings)
+      ) {
         warnings.push(...response.freshnessWarnings);
       }
     };
 
-    extractFromResponse(tidalDeparture, 'departure');
-    extractFromResponse(tidalArrival, 'arrival');
+    extractFromResponse(tidalDeparture, "departure");
+    extractFromResponse(tidalArrival, "arrival");
 
     return warnings;
   }
@@ -807,10 +1084,10 @@ export class SimpleOrchestrator {
   private aggregateWeatherSources(
     weatherDeparture: any,
     weatherArrival: any,
-    request: any
+    request: any,
   ): {
     summary: any;
-    overallConfidence: 'high' | 'medium' | 'low';
+    overallConfidence: "high" | "medium" | "low";
     discrepancies: string[];
     warnings: string[];
   } {
@@ -822,7 +1099,9 @@ export class SimpleOrchestrator {
       const extractPeriods = (weatherData: any): any[] | null => {
         if (!weatherData) return null;
         if (weatherData.content && Array.isArray(weatherData.content)) {
-          const dataContent = weatherData.content.find((c: any) => c.type === 'data');
+          const dataContent = weatherData.content.find(
+            (c: any) => c.type === "data",
+          );
           if (dataContent?.data?.periods) return dataContent.data.periods;
           if (dataContent?.data) return [dataContent.data];
         }
@@ -840,38 +1119,38 @@ export class SimpleOrchestrator {
             null, // UKMO data not yet available - infrastructure ready for future integration
             {
               latitude: request.departure.latitude,
-              longitude: request.departure.longitude
-            }
+              longitude: request.departure.longitude,
+            },
           )
         : [];
 
       // Run aggregation for arrival location
       const arrivalAgg = arrivalPeriods
-        ? this.weatherAggregator.aggregateForecasts(
-            arrivalPeriods,
-            null,
-            {
-              latitude: request.destination.latitude,
-              longitude: request.destination.longitude
-            }
-          )
+        ? this.weatherAggregator.aggregateForecasts(arrivalPeriods, null, {
+            latitude: request.destination.latitude,
+            longitude: request.destination.longitude,
+          })
         : [];
 
       // Determine overall confidence from all aggregated periods
       const allForecasts = [...departureAgg, ...arrivalAgg];
-      let overallConfidence: 'high' | 'medium' | 'low' = 'medium';
+      let overallConfidence: "high" | "medium" | "low" = "medium";
 
       if (allForecasts.length > 0) {
-        const lowCount = allForecasts.filter(f => f.confidence === 'low').length;
-        const highCount = allForecasts.filter(f => f.confidence === 'high').length;
+        const lowCount = allForecasts.filter(
+          (f) => f.confidence === "low",
+        ).length;
+        const highCount = allForecasts.filter(
+          (f) => f.confidence === "high",
+        ).length;
 
         if (lowCount > allForecasts.length * 0.3) {
-          overallConfidence = 'low';
+          overallConfidence = "low";
         } else if (highCount > allForecasts.length * 0.7) {
-          overallConfidence = 'high';
+          overallConfidence = "high";
         }
       } else {
-        overallConfidence = 'low';
+        overallConfidence = "low";
       }
 
       // Collect discrepancies from all periods
@@ -882,24 +1161,28 @@ export class SimpleOrchestrator {
       }
 
       // Generate warnings based on aggregation results
-      if (overallConfidence === 'low') {
-        warnings.push('⚠️ Weather forecast confidence is LOW - verify weather independently before departure');
+      if (overallConfidence === "low") {
+        warnings.push(
+          "⚠️ Weather forecast confidence is LOW - verify weather independently before departure",
+        );
       }
 
       if (allDiscrepancies.length > 0) {
         // CLAUDE.md: "always present worst-case scenario when forecasts disagree"
         const uniqueDiscrepancies = [...new Set(allDiscrepancies)];
-        warnings.push(`⚠️ Weather source disagreement detected: ${uniqueDiscrepancies.slice(0, 3).join('; ')}. Plan for worst-case conditions.`);
+        warnings.push(
+          `⚠️ Weather source disagreement detected: ${uniqueDiscrepancies.slice(0, 3).join("; ")}. Plan for worst-case conditions.`,
+        );
       }
 
       // Extract worst-case wind/wave from aggregated data for safety
       const maxAggWind = Math.max(
-        ...allForecasts.map(f => f.windSpeed?.max || 0),
-        0
+        ...allForecasts.map((f) => f.windSpeed?.max || 0),
+        0,
       );
       const maxAggWave = Math.max(
-        ...allForecasts.map(f => f.waveHeight?.max || 0),
-        0
+        ...allForecasts.map((f) => f.waveHeight?.max || 0),
+        0,
       );
 
       if (maxAggWind > 0 && maxAggWave > 0) {
@@ -907,48 +1190,56 @@ export class SimpleOrchestrator {
         const worstCaseSummary = {
           maxWindSpeed: maxAggWind,
           maxWaveHeight: maxAggWave,
-          maxWindGust: Math.max(...allForecasts.map(f => f.windGust?.max || 0), 0),
+          maxWindGust: Math.max(
+            ...allForecasts.map((f) => f.windGust?.max || 0),
+            0,
+          ),
         };
 
         return {
           summary: {
             departure: {
               periods: departureAgg.length,
-              sources: departureAgg[0]?.sources || ['noaa'],
+              sources: departureAgg[0]?.sources || ["noaa"],
             },
             arrival: {
               periods: arrivalAgg.length,
-              sources: arrivalAgg[0]?.sources || ['noaa'],
+              sources: arrivalAgg[0]?.sources || ["noaa"],
             },
             worstCase: worstCaseSummary,
-            sourcesAvailable: ['noaa'],
-            sourcesUnavailable: ['ukmo', 'openweather'],
+            sourcesAvailable: ["noaa"],
+            sourcesUnavailable: ["ukmo", "openweather"],
           },
           overallConfidence,
           discrepancies: [...new Set(allDiscrepancies)],
-          warnings
+          warnings,
         };
       }
 
       return {
         summary: {
-          departure: { periods: departureAgg.length, sources: ['noaa'] },
-          arrival: { periods: arrivalAgg.length, sources: ['noaa'] },
+          departure: { periods: departureAgg.length, sources: ["noaa"] },
+          arrival: { periods: arrivalAgg.length, sources: ["noaa"] },
           worstCase: null,
-          sourcesAvailable: ['noaa'],
-          sourcesUnavailable: ['ukmo', 'openweather'],
+          sourcesAvailable: ["noaa"],
+          sourcesUnavailable: ["ukmo", "openweather"],
         },
         overallConfidence,
         discrepancies: [...new Set(allDiscrepancies)],
-        warnings
+        warnings,
       };
     } catch (error) {
-      logger.warn({ error }, 'Weather aggregation failed - using raw forecasts');
+      logger.warn(
+        { error },
+        "Weather aggregation failed - using raw forecasts",
+      );
       return {
-        summary: { error: 'Aggregation unavailable' },
-        overallConfidence: 'low',
+        summary: { error: "Aggregation unavailable" },
+        overallConfidence: "low",
         discrepancies: [],
-        warnings: ['⚠️ Multi-source weather comparison unavailable - using single source only']
+        warnings: [
+          "⚠️ Multi-source weather comparison unavailable - using single source only",
+        ],
       };
     }
   }
@@ -957,45 +1248,69 @@ export class SimpleOrchestrator {
     const warnings: string[] = [];
 
     if (weather && weather.length > 0) {
-      const validWeather = weather.filter(w => w);
+      const validWeather = weather.filter((w) => w);
       if (validWeather.length === 0) {
-        warnings.push('⚠️ No weather data available - verify weather independently before departure');
+        warnings.push(
+          "⚠️ No weather data available - verify weather independently before departure",
+        );
         return warnings;
       }
 
       try {
         // SAFETY: Use Math.max (worst-case) for all safety-critical metrics
-        const maxWindSpeed = Math.max(...validWeather.flatMap((w: any) => {
-          if (Array.isArray(w)) return w.map((f: any) => f.windSpeed || f.windGust || 0);
-          return [w.windSpeed || w.windGust || 0];
-        }));
+        const maxWindSpeed = Math.max(
+          ...validWeather.flatMap((w: any) => {
+            if (Array.isArray(w))
+              return w.map((f: any) => f.windSpeed || f.windGust || 0);
+            return [w.windSpeed || w.windGust || 0];
+          }),
+        );
 
         if (maxWindSpeed > 33) {
-          warnings.push('🔴 GALE WARNING: Wind speeds exceeding 33 knots forecast - delay departure strongly recommended');
+          warnings.push(
+            "🔴 GALE WARNING: Wind speeds exceeding 33 knots forecast - delay departure strongly recommended",
+          );
         } else if (maxWindSpeed > 25) {
-          warnings.push('⚠️ Strong winds expected (>25kt) - consider delaying departure');
+          warnings.push(
+            "⚠️ Strong winds expected (>25kt) - consider delaying departure",
+          );
         } else if (maxWindSpeed > 20) {
-          warnings.push('⚠️ Moderate to strong winds expected (>20kt) - ensure vessel and crew are prepared');
+          warnings.push(
+            "⚠️ Moderate to strong winds expected (>20kt) - ensure vessel and crew are prepared",
+          );
         }
 
-        const maxWaveHeight = Math.max(...validWeather.flatMap((w: any) => {
-          if (Array.isArray(w)) return w.map((f: any) => f.waveHeight || f.significantWaveHeight || 0);
-          return [w.waveHeight || w.significantWaveHeight || 0];
-        }));
+        const maxWaveHeight = Math.max(
+          ...validWeather.flatMap((w: any) => {
+            if (Array.isArray(w))
+              return w.map(
+                (f: any) => f.waveHeight || f.significantWaveHeight || 0,
+              );
+            return [w.waveHeight || w.significantWaveHeight || 0];
+          }),
+        );
 
         if (maxWaveHeight > 4) {
-          warnings.push('🔴 ROUGH SEAS WARNING: Wave heights exceeding 4m forecast - delay departure strongly recommended');
+          warnings.push(
+            "🔴 ROUGH SEAS WARNING: Wave heights exceeding 4m forecast - delay departure strongly recommended",
+          );
         } else if (maxWaveHeight > 3) {
-          warnings.push('⚠️ Rough seas anticipated (>3m waves) - ensure crew is prepared');
+          warnings.push(
+            "⚠️ Rough seas anticipated (>3m waves) - ensure crew is prepared",
+          );
         }
 
         // Step 5: Single-source confidence warning
         if (validWeather.length === 1) {
-          warnings.push('⚠️ Weather forecast from single source only - no consensus verification possible. Verify weather independently before departure.');
+          warnings.push(
+            "⚠️ Weather forecast from single source only - no consensus verification possible. Verify weather independently before departure.",
+          );
         }
       } catch (error) {
-        logger.error({ error }, 'Error generating warnings');
-        warnings.push('⚠️ Error processing weather data - verify weather independently before departure');
+        logger.error({ error }, "Error generating warnings");
+        warnings.push(
+          "⚠️ Error processing weather data - verify weather independently before departure",
+        );
       }
     }
 
@@ -1006,15 +1321,23 @@ export class SimpleOrchestrator {
     const recommendations: string[] = [];
 
     if (route.totalDistance > 200) {
-      recommendations.push('Long passage - ensure adequate provisions and fuel');
+      recommendations.push(
+        "Long passage - ensure adequate provisions and fuel",
+      );
     }
 
     if (route.estimatedDuration > 24) {
-      recommendations.push('Multi-day passage - plan watch schedule and rest periods');
+      recommendations.push(
+        "Multi-day passage - plan watch schedule and rest periods",
+      );
     }
 
-    recommendations.push('File a float plan with a trusted contact before departure');
-    recommendations.push('Check all safety equipment is accessible and functional');
+    recommendations.push(
+      "File a float plan with a trusted contact before departure",
+    );
+    recommendations.push(
+      "Check all safety equipment is accessible and functional",
+    );
 
     return recommendations;
   }
@@ -1026,20 +1349,20 @@ export class SimpleOrchestrator {
   private generateWatchSchedule(
     crewSize: number,
     durationHours: number,
-    departureTime: Date
+    departureTime: Date,
   ): { schedule: any[]; system: string; recommendations: string[] } {
     const recommendations: string[] = [];
 
     if (crewSize < 2) {
       return {
         schedule: [],
-        system: 'single-handed',
+        system: "single-handed",
         recommendations: [
-          'Single-handed passage - no formal watch schedule possible',
-          'Use timer alarms every 20 minutes to check surroundings',
-          'Set AIS alarm for approaching vessels',
-          'Consider limiting passage length to daylight hours'
-        ]
+          "Single-handed passage - no formal watch schedule possible",
+          "Use timer alarms every 20 minutes to check surroundings",
+          "Set AIS alarm for approaching vessels",
+          "Consider limiting passage length to daylight hours",
+        ],
       };
     }
 
@@ -1049,24 +1372,35 @@ export class SimpleOrchestrator {
 
     if (crewSize === 2) {
       watchHours = 4; // 4 on / 4 off
-      system = '4 on / 4 off (Swedish watch)';
-      recommendations.push('With 2 crew, each person gets 4 hours on watch and 4 hours off');
-      recommendations.push('Consider adjusting to 3 on / 3 off for shorter passages to stay alert');
+      system = "4 on / 4 off (Swedish watch)";
+      recommendations.push(
+        "With 2 crew, each person gets 4 hours on watch and 4 hours off",
+      );
+      recommendations.push(
+        "Consider adjusting to 3 on / 3 off for shorter passages to stay alert",
+      );
     } else if (crewSize === 3) {
       watchHours = 4; // 4 on / 8 off
-      system = '4 on / 8 off (3-person rotation)';
-      recommendations.push('3-person rotation allows 8 hours rest between watches');
+      system = "4 on / 8 off (3-person rotation)";
+      recommendations.push(
+        "3-person rotation allows 8 hours rest between watches",
+      );
     } else {
       watchHours = 4; // Standard 4-hour watches
       system = `4-hour watches (${crewSize}-person rotation)`;
-      recommendations.push(`${crewSize}-person rotation with ${(24 / crewSize * (crewSize - 1)).toFixed(0)} hours rest between watches`);
+      recommendations.push(
+        `${crewSize}-person rotation with ${((24 / crewSize) * (crewSize - 1)).toFixed(0)} hours rest between watches`,
+      );
     }
 
     // Generate schedule entries
     const schedule = [];
     let currentTime = new Date(departureTime);
     let watchNumber = 0;
-    const crewNames = Array.from({ length: crewSize }, (_, i) => `Crew ${i + 1}`);
+    const crewNames = Array.from(
+      { length: crewSize },
+      (_, i) => `Crew ${i + 1}`,
+    );
 
     const totalWatches = Math.ceil(durationHours / watchHours);
 
@@ -1075,7 +1409,9 @@ export class SimpleOrchestrator {
       const watchEnd = new Date(currentTime.getTime() + watchHours * 3600000);
 
       // Don't extend past arrival
-      const arrivalTime = new Date(departureTime.getTime() + durationHours * 3600000);
+      const arrivalTime = new Date(
+        departureTime.getTime() + durationHours * 3600000,
+      );
       const effectiveEnd = watchEnd > arrivalTime ? arrivalTime : watchEnd;
 
       schedule.push({
@@ -1083,9 +1419,15 @@ export class SimpleOrchestrator {
         crew: crewNames[watchNumber % crewSize],
         start: watchStart.toISOString(),
         end: effectiveEnd.toISOString(),
-        startFormatted: watchStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        endFormatted: effectiveEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isNight: watchStart.getHours() >= 20 || watchStart.getHours() < 6
+        startFormatted: watchStart.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        endFormatted: effectiveEnd.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        isNight: watchStart.getHours() >= 20 || watchStart.getHours() < 6,
       });
 
       currentTime = watchEnd;
@@ -1095,10 +1437,12 @@ export class SimpleOrchestrator {
     }
 
     if (durationHours > 12) {
-      recommendations.push('Prepare meals and hot drinks before watch changes');
+      recommendations.push("Prepare meals and hot drinks before watch changes");
     }
     if (durationHours > 24) {
-      recommendations.push('Ensure each crew member gets at least 6 hours of uninterrupted sleep per 24 hours');
+      recommendations.push(
+        "Ensure each crew member gets at least 6 hours of uninterrupted sleep per 24 hours",
+      );
     }
 
     return { schedule, system, recommendations };
@@ -1113,18 +1457,26 @@ export class SimpleOrchestrator {
     route: any,
     tidalDeparture: any,
     tidalArrival: any,
-    vesselSpeed: number
-  ): { adjustedDuration: number; currentEffect: string; currentWarnings: string[] } {
+    vesselSpeed: number,
+  ): {
+    adjustedDuration: number;
+    currentEffect: string;
+    currentWarnings: string[];
+  } {
     const warnings: string[] = [];
     let adjustedDuration = route.estimatedDuration;
 
     try {
       // Extract current predictions from tidal data
-      const extractCurrents = (tidalData: any): Array<{ velocity: number; direction: number; type?: string }> => {
+      const extractCurrents = (
+        tidalData: any,
+      ): Array<{ velocity: number; direction: number; type?: string }> => {
         if (!tidalData) return [];
         // Check MCP content format
         if (tidalData.content && Array.isArray(tidalData.content)) {
-          const dataContent = tidalData.content.find((c: any) => c.type === 'data');
+          const dataContent = tidalData.content.find(
+            (c: any) => c.type === "data",
+          );
           if (dataContent?.data?.currents) return dataContent.data.currents;
         }
         if (tidalData.currents) return tidalData.currents;
@@ -1137,14 +1489,18 @@ export class SimpleOrchestrator {
       if (departureCurr.length === 0 && arrivalCurr.length === 0) {
         return {
           adjustedDuration,
-          currentEffect: 'No tidal current data available - ETA based on vessel speed only',
-          currentWarnings: []
+          currentEffect:
+            "No tidal current data available - ETA based on vessel speed only",
+          currentWarnings: [],
         };
       }
 
       // Calculate worst-case current effect using max velocities
       const allCurrents = [...departureCurr, ...arrivalCurr];
-      const maxCurrentVelocity = Math.max(...allCurrents.map(c => Math.abs(c.velocity || 0)), 0);
+      const maxCurrentVelocity = Math.max(
+        ...allCurrents.map((c) => Math.abs(c.velocity || 0)),
+        0,
+      );
 
       if (maxCurrentVelocity > 0.5) {
         // Conservative: assume worst-case (adverse current) for safety
@@ -1158,32 +1514,40 @@ export class SimpleOrchestrator {
           adjustedDuration = currentAdjustedDuration;
 
           if (maxCurrentVelocity >= 3) {
-            warnings.push(`🔴 STRONG TIDAL CURRENTS: Up to ${maxCurrentVelocity.toFixed(1)} knots detected. ETA extended by ${delayHours.toFixed(1)} hours (worst case)`);
+            warnings.push(
+              `🔴 STRONG TIDAL CURRENTS: Up to ${maxCurrentVelocity.toFixed(1)} knots detected. ETA extended by ${delayHours.toFixed(1)} hours (worst case)`,
+            );
           } else if (maxCurrentVelocity >= 1.5) {
-            warnings.push(`⚠️ Moderate tidal currents up to ${maxCurrentVelocity.toFixed(1)} knots. ETA may be extended by ${delayHours.toFixed(1)} hours`);
+            warnings.push(
+              `⚠️ Moderate tidal currents up to ${maxCurrentVelocity.toFixed(1)} knots. ETA may be extended by ${delayHours.toFixed(1)} hours`,
+            );
           }
         }
       }
 
       // Check for slack water windows
-      const slackPeriods = allCurrents.filter(c => c.type === 'slack');
+      const slackPeriods = allCurrents.filter((c) => c.type === "slack");
       if (slackPeriods.length > 0 && maxCurrentVelocity > 1.5) {
-        warnings.push(`Consider timing departure for slack water to minimize current effects (${slackPeriods.length} slack periods found)`);
+        warnings.push(
+          `Consider timing departure for slack water to minimize current effects (${slackPeriods.length} slack periods found)`,
+        );
       }
 
       return {
         adjustedDuration,
-        currentEffect: maxCurrentVelocity > 0.5
-          ? `Tidal currents up to ${maxCurrentVelocity.toFixed(1)} knots detected. Duration adjusted from ${route.estimatedDuration.toFixed(1)}h to ${adjustedDuration.toFixed(1)}h (worst-case)`
-          : 'Minimal tidal current effect on passage timing',
-        currentWarnings: warnings
+        currentEffect:
+          maxCurrentVelocity > 0.5
+            ? `Tidal currents up to ${maxCurrentVelocity.toFixed(1)} knots detected. Duration adjusted from ${route.estimatedDuration.toFixed(1)}h to ${adjustedDuration.toFixed(1)}h (worst-case)`
+            : "Minimal tidal current effect on passage timing",
+        currentWarnings: warnings,
       };
     } catch (error) {
-      logger.warn({ error }, 'Error calculating current-adjusted ETA');
+      logger.warn({ error }, "Error calculating current-adjusted ETA");
       return {
         adjustedDuration,
-        currentEffect: 'Unable to calculate current effects - ETA based on vessel speed only',
-        currentWarnings: []
+        currentEffect:
+          "Unable to calculate current effects - ETA based on vessel speed only",
+        currentWarnings: [],
       };
     }
   }
@@ -1196,7 +1560,7 @@ export class SimpleOrchestrator {
     const warnings: string[] = [];
 
     if (!safetyRoute) {
-      warnings.push('⚠️ SAFETY CHECK UNAVAILABLE - Exercise extreme caution');
+      warnings.push("⚠️ SAFETY CHECK UNAVAILABLE - Exercise extreme caution");
       return warnings;
     }
 
@@ -1204,7 +1568,9 @@ export class SimpleOrchestrator {
     let safetyData = safetyRoute;
     if (safetyRoute.content && Array.isArray(safetyRoute.content)) {
       try {
-        const textContent = safetyRoute.content.find((c: any) => c.type === 'text');
+        const textContent = safetyRoute.content.find(
+          (c: any) => c.type === "text",
+        );
         if (textContent?.text) {
           safetyData = JSON.parse(textContent.text);
         }
@@ -1216,10 +1582,10 @@ export class SimpleOrchestrator {
     // Extract warnings array
     if (safetyData.warnings && Array.isArray(safetyData.warnings)) {
       for (const warning of safetyData.warnings) {
-        if (typeof warning === 'string') {
+        if (typeof warning === "string") {
           warnings.push(warning);
         } else if (warning.description) {
-          const severity = warning.severity === 'urgent' ? '🔴' : '⚠️';
+          const severity = warning.severity === "urgent" ? "🔴" : "⚠️";
           warnings.push(`${severity} ${warning.description}`);
         }
       }
@@ -1228,15 +1594,20 @@ export class SimpleOrchestrator {
     // Extract hazards
     if (safetyData.hazards && Array.isArray(safetyData.hazards)) {
       for (const hazard of safetyData.hazards) {
-        const severity = hazard.severity === 'high' ? '🔴' : '⚠️';
-        warnings.push(`${severity} HAZARD: ${hazard.description || hazard.type}`);
+        const severity = hazard.severity === "high" ? "🔴" : "⚠️";
+        warnings.push(
+          `${severity} HAZARD: ${hazard.description || hazard.type}`,
+        );
       }
     }
 
     // Extract recommendations
-    if (safetyData.recommendations && Array.isArray(safetyData.recommendations)) {
+    if (
+      safetyData.recommendations &&
+      Array.isArray(safetyData.recommendations)
+    ) {
       for (const rec of safetyData.recommendations) {
-        if (typeof rec === 'string' && !warnings.includes(rec)) {
+        if (typeof rec === "string" && !warnings.includes(rec)) {
           warnings.push(`📋 ${rec}`);
         }
       }
@@ -1252,7 +1623,9 @@ export class SimpleOrchestrator {
     if (!portResponse) return null;
     try {
       if (portResponse.content && Array.isArray(portResponse.content)) {
-        const textContent = portResponse.content.find((c: any) => c.type === 'text');
+        const textContent = portResponse.content.find(
+          (c: any) => c.type === "text",
+        );
         if (textContent?.text) {
           const data = JSON.parse(textContent.text);
           return {
@@ -1276,7 +1649,9 @@ export class SimpleOrchestrator {
     if (!response) return [];
     try {
       if (response.content && Array.isArray(response.content)) {
-        const textContent = response.content.find((c: any) => c.type === 'text');
+        const textContent = response.content.find(
+          (c: any) => c.type === "text",
+        );
         if (textContent?.text) {
           const data = JSON.parse(textContent.text);
           return (data.recommendations || []).map((h: any) => ({
@@ -1307,30 +1682,40 @@ export class SimpleOrchestrator {
       longitude: z.number().min(-180).max(180),
       name: z.string().max(200).optional(),
     }),
-    vessel: z.object({
-      cruiseSpeed: z.number().min(0.5).max(50).optional(),
-      draft: z.number().min(0).max(100).optional(),
-      type: z.string().max(100).optional(),
-      crewSize: z.number().int().min(1).max(50).optional(),
-      crewExperience: z.enum(['novice', 'intermediate', 'advanced', 'professional']).optional(),
-      // Fuel/water reserve fields (used for 30% reserve enforcement)
-      fuelCapacity: z.number().min(0).optional(),  // litres
-      fuelRatePerHour: z.number().min(0).optional(), // litres/hour
-      waterCapacity: z.number().min(0).optional(), // litres
-      waterRatePerDay: z.number().min(0).optional(), // litres/day
-    }).optional(),
-    crew: z.object({
-      size: z.number().int().min(1).max(50).optional(),
-    }).optional(),
+    vessel: z
+      .object({
+        cruiseSpeed: z.number().min(0.5).max(50).optional(),
+        draft: z.number().min(0).max(100).optional(),
+        type: z.string().max(100).optional(),
+        crewSize: z.number().int().min(1).max(50).optional(),
+        crewExperience: z
+          .enum(["novice", "intermediate", "advanced", "professional"])
+          .optional(),
+        // Fuel/water reserve fields (used for 30% reserve enforcement)
+        fuelCapacity: z.number().min(0).optional(), // litres
+        fuelRatePerHour: z.number().min(0).optional(), // litres/hour
+        waterCapacity: z.number().min(0).optional(), // litres
+        waterRatePerDay: z.number().min(0).optional(), // litres/day
+      })
+      .optional(),
+    crew: z
+      .object({
+        size: z.number().int().min(1).max(50).optional(),
+      })
+      .optional(),
   });
 
   /**
    * Validate passage planning request body using Zod schema
    */
-  private validatePassageRequest(body: unknown): { success: true; data: any } | { success: false; error: string } {
+  private validatePassageRequest(
+    body: unknown,
+  ): { success: true; data: any } | { success: false; error: string } {
     const result = SimpleOrchestrator.PassageRequestSchema.safeParse(body);
     if (!result.success) {
-      const issues = result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ');
+      const issues = result.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
       return { success: false, error: `Invalid request: ${issues}` };
     }
     return { success: true, data: result.data };
@@ -1340,20 +1725,28 @@ export class SimpleOrchestrator {
    * JWT auth middleware - verifies Supabase JWTs
    * Dev bypass: skip auth ONLY when NODE_ENV=development && SKIP_AUTH=true && DEV_AUTH_BYPASS_KEY is set
    */
-  private async verifyAuth(req: express.Request, res: express.Response): Promise<boolean> {
+  private async verifyAuth(
+    req: express.Request,
+    res: express.Response,
+  ): Promise<boolean> {
     // Dev bypass — triple check: must NOT be production, must have SKIP_AUTH, must have bypass key
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = process.env.NODE_ENV === "production";
     if (
       !isProduction &&
-      process.env.SKIP_AUTH === 'true' &&
+      process.env.SKIP_AUTH === "true" &&
       process.env.DEV_AUTH_BYPASS_KEY
     ) {
       return true;
     }
 
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ success: false, error: 'Authentication required. Provide a Bearer token.' });
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      res
+        .status(401)
+        .json({
+          success: false,
+          error: "Authentication required. Provide a Bearer token.",
+        });
       return false;
     }
 
@@ -1362,22 +1755,28 @@ export class SimpleOrchestrator {
 
     if (!jwtSecret) {
       // In production, missing JWT secret is a fatal misconfiguration
-      if (process.env.NODE_ENV === 'production') {
-        logger.error('SUPABASE_JWT_SECRET not set in production — rejecting all requests');
-        res.status(500).json({ success: false, error: 'Authentication not configured' });
+      if (process.env.NODE_ENV === "production") {
+        logger.error(
+          "SUPABASE_JWT_SECRET not set in production — rejecting all requests",
+        );
+        res
+          .status(500)
+          .json({ success: false, error: "Authentication not configured" });
         return false;
       }
       // Allow in development with loud warning only
-      logger.warn('SUPABASE_JWT_SECRET not set — skipping auth in development');
+      logger.warn("SUPABASE_JWT_SECRET not set — skipping auth in development");
       return true;
     }
 
     try {
-      jwt.verify(token, jwtSecret);
+      jwt.verify(token, jwtSecret, { algorithms: ["HS256"] });
       return true;
     } catch (err: any) {
-      logger.warn({ err: err.message }, 'JWT verification failed');
-      res.status(401).json({ success: false, error: 'Invalid or expired token' });
+      logger.warn({ err: err.message }, "JWT verification failed");
+      res
+        .status(401)
+        .json({ success: false, error: "Invalid or expired token" });
       return false;
     }
   }
@@ -1386,9 +1785,12 @@ export class SimpleOrchestrator {
    * Rate limiting using Redis sliding window
    * 20 requests/minute per IP, fails open if Redis is down
    */
-  private async checkRateLimit(req: express.Request, res: express.Response): Promise<boolean> {
+  private async checkRateLimit(
+    req: express.Request,
+    res: express.Response,
+  ): Promise<boolean> {
     try {
-      const ip = req.ip || req.socket.remoteAddress || 'unknown';
+      const ip = req.ip || req.socket.remoteAddress || "unknown";
       const key = `ratelimit:plan:${ip}`;
       const limit = 20;
       const windowSeconds = 60;
@@ -1400,17 +1802,28 @@ export class SimpleOrchestrator {
         await this.redis.expire(key, windowSeconds);
       }
 
-      res.setHeader('X-RateLimit-Limit', String(limit));
-      res.setHeader('X-RateLimit-Remaining', String(Math.max(0, limit - current)));
+      res.setHeader("X-RateLimit-Limit", String(limit));
+      res.setHeader(
+        "X-RateLimit-Remaining",
+        String(Math.max(0, limit - current)),
+      );
 
       if (current > limit) {
-        res.status(429).json({ success: false, error: 'Rate limit exceeded. Try again shortly.' });
+        res
+          .status(429)
+          .json({
+            success: false,
+            error: "Rate limit exceeded. Try again shortly.",
+          });
         return false;
       }
       return true;
     } catch (err) {
       // Fail open — if Redis is down, allow the request
-      logger.warn({ err }, 'Rate limit check failed — allowing request (fail-open)');
+      logger.warn(
+        { err },
+        "Rate limit check failed — allowing request (fail-open)",
+      );
       return true;
     }
   }
@@ -1425,54 +1838,62 @@ export class SimpleOrchestrator {
     const allWarnings = plan.summary?.warnings || [];
     const safetySystemFailed = plan.safety?.systemFailure;
 
-    let goNoGo: 'GO' | 'CAUTION' | 'NO-GO' = 'GO';
-    let overallRisk: 'low' | 'moderate' | 'high' | 'critical' = 'low';
-    let safetyScore: 'Excellent' | 'Good' | 'Fair' | 'Poor' = 'Excellent';
+    let goNoGo: "GO" | "CAUTION" | "NO-GO" = "GO";
+    let overallRisk: "low" | "moderate" | "high" | "critical" = "low";
+    let safetyScore: "Excellent" | "Good" | "Fair" | "Poor" = "Excellent";
 
     // Conservative safety derivation — any critical warning triggers NO-GO
-    const criticalWarnings = allWarnings.filter((w: string) =>
-      w.includes('CRITICAL') || w.includes('GALE') || w.includes('ROUGH SEAS') ||
-      w.includes('DANGEROUS') || w.includes('REJECTED') || w.includes('NO-GO')
+    const criticalWarnings = allWarnings.filter(
+      (w: string) =>
+        w.includes("CRITICAL") ||
+        w.includes("GALE") ||
+        w.includes("ROUGH SEAS") ||
+        w.includes("DANGEROUS") ||
+        w.includes("REJECTED") ||
+        w.includes("NO-GO"),
     );
-    const cautionWarnings = allWarnings.filter((w: string) =>
-      w.includes('⚠️') || w.includes('HAZARD') || w.includes('CAUTION')
+    const cautionWarnings = allWarnings.filter(
+      (w: string) =>
+        w.includes("⚠️") || w.includes("HAZARD") || w.includes("CAUTION"),
     );
 
     if (safetySystemFailed || criticalWarnings.length > 0) {
-      goNoGo = 'NO-GO';
-      overallRisk = 'critical';
-      safetyScore = 'Poor';
+      goNoGo = "NO-GO";
+      overallRisk = "critical";
+      safetyScore = "Poor";
     } else if (cautionWarnings.length > 3) {
-      goNoGo = 'CAUTION';
-      overallRisk = 'high';
-      safetyScore = 'Fair';
+      goNoGo = "CAUTION";
+      overallRisk = "high";
+      safetyScore = "Fair";
     } else if (cautionWarnings.length > 0) {
-      goNoGo = 'CAUTION';
-      overallRisk = 'moderate';
-      safetyScore = 'Good';
+      goNoGo = "CAUTION";
+      overallRisk = "moderate";
+      safetyScore = "Good";
     }
 
     // Extract weather data in the flat format frontend expects
     const extractWeatherLocation = (weatherData: any, locationName: string) => {
       if (!weatherData) {
         return {
-          forecast: 'Unavailable',
+          forecast: "Unavailable",
           windSpeed: 0,
           windDirection: 0,
           waveHeight: 0,
           temperature: 0,
-          conditions: 'Unknown',
+          conditions: "Unknown",
           warnings: [`Weather data unavailable for ${locationName}`],
-          source: 'N/A',
+          source: "N/A",
           timestamp: new Date().toISOString(),
-          windDescription: 'N/A',
+          windDescription: "N/A",
         };
       }
 
       // Handle MCP content format
       let data = weatherData;
       if (weatherData.content && Array.isArray(weatherData.content)) {
-        const dataContent = weatherData.content.find((c: any) => c.type === 'data');
+        const dataContent = weatherData.content.find(
+          (c: any) => c.type === "data",
+        );
         if (dataContent?.data) data = dataContent.data;
       }
 
@@ -1480,78 +1901,106 @@ export class SimpleOrchestrator {
       const first = periods[0] || {};
 
       return {
-        forecast: first.detailedForecast || first.shortForecast || first.conditions || 'See detailed data',
+        forecast:
+          first.detailedForecast ||
+          first.shortForecast ||
+          first.conditions ||
+          "See detailed data",
         windSpeed: first.windSpeed || first.wind_speed || 0,
         windDirection: first.windDirection || first.wind_direction || 0,
-        waveHeight: first.waveHeight || first.significantWaveHeight || first.wave_height || 0,
+        waveHeight:
+          first.waveHeight ||
+          first.significantWaveHeight ||
+          first.wave_height ||
+          0,
         temperature: first.temperature || first.temp || 0,
-        conditions: first.shortForecast || first.conditions || 'N/A',
+        conditions: first.shortForecast || first.conditions || "N/A",
         warnings: first.warnings || [],
-        source: data.source || 'NOAA',
+        source: data.source || "NOAA",
         timestamp: data.timestamp || new Date().toISOString(),
         windDescription: first.windDescription || `${first.windSpeed || 0} kts`,
       };
     };
 
-    const depWeather = extractWeatherLocation(plan.weather?.departure, plan.request?.departure?.name || 'departure');
-    const destWeather = extractWeatherLocation(plan.weather?.arrival, plan.request?.destination?.name || 'destination');
+    const depWeather = extractWeatherLocation(
+      plan.weather?.departure,
+      plan.request?.departure?.name || "departure",
+    );
+    const destWeather = extractWeatherLocation(
+      plan.weather?.arrival,
+      plan.request?.destination?.name || "destination",
+    );
     const maxWindSpeed = Math.max(depWeather.windSpeed, destWeather.windSpeed);
 
     // Extract tidal data in flat format
     const extractTidal = (tidalData: any, locationName: string) => {
       if (!tidalData) {
         return {
-          station: 'N/A',
+          station: "N/A",
           predictions: [],
           nextTide: null,
-          nextTideFormatted: 'No tidal data available',
-          source: 'N/A',
+          nextTideFormatted: "No tidal data available",
+          source: "N/A",
           warning: `Tidal data unavailable for ${locationName}`,
         };
       }
 
       let data = tidalData;
       if (tidalData.content && Array.isArray(tidalData.content)) {
-        const dataContent = tidalData.content.find((c: any) => c.type === 'data');
+        const dataContent = tidalData.content.find(
+          (c: any) => c.type === "data",
+        );
         if (dataContent?.data) data = dataContent.data;
       }
 
-      const predictions = (data.predictions || data.tides || []).map((p: any) => ({
-        time: p.time || p.t,
-        type: p.type || (p.v > 0 ? 'high' : 'low'),
-        height: p.height || parseFloat(p.v) || 0,
-        unit: p.unit || 'ft',
-      }));
+      const predictions = (data.predictions || data.tides || []).map(
+        (p: any) => ({
+          time: p.time || p.t,
+          type: p.type || (p.v > 0 ? "high" : "low"),
+          height: p.height || parseFloat(p.v) || 0,
+          unit: p.unit || "ft",
+        }),
+      );
 
       const nextTide = predictions[0] || null;
 
       return {
-        station: data.station?.name || data.stationName || data.station || 'Nearest station',
+        station:
+          data.station?.name ||
+          data.stationName ||
+          data.station ||
+          "Nearest station",
         stationId: data.station?.id || data.stationId,
         distance: data.station?.distance,
         predictions,
         nextTide,
         nextTideFormatted: nextTide
-          ? `${nextTide.type === 'high' ? 'High' : 'Low'} tide: ${nextTide.height.toFixed(1)} ${nextTide.unit} at ${new Date(nextTide.time).toLocaleTimeString()}`
-          : 'No predictions available',
-        source: data.source || 'NOAA CO-OPS',
+          ? `${nextTide.type === "high" ? "High" : "Low"} tide: ${nextTide.height.toFixed(1)} ${nextTide.unit} at ${new Date(nextTide.time).toLocaleTimeString()}`
+          : "No predictions available",
+        source: data.source || "NOAA CO-OPS",
       };
     };
 
-    const depTidal = extractTidal(plan.tides?.departure, plan.request?.departure?.name || 'departure');
-    const destTidal = extractTidal(plan.tides?.arrival, plan.request?.destination?.name || 'destination');
+    const depTidal = extractTidal(
+      plan.tides?.departure,
+      plan.request?.departure?.name || "departure",
+    );
+    const destTidal = extractTidal(
+      plan.tides?.arrival,
+      plan.request?.destination?.name || "destination",
+    );
 
     // Extract port information
     const mapPort = (portData: any) => {
       if (!portData || !portData.nearest) {
-        return { found: false, message: 'No port information available' };
+        return { found: false, message: "No port information available" };
       }
       const p = portData.nearest;
       return {
         found: true,
         name: p.name,
         type: p.type || p.portType,
-        distance: p.distance ? `${p.distance.toFixed(1)} nm` : 'Nearby',
+        distance: p.distance ? `${p.distance.toFixed(1)} nm` : "Nearby",
         facilities: p.facilities || {},
         navigation: p.navigation || {},
         contact: p.contact || {},
@@ -1561,33 +2010,46 @@ export class SimpleOrchestrator {
       };
     };
 
-    const emergencyHarbors = (plan.ports?.emergencyHarbors || []).map((h: any) => ({
-      name: h.name,
-      distance: h.distance ? `${h.distance} nm` : 'N/A',
-      vhf: h.vhf || 'Ch 16',
-      protection: h.protection || 0,
-      facilities: h.facilities || 0,
-    }));
+    const emergencyHarbors = (plan.ports?.emergencyHarbors || []).map(
+      (h: any) => ({
+        name: h.name,
+        distance: h.distance ? `${h.distance} nm` : "N/A",
+        vhf: h.vhf || "Ch 16",
+        protection: h.protection || 0,
+        facilities: h.facilities || 0,
+      }),
+    );
 
     // Build navigation warnings from safety data
     const navWarnings = safetyWarnings
-      .filter((w: string) => w.includes('HAZARD') || w.includes('restricted') || w.includes('📋'))
+      .filter(
+        (w: string) =>
+          w.includes("HAZARD") || w.includes("restricted") || w.includes("📋"),
+      )
       .map((w: string, i: number) => ({
         id: `nav-${i}`,
-        type: w.includes('HAZARD') ? 'hazard' : 'notice',
+        type: w.includes("HAZARD") ? "hazard" : "notice",
         title: w.substring(0, 80),
         description: w,
         location: null,
-        severity: (w.includes('🔴') ? 'critical' : w.includes('⚠️') ? 'warning' : 'info') as 'critical' | 'warning' | 'info',
+        severity: (w.includes("🔴")
+          ? "critical"
+          : w.includes("⚠️")
+            ? "warning"
+            : "info") as "critical" | "warning" | "info",
         effectiveDate: new Date().toISOString(),
-        source: 'Safety Agent',
+        source: "Safety Agent",
       }));
 
     // Route data
     const route = plan.route || {};
     const totalDistance = route.totalDistance || 0;
-    const estimatedDuration = plan.summary?.estimatedDuration || route.estimatedDuration || 0;
-    const durationHours = typeof estimatedDuration === 'number' ? estimatedDuration : parseFloat(estimatedDuration) || 0;
+    const estimatedDuration =
+      plan.summary?.estimatedDuration || route.estimatedDuration || 0;
+    const durationHours =
+      typeof estimatedDuration === "number"
+        ? estimatedDuration
+        : parseFloat(estimatedDuration) || 0;
 
     const formatDuration = (hours: number): string => {
       if (hours < 1) return `${Math.round(hours * 60)} minutes`;
@@ -1610,17 +2072,27 @@ export class SimpleOrchestrator {
           longitude: wp.longitude || wp.lon || wp.lng,
           name: wp.name,
         })),
-        departure: plan.request?.departure?.name || 'Origin',
-        destination: plan.request?.destination?.name || 'Destination',
+        departure: plan.request?.departure?.name || "Origin",
+        destination: plan.request?.destination?.name || "Destination",
       },
       weather: {
         departure: depWeather,
         destination: destWeather,
         summary: {
           maxWindSpeed,
-          suitable: goNoGo !== 'NO-GO',
-          warnings: allWarnings.filter((w: string) => w.toLowerCase().includes('weather') || w.toLowerCase().includes('wind') || w.toLowerCase().includes('wave')),
-          overall: goNoGo === 'GO' ? 'Conditions suitable for passage' : goNoGo === 'CAUTION' ? 'Proceed with caution — review warnings' : 'Conditions not suitable — delay departure',
+          suitable: goNoGo !== "NO-GO",
+          warnings: allWarnings.filter(
+            (w: string) =>
+              w.toLowerCase().includes("weather") ||
+              w.toLowerCase().includes("wind") ||
+              w.toLowerCase().includes("wave"),
+          ),
+          overall:
+            goNoGo === "GO"
+              ? "Conditions suitable for passage"
+              : goNoGo === "CAUTION"
+                ? "Proceed with caution — review warnings"
+                : "Conditions not suitable — delay departure",
         },
       },
       tidal: {
@@ -1629,13 +2101,19 @@ export class SimpleOrchestrator {
         summary: {
           departureStation: depTidal.station,
           destinationStation: destTidal.station,
-          tidalDataAvailable: depTidal.predictions.length > 0 || destTidal.predictions.length > 0,
-          warnings: allWarnings.filter((w: string) => w.toLowerCase().includes('tidal') || w.toLowerCase().includes('current')),
+          tidalDataAvailable:
+            depTidal.predictions.length > 0 || destTidal.predictions.length > 0,
+          warnings: allWarnings.filter(
+            (w: string) =>
+              w.toLowerCase().includes("tidal") ||
+              w.toLowerCase().includes("current"),
+          ),
         },
       },
       navigationWarnings: {
         count: navWarnings.length,
-        critical: navWarnings.filter((w: any) => w.severity === 'critical').length,
+        critical: navWarnings.filter((w: any) => w.severity === "critical")
+          .length,
         warnings: navWarnings,
         lastChecked: new Date().toISOString(),
       },
@@ -1650,22 +2128,22 @@ export class SimpleOrchestrator {
         emergencyContacts: {
           emergency: {
             coastGuard: {
-              name: 'US Coast Guard',
-              vhf: 'Channel 16',
-              phone: '(855) 411-8727',
+              name: "US Coast Guard",
+              vhf: "Channel 16",
+              phone: "(855) 411-8727",
             },
           },
         },
         watchSchedule: plan.watchSchedule || null,
         timestamp: new Date().toISOString(),
-        source: 'Helmwise Safety Agent',
+        source: "Helmwise Safety Agent",
         decision: {
           goNoGo,
           overallRisk,
           safetyScore,
-          proceedWithPassage: goNoGo === 'GO',
-          requiresCaution: goNoGo === 'CAUTION',
-          doNotProceed: goNoGo === 'NO-GO',
+          proceedWithPassage: goNoGo === "GO",
+          requiresCaution: goNoGo === "CAUTION",
+          doNotProceed: goNoGo === "NO-GO",
         },
         analysis: {
           riskFactors: safetyWarnings,
@@ -1683,7 +2161,7 @@ export class SimpleOrchestrator {
           departurePortAvailable: !!plan.ports?.departure?.nearest,
           destinationPortAvailable: !!plan.ports?.arrival?.nearest,
           emergencyOptions: emergencyHarbors.length,
-          nearestEmergency: emergencyHarbors[0]?.name || 'None identified',
+          nearestEmergency: emergencyHarbors[0]?.name || "None identified",
         },
       },
       summary: {
@@ -1692,7 +2170,7 @@ export class SimpleOrchestrator {
         safetyDecision: goNoGo,
         safetyScore,
         overallRisk,
-        suitableForPassage: goNoGo !== 'NO-GO',
+        suitableForPassage: goNoGo !== "NO-GO",
         warnings: allWarnings,
         recommendations: plan.summary?.recommendations || [],
       },
@@ -1700,15 +2178,15 @@ export class SimpleOrchestrator {
   }
 
   private setupWebSocket() {
-    this.wss.on('connection', (ws: WebSocket) => {
-      logger.debug('WebSocket client connected');
+    this.wss.on("connection", (ws: WebSocket) => {
+      logger.debug("WebSocket client connected");
 
-      ws.on('close', () => {
-        logger.debug('WebSocket client disconnected');
+      ws.on("close", () => {
+        logger.debug("WebSocket client disconnected");
       });
 
-      ws.on('error', (error: any) => {
-        logger.error({ error }, 'WebSocket error');
+      ws.on("error", (error: any) => {
+        logger.error({ error }, "WebSocket error");
       });
     });
   }
@@ -1723,39 +2201,42 @@ export class SimpleOrchestrator {
   }
 
   private setupHttpServer() {
-    this.app.use(express.json({ limit: '1mb' }));
+    this.app.use(express.json({ limit: "1mb" }));
 
     // Trust proxy in production for correct IP detection behind load balancers
-    if (process.env.NODE_ENV === 'production') {
-      this.app.set('trust proxy', 1);
+    if (process.env.NODE_ENV === "production") {
+      this.app.set("trust proxy", 1);
     }
 
     // CORS for frontend
     this.app.use((req, res, next) => {
       const allowedOrigins = [
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'https://helmwise.co',
-        'https://www.helmwise.co',
-        'https://helmwise.pages.dev',
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://helmwise.co",
+        "https://www.helmwise.co",
+        "https://helmwise.pages.dev",
         process.env.NEXT_PUBLIC_APP_URL,
       ].filter(Boolean) as string[];
       const origin = req.headers.origin;
       if (origin && allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader("Access-Control-Allow-Origin", origin);
       }
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization",
+      );
+      res.setHeader("Access-Control-Allow-Credentials", "true");
 
-      if (req.method === 'OPTIONS') {
+      if (req.method === "OPTIONS") {
         return res.sendStatus(200);
       }
       next();
     });
 
     // REST endpoint for passage planning (original)
-    this.app.post('/api/plan', async (req, res) => {
+    this.app.post("/api/plan", async (req, res) => {
       // Auth + rate limit
       if (!(await this.verifyAuth(req, res))) return;
       if (!(await this.checkRateLimit(req, res))) return;
@@ -1769,23 +2250,27 @@ export class SimpleOrchestrator {
       }
 
       try {
-        logger.info({
-          departure: req.body.departure?.name,
-          destination: req.body.destination?.name
-        }, 'Received planning request via /api/plan');
+        logger.info(
+          {
+            departure: req.body.departure?.name,
+            destination: req.body.destination?.name,
+          },
+          "Received planning request via /api/plan",
+        );
         const plan = await this.planPassage(validation.data);
         res.json({ success: true, plan });
       } catch (error: any) {
-        logger.error({ error }, 'Planning failed');
+        logger.error({ error }, "Planning failed");
         res.status(500).json({
           success: false,
-          error: 'Passage planning failed. Please try again or contact support.'
+          error:
+            "Passage planning failed. Please try again or contact support.",
         });
       }
     });
 
     // Frontend-compatible endpoint — returns PassagePlanningResponse shape
-    this.app.post('/api/passage-planning/analyze', async (req, res) => {
+    this.app.post("/api/passage-planning/analyze", async (req, res) => {
       // Auth + rate limit
       if (!(await this.verifyAuth(req, res))) return;
       if (!(await this.checkRateLimit(req, res))) return;
@@ -1799,99 +2284,108 @@ export class SimpleOrchestrator {
       }
 
       try {
-        logger.info({
-          departure: req.body.departure?.name,
-          destination: req.body.destination?.name
-        }, 'Received planning request via /api/passage-planning/analyze');
+        logger.info(
+          {
+            departure: req.body.departure?.name,
+            destination: req.body.destination?.name,
+          },
+          "Received planning request via /api/passage-planning/analyze",
+        );
         const plan = await this.planPassage(validation.data);
         const response = this.mapPlanToAnalyzeResponse(plan);
         res.json(response);
       } catch (error: any) {
-        logger.error({ error }, 'Planning failed');
+        logger.error({ error }, "Planning failed");
         res.status(500).json({
           success: false,
-          error: 'Passage planning failed. Please try again or contact support.'
+          error:
+            "Passage planning failed. Please try again or contact support.",
         });
       }
     });
-    
+
     // Health check endpoint
-    this.app.get('/health', async (req, res) => {
+    this.app.get("/health", async (req, res) => {
       try {
         const health: any = {
-          status: 'healthy',
+          status: "healthy",
           timestamp: new Date().toISOString(),
-          agents: {}
+          agents: {},
         };
-        
+
         for (const [name] of Object.entries(this.agents)) {
           try {
-            const agentHealth = this.redis ? await this.redis.hgetall(`agent:health:${name}-agent`) : {};
+            const agentHealth = this.redis
+              ? await this.redis.hgetall(`agent:health:${name}-agent`)
+              : {};
             health.agents[name] = {
-              status: agentHealth.status || 'unknown',
-              lastHeartbeat: agentHealth.lastHeartbeat || null
+              status: agentHealth.status || "unknown",
+              lastHeartbeat: agentHealth.lastHeartbeat || null,
             };
           } catch (error) {
             health.agents[name] = {
-              status: 'unknown',
-              error: 'Failed to check health'
+              status: "unknown",
+              error: "Failed to check health",
             };
           }
         }
-        
+
         res.json(health);
       } catch (error: any) {
         res.status(500).json({
-          status: 'unhealthy',
-          error: error.message
+          status: "unhealthy",
+          error: error.message,
         });
       }
     });
-    
+
     // Readiness probe for Kubernetes
-    this.app.get('/ready', async (req, res) => {
+    this.app.get("/ready", async (req, res) => {
       res.json({ ready: true });
     });
   }
 
   async start() {
-    const httpPort = parseInt(process.env.PORT || '8080', 10);
+    const httpPort = parseInt(process.env.PORT || "8080", 10);
     await new Promise<void>((resolve) => {
       this.httpServer.listen(httpPort, () => {
-        logger.info({
-          httpPort,
-          httpServer: `http://localhost:${httpPort}`,
-          wsServer: `ws://localhost:${httpPort}`,
-          healthEndpoint: `http://localhost:${httpPort}/health`
-        }, 'Orchestrator started successfully');
+        logger.info(
+          {
+            httpPort,
+            httpServer: `http://localhost:${httpPort}`,
+            wsServer: `ws://localhost:${httpPort}`,
+            healthEndpoint: `http://localhost:${httpPort}/health`,
+          },
+          "Orchestrator started successfully",
+        );
         resolve();
       });
     });
   }
 
   async shutdown() {
-    logger.info('Shutting down orchestrator...');
+    logger.info("Shutting down orchestrator...");
 
     // Flush pending audit log writes before shutting down
     try {
       await this.auditLogger.flushPendingWrites();
-      logger.info('Audit log writes flushed');
+      logger.info("Audit log writes flushed");
     } catch (error) {
-      logger.error({ error }, 'Error flushing audit logs during shutdown');
+      logger.error({ error }, "Error flushing audit logs during shutdown");
     }
 
     for (const agent of Object.values(this.agents)) {
       try {
         await agent.shutdown();
       } catch (error) {
-        logger.error({ error }, 'Error shutting down agent');
+        logger.error({ error }, "Error shutting down agent");
       }
     }
 
     try {
       await this.portAgent.shutdown();
     } catch (error) {
-      logger.error({ error }, 'Error shutting down port agent');
+      logger.error({ error }, "Error shutting down port agent");
     }
 
     try {
@@ -1907,22 +2401,29 @@ export class SimpleOrchestrator {
 
     await new Promise<void>((resolve) => {
       this.httpServer.close(() => {
-        logger.info('Orchestrator shutdown complete');
+        logger.info("Orchestrator shutdown complete");
         resolve();
       });
     });
   }
 
-  private calculateSimpleDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  private calculateSimpleDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
     // Haversine formula for distance in nautical miles
     const R = 3440.1; // Earth radius in nautical miles
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
 }
-

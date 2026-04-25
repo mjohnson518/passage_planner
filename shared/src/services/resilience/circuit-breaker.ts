@@ -3,9 +3,10 @@
  * Uses opossum library for circuit breaker pattern
  */
 
-import CircuitBreaker from 'opossum';
-import { Logger } from 'pino';
-import pino from 'pino';
+import CircuitBreaker from "opossum";
+import { Logger } from "pino";
+import pino from "pino";
+import { loggerRedactOptions } from "../../utils/loggerRedact";
 
 export interface CircuitBreakerOptions {
   timeout: number;
@@ -27,7 +28,10 @@ export interface CircuitMetrics {
 
 export class CircuitBreakerFactory {
   private static breakers: Map<string, CircuitBreaker> = new Map();
-  private static logger: Logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+  private static logger: Logger = pino({
+    level: process.env.LOG_LEVEL || "info",
+    ...loggerRedactOptions,
+  });
 
   /**
    * Create or retrieve a circuit breaker for a specific service
@@ -35,7 +39,7 @@ export class CircuitBreakerFactory {
   static create<T>(
     name: string,
     asyncFunction: (...args: any[]) => Promise<T>,
-    options?: Partial<CircuitBreakerOptions>
+    options?: Partial<CircuitBreakerOptions>,
   ): CircuitBreaker {
     // Check if breaker already exists
     const existing = this.breakers.get(name);
@@ -51,7 +55,7 @@ export class CircuitBreakerFactory {
       rollingCountTimeout: 10000, // 10 second rolling window
       rollingCountBuckets: 10, // Number of buckets in rolling window
       volumeThreshold: 5, // Minimum number of requests before circuit can trip
-      name
+      name,
     };
 
     const finalOptions = { ...defaultOptions, ...options };
@@ -64,7 +68,7 @@ export class CircuitBreakerFactory {
       rollingCountTimeout: finalOptions.rollingCountTimeout,
       rollingCountBuckets: finalOptions.rollingCountBuckets,
       volumeThreshold: finalOptions.volumeThreshold,
-      name: finalOptions.name
+      name: finalOptions.name,
       // Note: errorFilter removed - opossum's errorFilter has inverted semantics
       // that don't work well with our use case. All errors will trip the circuit.
     });
@@ -81,77 +85,80 @@ export class CircuitBreakerFactory {
   /**
    * Set up logging for circuit breaker state changes
    */
-  private static setupEventListeners(breaker: CircuitBreaker, name: string): void {
+  private static setupEventListeners(
+    breaker: CircuitBreaker,
+    name: string,
+  ): void {
     // Log when circuit opens
-    breaker.on('open', () => {
+    breaker.on("open", () => {
       this.logger.error({
-        event: 'circuit_breaker_open',
+        event: "circuit_breaker_open",
         name,
-        message: `Circuit breaker ${name} is now OPEN - requests will fail fast`
+        message: `Circuit breaker ${name} is now OPEN - requests will fail fast`,
       });
     });
 
     // Log when circuit closes
-    breaker.on('close', () => {
+    breaker.on("close", () => {
       this.logger.info({
-        event: 'circuit_breaker_close',
+        event: "circuit_breaker_close",
         name,
-        message: `Circuit breaker ${name} is now CLOSED - normal operation resumed`
+        message: `Circuit breaker ${name} is now CLOSED - normal operation resumed`,
       });
     });
 
     // Log when circuit enters half-open state
-    breaker.on('halfOpen', () => {
+    breaker.on("halfOpen", () => {
       this.logger.info({
-        event: 'circuit_breaker_halfopen',
+        event: "circuit_breaker_halfopen",
         name,
-        message: `Circuit breaker ${name} is now HALF-OPEN - testing if service recovered`
+        message: `Circuit breaker ${name} is now HALF-OPEN - testing if service recovered`,
       });
     });
 
     // Log failures
-    breaker.on('failure', (error: Error) => {
+    breaker.on("failure", (error: Error) => {
       this.logger.warn({
-        event: 'circuit_breaker_failure',
+        event: "circuit_breaker_failure",
         name,
         error: error.message,
-        message: `Circuit breaker ${name} recorded a failure`
+        message: `Circuit breaker ${name} recorded a failure`,
       });
     });
 
     // Log successful calls
-    breaker.on('success', () => {
+    breaker.on("success", () => {
       this.logger.debug({
-        event: 'circuit_breaker_success',
+        event: "circuit_breaker_success",
         name,
-        message: `Circuit breaker ${name} recorded a successful call`
+        message: `Circuit breaker ${name} recorded a successful call`,
       });
     });
 
     // Log timeouts
-    breaker.on('timeout', () => {
+    breaker.on("timeout", () => {
       this.logger.error({
-        event: 'circuit_breaker_timeout',
+        event: "circuit_breaker_timeout",
         name,
-        message: `Circuit breaker ${name} timed out`
+        message: `Circuit breaker ${name} timed out`,
       });
     });
 
     // Log when circuit breaker rejects a call
-    breaker.on('reject', () => {
+    breaker.on("reject", () => {
       this.logger.warn({
-        event: 'circuit_breaker_reject',
+        event: "circuit_breaker_reject",
         name,
-        message: `Circuit breaker ${name} rejected a call (circuit is open)`
+        message: `Circuit breaker ${name} rejected a call (circuit is open)`,
       });
     });
 
     // Log fallback executions
-    breaker.on('fallback', (result: any) => {
+    breaker.on("fallback", (result: any) => {
       this.logger.info({
-        event: 'circuit_breaker_fallback',
+        event: "circuit_breaker_fallback",
         name,
-        message: `Circuit breaker ${name} executed fallback`
+        message: `Circuit breaker ${name} executed fallback`,
       });
     });
   }
@@ -171,7 +178,7 @@ export class CircuitBreakerFactory {
       successes: stats.successes || 0,
       lastFailureTime: (stats as any).lastFailureTime || null,
       consecutiveFailures: (stats as any).consecutiveFailures || 0,
-      consecutiveSuccesses: (stats as any).consecutiveSuccesses || 0
+      consecutiveSuccesses: (stats as any).consecutiveSuccesses || 0,
     };
   }
 
@@ -184,9 +191,9 @@ export class CircuitBreakerFactory {
       return null;
     }
 
-    if (breaker.opened) return 'OPEN';
-    if (breaker.halfOpen) return 'HALF_OPEN';
-    return 'CLOSED';
+    if (breaker.opened) return "OPEN";
+    if (breaker.halfOpen) return "HALF_OPEN";
+    return "CLOSED";
   }
 
   /**
@@ -197,9 +204,9 @@ export class CircuitBreakerFactory {
     if (breaker) {
       breaker.close();
       this.logger.info({
-        event: 'circuit_breaker_reset',
+        event: "circuit_breaker_reset",
         name,
-        message: `Circuit breaker ${name} was manually reset`
+        message: `Circuit breaker ${name} was manually reset`,
       });
     }
   }

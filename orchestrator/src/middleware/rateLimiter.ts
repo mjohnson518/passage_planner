@@ -117,8 +117,21 @@ export class RateLimiter {
 
       next();
     } catch (error) {
-      this.logger.error({ error }, "Rate limiting failed");
-      // Continue on error - don't block requests due to Redis issues
+      this.logger.error(
+        { error, method: req.method, path: req.path },
+        "Rate limiting failed",
+      );
+      // SECURITY: Fail closed on write methods in production. Read traffic can
+      // tolerate a Redis blip (returns stale-ish counts), but POST/PUT/PATCH/DELETE
+      // would otherwise let an attacker bypass tier limits by inducing Redis errors.
+      const isWrite = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
+      if (isWrite && process.env.NODE_ENV === "production") {
+        return res
+          .status(503)
+          .json({
+            error: "Service temporarily unavailable. Please try again shortly.",
+          });
+      }
       next();
     }
   }
@@ -136,11 +149,9 @@ export class RateLimiter {
           { path: req.path },
           "Auth rate limiting unavailable: Redis down — returning 503",
         );
-        return res
-          .status(503)
-          .json({
-            error: "Service temporarily unavailable. Please try again shortly.",
-          });
+        return res.status(503).json({
+          error: "Service temporarily unavailable. Please try again shortly.",
+        });
       }
       return next();
     }
@@ -228,8 +239,15 @@ export class RateLimiter {
       next();
     } catch (error) {
       this.logger.error({ error, ip: clientIp }, "Auth rate limiting failed");
-      // Continue on error - don't block requests due to Redis issues
-      // but log for monitoring
+      // SECURITY: Auth endpoints fail closed in production. Allowing unlimited
+      // login/signup/reset attempts under Redis errors enables brute-force.
+      if (process.env.NODE_ENV === "production") {
+        return res
+          .status(503)
+          .json({
+            error: "Service temporarily unavailable. Please try again shortly.",
+          });
+      }
       next();
     }
   }

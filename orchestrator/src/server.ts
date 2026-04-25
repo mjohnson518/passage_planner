@@ -15,12 +15,13 @@ import {
   TOP_UP_PACKS,
   FOUNDING_MEMBER,
   getFleetSeatLimit,
+  loggerRedactOptions,
 } from "@passage-planner/shared";
 import { AuthMiddleware } from "./middleware/auth";
 import { AgentManager } from "./services/AgentManager";
 import { RateLimiter } from "./middleware/rateLimiter";
 import {
-  createAdminGuard,
+  createAdminOnly,
   createRequireAdminRole,
 } from "./middleware/adminGuard";
 import { emailService } from "./services/EmailService";
@@ -31,7 +32,10 @@ import * as crypto from "crypto";
 import pino from "pino";
 import { z } from "zod";
 
-const startupLogger = pino({ level: process.env.LOG_LEVEL || "info" });
+const startupLogger = pino({
+  level: process.env.LOG_LEVEL || "info",
+  ...loggerRedactOptions,
+});
 
 // Extend Express Request type
 declare global {
@@ -57,6 +61,7 @@ export class HttpServer {
   private rateLimiter?: RateLimiter;
   private logger = pino({
     level: process.env.LOG_LEVEL || "info",
+    ...loggerRedactOptions,
   });
 
   constructor() {
@@ -366,6 +371,12 @@ export class HttpServer {
   }
 
   private setupRoutes() {
+    // SECURITY (SEC-H4): adminOnly = adminGuard (IP/country) + requireAdminRole
+    // (DB role). Composed once and applied to every admin route to prevent the
+    // privilege-escalation risk of forgetting one half of the check.
+    const adminOnly = createAdminOnly(this.postgres, this.logger);
+    const requireAdminRole = createRequireAdminRole(this.postgres, this.logger);
+
     // Health check
     this.app.get("/health", async (req, res) => {
       let postgresOk = false;
@@ -492,43 +503,55 @@ export class HttpServer {
     const refreshBodySchema = z
       .object({ refreshToken: z.string().min(1).optional() })
       .strict();
-    this.app.post("/api/auth/refresh", async (req, res) => {
-      try {
-        const cookieHeader = req.headers.cookie || "";
-        const match = cookieHeader.match(/(?:^|;)\s*refresh_token=([^;]+)/);
-        let bodyToken: string | undefined;
-        if (req.body && Object.keys(req.body).length > 0) {
-          const parsed = refreshBodySchema.safeParse(req.body);
-          if (!parsed.success) {
-            return res.status(400).json({
-              error: "Validation failed",
-              details: parsed.error.issues,
-            });
+    this.app.post(
+      "/api/auth/refresh",
+      (req, res, next) => {
+        // SECURITY (SEC-L1): rate-limit token refresh by IP to slow brute-force
+        // attacks against stolen/leaked refresh tokens. Same authRateLimit policy
+        // used on login/signup.
+        if (this.rateLimiter) {
+          return this.rateLimiter.authRateLimit(req, res, next);
+        }
+        return next();
+      },
+      async (req, res) => {
+        try {
+          const cookieHeader = req.headers.cookie || "";
+          const match = cookieHeader.match(/(?:^|;)\s*refresh_token=([^;]+)/);
+          let bodyToken: string | undefined;
+          if (req.body && Object.keys(req.body).length > 0) {
+            const parsed = refreshBodySchema.safeParse(req.body);
+            if (!parsed.success) {
+              return res.status(400).json({
+                error: "Validation failed",
+                details: parsed.error.issues,
+              });
+            }
+            bodyToken = parsed.data.refreshToken;
           }
-          bodyToken = parsed.data.refreshToken;
+          const refreshToken = match ? decodeURIComponent(match[1]) : bodyToken;
+          if (!refreshToken) {
+            return res.status(401).json({ error: "Missing refresh token" });
+          }
+          const newAccessToken =
+            await this.authService.refreshAccessToken(refreshToken);
+          if (!newAccessToken) {
+            return res.status(401).json({ error: "Invalid refresh token" });
+          }
+          res.cookie("auth_token", newAccessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 60 * 60 * 1000,
+            path: "/",
+          });
+          res.json({ token: newAccessToken });
+        } catch (error) {
+          this.logger.error({ error }, "Token refresh failed");
+          res.status(500).json({ error: "Refresh failed" });
         }
-        const refreshToken = match ? decodeURIComponent(match[1]) : bodyToken;
-        if (!refreshToken) {
-          return res.status(401).json({ error: "Missing refresh token" });
-        }
-        const newAccessToken =
-          await this.authService.refreshAccessToken(refreshToken);
-        if (!newAccessToken) {
-          return res.status(401).json({ error: "Invalid refresh token" });
-        }
-        res.cookie("auth_token", newAccessToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: 60 * 60 * 1000,
-          path: "/",
-        });
-        res.json({ token: newAccessToken });
-      } catch (error) {
-        this.logger.error({ error }, "Token refresh failed");
-        res.status(500).json({ error: "Refresh failed" });
-      }
-    });
+      },
+    );
 
     // Logout endpoint — clears the httpOnly auth + refresh cookies
     this.app.post("/api/auth/logout", (req, res) => {
@@ -1260,7 +1283,7 @@ export class HttpServer {
     this.app.post(
       "/api/admin/whitelist",
       this.authMiddleware.authenticate.bind(this.authMiddleware),
-      createAdminGuard(this.postgres),
+      ...adminOnly,
       async (req, res) => {
         try {
           const schema = z.object({
@@ -1497,8 +1520,6 @@ export class HttpServer {
           .json({ status: "error", timestamp: new Date().toISOString() });
       }
     });
-
-    const requireAdminRole = createRequireAdminRole(this.postgres, this.logger);
 
     // Detailed health check - requires authentication
     this.app.get(
@@ -1796,13 +1817,11 @@ export class HttpServer {
       },
     );
 
-    // Admin Routes
-    const adminGuard = createAdminGuard(this.logger);
-
+    // Admin Routes (adminOnly composed at top of setupRoutes)
     this.app.get(
       "/api/admin/verify",
       this.authMiddleware.authenticate.bind(this.authMiddleware),
-      adminGuard,
+      ...adminOnly,
       async (req, res) => {
         try {
           const userId = req.user!.id;
@@ -1826,7 +1845,7 @@ export class HttpServer {
     this.app.get(
       "/api/admin/metrics/overview",
       this.authMiddleware.authenticate.bind(this.authMiddleware),
-      adminGuard,
+      ...adminOnly,
       async (req, res) => {
         try {
           // Mock data for now - would integrate with real metrics
