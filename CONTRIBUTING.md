@@ -39,7 +39,7 @@ This is an npm-workspaces monorepo:
 
 - `frontend/` — Next.js 14, App Router, Tailwind, Zustand, Leaflet
 - `orchestrator/` — Express + Socket.io, Sentry, Supabase, Stripe
-- `agents/{weather,tidal,route,safety,port,base}/` — MCP agents
+- `agents/{weather,tidal,route,safety,port,base}/` — Specialized services. Each implements MCP tool schemas (so it can run as a standalone stdio MCP server), but in production the orchestrator instantiates them as in-process TypeScript classes.
 - `shared/` — Zod schemas, shared types, middleware (imported as `@passage-planner/shared`)
 - `infrastructure/postgres/migrations/` — DB migrations (numbered, immutable once merged)
 

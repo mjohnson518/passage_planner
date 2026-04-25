@@ -72,7 +72,7 @@
     "tailwind-merge": "^3.3.1",
     "uuid": "^11.1.0"
   },
-  "description": "A production-ready passage planning system built with the Model Context Protocol (MCP) that orchestrates specialized AI agents to provide comprehensive sailing route planning. The system uses a hierarchical architecture where an orchestrator agent manages specialized sub-agents for weather forecasting, tidal predictions, port information, safety planning, and route optimization.",
+  "description": "Helmwise — a maritime passage planning SaaS. The orchestrator (Express + Socket.io) coordinates specialized in-process services for weather forecasting, tidal predictions, port information, safety analysis, and route calculation. Each service implements MCP tool schemas so it can also run as a standalone MCP server, but in the production single-process deployment they are invoked as in-process classes (no MCP transport at runtime).",
   "directories": {
     "doc": "docs",
     "test": "tests"
