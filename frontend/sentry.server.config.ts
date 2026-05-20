@@ -22,13 +22,13 @@ if (SENTRY_DSN) {
     // Don't send in development
     enabled: process.env.NODE_ENV !== "development",
 
-    beforeSend(event, hint) {
+    beforeSend(event: unknown, _hint: unknown) {
       // Log what would be sent in development
       if (process.env.NODE_ENV === "development") {
         console.error("Sentry would send:", event);
         return null;
       }
-      return event;
+      return event as never;
     },
   });
 

@@ -40,13 +40,13 @@ if (SENTRY_DSN) {
       "Failed to fetch",
     ],
 
-    beforeSend(event, hint) {
+    beforeSend(event: unknown, _hint: unknown) {
       // Don't send in development
       if (process.env.NODE_ENV === "development") {
         console.error("Sentry would send:", event);
         return null;
       }
-      return event;
+      return event as never;
     },
   });
 

@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "es5",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -14,54 +10,37 @@
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
     "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "@/components/*": [
-        "./app/components/*"
-      ],
-      "@/lib/*": [
-        "./app/lib/*"
-      ],
-      "@/hooks/*": [
-        "./app/hooks/*"
-      ],
-      "@/types/*": [
-        "./app/types/*"
-      ],
-      "@/types": [
-        "./app/types/index.ts"
-      ],
-      "@/store/*": [
-        "./app/store/*"
-      ],
-      "@/config": [
-        "./app/config/index.ts"
-      ],
-      "@/contexts/*": [
-        "./app/contexts/*"
-      ]
+      "@/*": ["./*"],
+      "@/components/*": ["./app/components/*"],
+      "@/lib/*": ["./app/lib/*"],
+      "@/hooks/*": ["./app/hooks/*"],
+      "@/types/*": ["./app/types/*"],
+      "@/types": ["./app/types/index.ts"],
+      "@/store/*": ["./app/store/*"],
+      "@/config": ["./app/config/index.ts"],
+      "@/contexts/*": ["./app/contexts/*"]
     },
-    "types": ["node", "react", "react-dom", "jest", "leaflet", "uuid", "html2canvas", "jspdf", "react-syntax-highlighter"],
+    "types": [
+      "node",
+      "react",
+      "react-dom",
+      "jest",
+      "leaflet",
+      "uuid",
+      "react-syntax-highlighter"
+    ],
     "plugins": [
       {
         "name": "next"
       }
     ]
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
 }
