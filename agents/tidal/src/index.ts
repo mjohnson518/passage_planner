@@ -1,6 +1,7 @@
 import {
   BaseAgent,
   NOAATidalService,
+  OpenMeteoTidalService,
   CacheManager,
   loggerRedactOptions,
 } from "@passage-planner/shared";
@@ -46,6 +47,13 @@ export function assertTidalFresh(
 
 export class TidalAgent extends BaseAgent {
   private tidalService: NOAATidalService;
+  /**
+   * Global modelled-tide fallback for waypoints outside NOAA CO-OPS station
+   * coverage (Mediterranean, UK, AU/NZ, SE Asia, Pacific Islands). Modelled
+   * tides are ±0.2m of measured for most open coast; the planner surfaces a
+   * caveat banner so the user knows to cross-check shoal-water entries.
+   */
+  private modelledTideService: OpenMeteoTidalService;
   private cache: CacheManager;
 
   constructor() {
@@ -71,6 +79,7 @@ export class TidalAgent extends BaseAgent {
 
     this.cache = new CacheManager(logger);
     this.tidalService = new NOAATidalService(this.cache, logger);
+    this.modelledTideService = new OpenMeteoTidalService(this.cache, logger);
 
     this.setupTools();
   }
@@ -238,14 +247,56 @@ export class TidalAgent extends BaseAgent {
           50,
         );
         if (stations.length === 0) {
+          // Outside NOAA coverage — fall back to modelled global tides.
+          // Open-Meteo's sea_level_height_msl gives a globally-available
+          // tide curve we can convert into highs/lows. We mark the result
+          // as `modelled: true` so the planner can show a "modelled tide"
+          // caveat. This is the difference between "no tide data" (which
+          // forces a safety-margin penalty) and "modelled tide" (usable
+          // for open-coast planning with a known accuracy band).
+          this.logger.info(
+            { latitude, longitude },
+            "No NOAA station within 50nm; using modelled global tides",
+          );
+          const modelled = await this.modelledTideService.getTideForecast(
+            latitude,
+            longitude,
+            Math.ceil(
+              (new Date(endDate).getTime() - new Date(startDate).getTime()) /
+                (24 * 60 * 60 * 1000),
+            ),
+          );
           return {
             content: [
               {
                 type: "text",
-                text: `No tidal stations found within 50nm of ${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`,
+                text:
+                  `Modelled global tide forecast for ${latitude.toFixed(2)}°, ${longitude.toFixed(2)}° ` +
+                  `(${modelled.predictions.length} highs/lows over the requested window). ${modelled.caveat}`,
+              },
+              {
+                type: "data",
+                data: {
+                  station: null,
+                  predictions: modelled.predictions.map((p) => ({
+                    time: p.t,
+                    height: p.v,
+                    type: p.type,
+                  })),
+                  extremes: modelled.predictions.map((p) => ({
+                    time: p.t,
+                    height: p.v,
+                    type: p.type === "H" ? "high" : "low",
+                  })),
+                  datum: "MSL",
+                  units: "metric",
+                  source: modelled.source,
+                  modelled: true,
+                  caveat: modelled.caveat,
+                  fetchedAt: modelled.fetchedAt,
+                },
               },
             ],
-            isError: true,
           };
         }
         resolvedStationId = stations[0].id;
