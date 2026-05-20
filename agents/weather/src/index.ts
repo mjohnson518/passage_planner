@@ -1,6 +1,7 @@
 import {
   BaseAgent,
   NOAAWeatherService,
+  GlobalWeatherService,
   CacheManager,
   CircuitBreakerFactory,
   NDBCBuoyService,
@@ -55,7 +56,13 @@ export function assertWeatherFresh(
 }
 
 export class WeatherAgent extends BaseAgent {
-  private weatherService: NOAAWeatherService;
+  /**
+   * Region-aware weather provider. Routes US-coverage coords to NOAA and
+   * everyone else to Open-Meteo, preserving the same forecast shape so the
+   * rest of this agent (safety scoring, formatting, freshness checks) does
+   * not need to know which provider answered.
+   */
+  private weatherService: GlobalWeatherService;
   private buoyService: NDBCBuoyService;
   private gribService: GribService;
   private cache: CacheManager;
@@ -82,7 +89,7 @@ export class WeatherAgent extends BaseAgent {
     );
 
     this.cache = new CacheManager(logger);
-    this.weatherService = new NOAAWeatherService(this.cache, logger);
+    this.weatherService = new GlobalWeatherService(this.cache, logger);
     this.buoyService = new NDBCBuoyService(this.cache, logger);
     this.gribService = new GribService(this.cache, logger);
 
@@ -660,18 +667,29 @@ export class WeatherAgent extends BaseAgent {
         { error, waypoints },
         "Failed to fetch route buoy wave data",
       );
+      // SAFETY: do not return `overallHazard: "unknown"` — a downstream
+      // consumer may treat "unknown" the same as "checked & safe". Surface
+      // the degradation explicitly with a flag and a textual warning so the
+      // planner can render a "buoy data unavailable" banner and the safety
+      // analysis can note the missing data source in the audit log.
       return {
         content: [
           {
             type: "text",
-            text: "Unable to retrieve buoy wave data. Wave estimates are forecast-based only.",
+            text:
+              "SAFETY NOTICE: Real-time buoy wave data could not be retrieved. " +
+              "Wave estimates fall back to model forecasts, which may underestimate " +
+              "actual conditions. Cross-check with regional forecasts before departure.",
           },
         ],
         isError: false,
         data: {
           buoys: [],
           worstConditions: null,
-          overallHazard: "unknown",
+          degraded: true,
+          degradedReason:
+            error instanceof Error ? error.message : "buoy_fetch_failed",
+          hazardCheckPerformed: false,
           coverage: "none",
         },
       };
@@ -711,14 +729,27 @@ export class WeatherAgent extends BaseAgent {
         { error, waypoints },
         "Failed to fetch route wind field",
       );
+      // SAFETY: as with buoy data — surface degradation with an explicit
+      // flag rather than returning a silent isError:false. The planner UI
+      // needs to know the gridded wind field check did not run.
       return {
         content: [
           {
             type: "text",
-            text: "Unable to retrieve gridded wind field. Using API-based forecasts only.",
+            text:
+              "SAFETY NOTICE: Gridded wind/wave field unavailable. Weather routing " +
+              "fell back to point-forecast data only. Review departure window " +
+              "against published marine forecasts before departure.",
           },
         ],
         isError: false,
+        data: {
+          degraded: true,
+          degradedReason:
+            error instanceof Error ? error.message : "windfield_fetch_failed",
+          hazardCheckPerformed: false,
+          source: "unavailable",
+        },
       };
     }
   }
