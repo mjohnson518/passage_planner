@@ -9,6 +9,7 @@ import { AreaChecker } from "./utils/area-checker";
 import { SafetyAuditLogger } from "./utils/audit-logger";
 import { WeatherPatternAnalyzer } from "./utils/weather-pattern-analyzer";
 import { SafetyOverrideManager } from "./utils/override-manager";
+import { HazardQueryService } from "./services/HazardQueryService";
 import {
   CrewExperience,
   BathymetryService,
@@ -34,6 +35,7 @@ export class SafetyAgent {
   private bathymetryService: BathymetryService;
   private navigationWarningsService: NOAANavigationWarningsService;
   private tidalService: NOAATidalService;
+  private hazardQueryService: HazardQueryService;
 
   constructor() {
     this.logger = pino({
@@ -79,6 +81,10 @@ export class SafetyAgent {
     const tidalCache = new CacheManager(this.logger);
     this.tidalService = new NOAATidalService(tidalCache, this.logger);
     this.logger.info("Tidal service initialized for safety calculations");
+
+    // Global hazard feeds (piracy today; NAVAREA/ice as those land).
+    // Lazy DB connection — degrades soft if DATABASE_URL is unset (e.g. unit tests).
+    this.hazardQueryService = new HazardQueryService(this.logger);
 
     this.setupTools();
   }
@@ -568,6 +574,11 @@ export class SafetyAgent {
     const hazards = [];
     const recommendations = [];
 
+    // Kick off the global piracy / anti-shipping query in parallel with the
+    // local checks below — it talks to the DB, so don't serialise it behind
+    // depth lookups. Awaited before scoring.
+    const piracyHitsPromise = this.hazardQueryService.piracyAlongRoute(route);
+
     // Check for restricted areas along the route
     const restrictedAreaConflicts = this.areaChecker.checkRoute(route);
 
@@ -781,6 +792,59 @@ export class SafetyAgent {
       recommendations.push("Consider planning rest stops for long passage");
     }
 
+    // Drain piracy / anti-shipping query and merge into hazards.
+    // SAFETY: if the query degraded (DB down, timeout), add a transparency
+    // warning so the mariner knows piracy data was not consulted on this run.
+    const piracyResult = await piracyHitsPromise;
+    if (piracyResult.degraded) {
+      warnings.push({
+        id: uuidv4(),
+        type: "piracy_data_unavailable",
+        description:
+          "Anti-shipping incident database unavailable for this analysis. " +
+          "Cross-check route against UKMTO and USCG advisories before departure.",
+        severity: "warning",
+        issued: new Date().toISOString(),
+        source: "HazardQueryService",
+      });
+      this.auditLogger.logDataSource(
+        requestId,
+        "piracy",
+        "NGA_ASAM",
+        "low",
+        route[0],
+      );
+    } else {
+      for (const hit of piracyResult.hits) {
+        hazards.push({
+          id: hit.id,
+          type: "piracy",
+          location: { latitude: hit.lat, longitude: hit.lon },
+          severity: "high",
+          description:
+            `Anti-shipping incident ${hit.occurredAt.slice(0, 10)} ` +
+            `(~${hit.distanceNm.toFixed(0)} nm from route): ${hit.description.slice(0, 240)}`,
+          avoidance:
+            "Review UKMTO / USCG / IMB current advisories. Consider routing further offshore or arranging escorted transit.",
+          metadata: {
+            source: hit.source,
+            externalRef: hit.externalRef,
+            distanceNm: hit.distanceNm,
+            hostility: hit.hostility,
+            navarea: hit.navarea,
+          },
+        });
+        this.auditLogger.logHazardDetected(
+          requestId,
+          undefined,
+          "piracy",
+          { latitude: hit.lat, longitude: hit.lon },
+          "high",
+          `Piracy/anti-shipping (${hit.source} ${hit.externalRef})`,
+        );
+      }
+    }
+
     // Calculate safety score with crew experience factoring
     let safetyScore: string;
     const hazardCount = hazards.length;
@@ -816,6 +880,10 @@ export class SafetyAgent {
     };
 
     // Log the analysis to audit trail
+    const dataSources = ["Safety Agent Analysis", "Restricted Area Database"];
+    if (!piracyResult.degraded) {
+      dataSources.push("NGA ASAM (anti-shipping incidents)");
+    }
     this.auditLogger.logRouteAnalysis(
       requestId,
       undefined,
@@ -823,8 +891,8 @@ export class SafetyAgent {
       hazards.length,
       warnings.length,
       safetyScore,
-      ["Safety Agent Analysis", "Restricted Area Database"],
-      hazards.length === 0 ? "high" : "medium",
+      dataSources,
+      piracyResult.degraded ? "low" : hazards.length === 0 ? "high" : "medium",
     );
 
     this.logger.info(

@@ -20,6 +20,7 @@ export interface SafetyHazard {
     | "restricted_area"
     | "weather"
     | "obstruction"
+    | "piracy"
     | "other";
   location: Waypoint;
   severity: "critical" | "high" | "moderate" | "low";
