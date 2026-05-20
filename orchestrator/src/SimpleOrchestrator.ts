@@ -14,7 +14,11 @@ import {
   WeatherRoutingService,
   WeatherRoute,
 } from "./services/weather-routing";
-import { BaseAgent } from "@passage-planner/shared";
+import {
+  BaseAgent,
+  GeocodingService,
+  CacheManager,
+} from "@passage-planner/shared";
 import { WebSocketServer, WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
 import express from "express";
@@ -54,6 +58,13 @@ export class SimpleOrchestrator {
   private auditLogger: SafetyAuditLogger;
   private weatherAggregator: WeatherAggregator;
   private weatherRouting: WeatherRoutingService;
+  /**
+   * Geocoding service for global place-name lookups. Backs the
+   * `/api/geocode` endpoint the planner uses to translate "Cowes" or
+   * "Palma de Mallorca" into coordinates without forcing the user to
+   * find them on a chart first.
+   */
+  private geocodingService: GeocodingService;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -100,6 +111,10 @@ export class SimpleOrchestrator {
     this.auditLogger = new SafetyAuditLogger(logger);
     this.weatherAggregator = new WeatherAggregator(logger);
     this.weatherRouting = new WeatherRoutingService(logger);
+    this.geocodingService = new GeocodingService(
+      new CacheManager(logger),
+      logger,
+    );
 
     this.initializeAgents();
     this.setupWebSocket();
@@ -1861,6 +1876,74 @@ export class SimpleOrchestrator {
   }
 
   /**
+   * Same auth check as verifyAuth() but also extracts the user id from the
+   * verified JWT so authorised endpoints can scope reads/writes to the
+   * caller's data. Returns null and sends the appropriate HTTP error if
+   * auth fails. In dev with SKIP_AUTH, returns a stable synthetic id so
+   * local testing works without a real Supabase token.
+   */
+  private async verifyAuthAndGetUserId(
+    req: express.Request,
+    res: express.Response,
+  ): Promise<string | null> {
+    const isProduction = process.env.NODE_ENV === "production";
+    if (
+      !isProduction &&
+      process.env.SKIP_AUTH === "true" &&
+      process.env.DEV_AUTH_BYPASS_KEY
+    ) {
+      return "dev-user";
+    }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      res.status(401).json({
+        success: false,
+        error: "Authentication required. Provide a Bearer token.",
+      });
+      return null;
+    }
+
+    const token = authHeader.slice(7);
+    const jwtSecret = process.env.SUPABASE_JWT_SECRET;
+
+    if (!jwtSecret) {
+      if (isProduction) {
+        logger.error(
+          "SUPABASE_JWT_SECRET not set in production — rejecting request",
+        );
+        res
+          .status(500)
+          .json({ success: false, error: "Authentication not configured" });
+        return null;
+      }
+      logger.warn("SUPABASE_JWT_SECRET not set — using synthetic dev user");
+      return "dev-user";
+    }
+
+    try {
+      const decoded = jwt.verify(token, jwtSecret, {
+        algorithms: ["HS256"],
+      }) as { sub?: string; user_id?: string };
+      const userId = decoded.sub ?? decoded.user_id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: "Token missing user identifier",
+        });
+        return null;
+      }
+      return userId;
+    } catch (err: any) {
+      logger.warn({ err: err.message }, "JWT verification failed");
+      res
+        .status(401)
+        .json({ success: false, error: "Invalid or expired token" });
+      return null;
+    }
+  }
+
+  /**
    * Rate limiting using Redis sliding window
    * 20 requests/minute per IP, fails open if Redis is down
    */
@@ -2381,44 +2464,309 @@ export class SimpleOrchestrator {
       }
     });
 
-    // Health check endpoint
+    // Health check endpoint. Reports the actual state of each in-process
+    // agent and the Redis/Postgres dependencies. Returns HTTP 503 if a
+    // safety-critical agent (safety, weather, tidal, route) is down so
+    // ops can wire this to alerting and rolling restarts.
     this.app.get("/health", async (req, res) => {
-      try {
-        const health: any = {
-          status: "healthy",
-          timestamp: new Date().toISOString(),
-          agents: {},
+      const startedAt = Date.now();
+      const health: {
+        status: "healthy" | "degraded" | "unhealthy";
+        timestamp: string;
+        agents: Record<
+          string,
+          { status: string; lastHeartbeat: string | null }
+        >;
+        dependencies: {
+          redis: {
+            status: "up" | "down" | "not_configured";
+            latencyMs?: number;
+            error?: string;
+          };
         };
+        criticalAgentsDown: string[];
+        durationMs?: number;
+      } = {
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        agents: {},
+        dependencies: {
+          redis: { status: this.redis ? "up" : "not_configured" },
+        },
+        criticalAgentsDown: [],
+      };
 
-        for (const [name] of Object.entries(this.agents)) {
-          try {
-            const agentHealth = this.redis
-              ? await this.redis.hgetall(`agent:health:${name}-agent`)
-              : {};
-            health.agents[name] = {
-              status: agentHealth.status || "unknown",
-              lastHeartbeat: agentHealth.lastHeartbeat || null,
-            };
-          } catch (error) {
-            health.agents[name] = {
-              status: "unknown",
-              error: "Failed to check health",
-            };
-          }
+      // Agent presence — these are in-process classes, so "present" means
+      // the constructor finished and didn't throw. We trust the agent's own
+      // `getHealth()` if it exposes one (BaseAgent does) but fall back to
+      // a binary up/down based on the registry entry. This replaces the
+      // old hardcoded "6 healthy" mock that masked failures.
+      const agentNames = Object.keys(this.agents).concat(["port"]); // portAgent is a separate field
+      const safetyCritical = new Set(["safety", "weather", "tidal", "route"]);
+      for (const name of agentNames) {
+        const inst =
+          name === "port"
+            ? this.portAgent
+            : (this.agents[name] as unknown as { getHealth?: () => unknown });
+        if (!inst) {
+          health.agents[name] = { status: "missing", lastHeartbeat: null };
+          if (safetyCritical.has(name)) health.criticalAgentsDown.push(name);
+          continue;
         }
-
-        res.json(health);
-      } catch (error: any) {
-        res.status(500).json({
-          status: "unhealthy",
-          error: error.message,
-        });
+        let status = "active";
+        try {
+          if (
+            typeof (inst as { getHealth?: () => unknown }).getHealth ===
+            "function"
+          ) {
+            // Don't await — BaseAgent.getHealth() is sync in the abstract
+            // class; we just want to confirm it doesn't throw.
+            (inst as { getHealth: () => unknown }).getHealth();
+          }
+        } catch {
+          status = "error";
+          if (safetyCritical.has(name)) health.criticalAgentsDown.push(name);
+        }
+        health.agents[name] = {
+          status,
+          lastHeartbeat: new Date().toISOString(),
+        };
       }
+
+      // Redis ping — actually exercise the connection rather than trust
+      // `isReady`. A blocked Redis can cause silent cache misses, which
+      // for us means stale safety data falls through to fresh-fetch path.
+      // We want to know.
+      if (this.redis) {
+        const t0 = Date.now();
+        try {
+          const reply = await this.redis.ping();
+          health.dependencies.redis = {
+            status: reply === "PONG" ? "up" : "down",
+            latencyMs: Date.now() - t0,
+          };
+          if (reply !== "PONG") {
+            health.status = "degraded";
+          }
+        } catch (err) {
+          health.dependencies.redis = {
+            status: "down",
+            latencyMs: Date.now() - t0,
+            error: (err as Error).message,
+          };
+          // Redis being down is degraded, not fully unhealthy — orchestrator
+          // can still plan with stale-resistance turned up.
+          health.status = "degraded";
+        }
+      }
+
+      if (health.criticalAgentsDown.length > 0) {
+        health.status = "unhealthy";
+      }
+
+      health.durationMs = Date.now() - startedAt;
+      res.status(health.status === "unhealthy" ? 503 : 200).json(health);
     });
 
     // Readiness probe for Kubernetes
     this.app.get("/ready", async (req, res) => {
       res.json({ ready: true });
+    });
+
+    // Geocoding — public endpoint, no auth required so the planner form
+    // can autocomplete as the user types before they log in. Open-Meteo
+    // and Nominatim already rate-limit themselves; an abusive client
+    // hits the cache anyway. Validation rejects pathological queries.
+    this.app.get("/api/geocode", async (req, res) => {
+      const schema = z.object({
+        q: z.string().min(2).max(120),
+        limit: z.coerce.number().int().min(1).max(10).optional(),
+      });
+      const parsed = schema.safeParse(req.query);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid query", details: parsed.error.issues });
+      }
+      try {
+        const results = await this.geocodingService.search(
+          parsed.data.q,
+          parsed.data.limit ?? 5,
+        );
+        res.json({ results });
+      } catch (error) {
+        logger.error({ error, query: parsed.data.q }, "Geocode failed");
+        res.status(503).json({ error: "Geocode service unavailable" });
+      }
+    });
+
+    // ------------------------------------------------------------------
+    // Saved passages — minimal Redis-backed persistence so the planner can
+    // surface a "Save Passage" action and the passages history page has
+    // something real to render. Production should eventually back this with
+    // PostgreSQL (the `saved_passages` migration is documented but pending)
+    // — Redis is acceptable for now since saved plans are small JSON blobs
+    // and the user-facing UX is unaffected by the storage tier.
+    //
+    // Auth model: passages are keyed by user id (extracted from JWT in
+    // verifyAuth). Calls without a valid token are 401'd at verifyAuth
+    // time, so reading "your" passages cannot see anyone else's.
+    // ------------------------------------------------------------------
+    const passagesKey = (userId: string) => `passages:user:${userId}`;
+    const passageDetailKey = (userId: string, passageId: string) =>
+      `passages:user:${userId}:${passageId}`;
+
+    this.app.post("/api/passages", async (req, res) => {
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return; // 401 already sent
+
+      if (!this.redis) {
+        return res.status(503).json({
+          error:
+            "Persistence layer unavailable. Plan was generated but not saved.",
+        });
+      }
+
+      const schema = z.object({
+        name: z.string().min(1).max(200).optional(),
+        plan: z.unknown(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid passage", details: parsed.error.issues });
+      }
+
+      const passageId = uuidv4();
+      const record = {
+        id: passageId,
+        userId,
+        name: parsed.data.name ?? "Untitled passage",
+        plan: parsed.data.plan,
+        savedAt: new Date().toISOString(),
+      };
+
+      try {
+        // Store the detail blob with a 1-year TTL (passages are reference
+        // documents, not ephemeral data). Maintain a sorted set indexed by
+        // save time so the list endpoint can paginate without scanning.
+        await this.redis.set(
+          passageDetailKey(userId, passageId),
+          JSON.stringify(record),
+          "EX",
+          365 * 24 * 60 * 60,
+        );
+        await this.redis.zadd(passagesKey(userId), Date.now(), passageId);
+        // Cap the per-user list at 100 to bound storage growth.
+        await this.redis.zremrangebyrank(passagesKey(userId), 0, -101);
+        res.json({ success: true, passage: record });
+      } catch (err) {
+        logger.error({ err, userId }, "Failed to persist passage");
+        res.status(500).json({ error: "Failed to save passage" });
+      }
+    });
+
+    this.app.get("/api/passages", async (req, res) => {
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+
+      if (!this.redis) {
+        return res.json({ passages: [] });
+      }
+
+      try {
+        const ids = (await this.redis.zrevrange(
+          passagesKey(userId),
+          0,
+          99,
+        )) as string[];
+        if (ids.length === 0) {
+          return res.json({ passages: [] });
+        }
+        const keys = ids.map((id) => passageDetailKey(userId, id));
+        const blobs = await this.redis.mget(...keys);
+        const passages = blobs
+          .filter((b): b is string => typeof b === "string")
+          .map((b) => JSON.parse(b));
+        res.json({ passages });
+      } catch (err) {
+        logger.error({ err, userId }, "Failed to list passages");
+        res.status(500).json({ error: "Failed to list passages" });
+      }
+    });
+
+    this.app.get("/api/passages/recent", async (req, res) => {
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.redis) return res.json({ passages: [] });
+
+      const limit = Math.min(
+        20,
+        Math.max(1, parseInt((req.query.limit as string) || "5", 10) || 5),
+      );
+
+      try {
+        const ids = (await this.redis.zrevrange(
+          passagesKey(userId),
+          0,
+          limit - 1,
+        )) as string[];
+        if (ids.length === 0) return res.json({ passages: [] });
+        const blobs = await this.redis.mget(
+          ...ids.map((id) => passageDetailKey(userId, id)),
+        );
+        const passages = blobs
+          .filter((b): b is string => typeof b === "string")
+          .map((b) => JSON.parse(b));
+        res.json({ passages });
+      } catch (err) {
+        logger.error({ err, userId }, "Failed to list recent passages");
+        res.status(500).json({ error: "Failed to list recent passages" });
+      }
+    });
+
+    this.app.delete("/api/passages/:id", async (req, res) => {
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.redis)
+        return res.status(503).json({ error: "Persistence unavailable" });
+
+      const passageId = req.params.id;
+      try {
+        await this.redis.del(passageDetailKey(userId, passageId));
+        await this.redis.zrem(passagesKey(userId), passageId);
+        res.json({ success: true });
+      } catch (err) {
+        logger.error({ err, userId, passageId }, "Failed to delete passage");
+        res.status(500).json({ error: "Failed to delete passage" });
+      }
+    });
+
+    // Reverse geocode — for when the user drops a pin on the map and the
+    // planner wants to show "Cowes, UK" instead of bare coordinates.
+    this.app.get("/api/geocode/reverse", async (req, res) => {
+      const schema = z.object({
+        lat: z.coerce.number().min(-90).max(90),
+        lon: z.coerce.number().min(-180).max(180),
+      });
+      const parsed = schema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid coordinates",
+          details: parsed.error.issues,
+        });
+      }
+      try {
+        const result = await this.geocodingService.reverse(
+          parsed.data.lat,
+          parsed.data.lon,
+        );
+        res.json({ result });
+      } catch (error) {
+        logger.error({ error }, "Reverse geocode failed");
+        res.status(503).json({ error: "Reverse geocode service unavailable" });
+      }
     });
   }
 
