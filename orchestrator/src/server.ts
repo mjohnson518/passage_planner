@@ -16,6 +16,8 @@ import {
   FOUNDING_MEMBER,
   getFleetSeatLimit,
   loggerRedactOptions,
+  GeocodingService,
+  CacheManager,
 } from "@passage-planner/shared";
 import { AuthMiddleware } from "./middleware/auth";
 import { AgentManager } from "./services/AgentManager";
@@ -59,6 +61,7 @@ export class HttpServer {
   private postgres: Pool;
   private redis: any;
   private rateLimiter?: RateLimiter;
+  private geocodingService: GeocodingService;
   private logger = pino({
     level: process.env.LOG_LEVEL || "info",
     ...loggerRedactOptions,
@@ -119,6 +122,16 @@ export class HttpServer {
     }
 
     this.authMiddleware = new AuthMiddleware(this.postgres, this.logger);
+
+    // Geocoding service for global place-name → lat/lon search. Uses
+    // Open-Meteo's GeoNames-backed endpoint first, falls through to
+    // OpenStreetMap Nominatim for marina/anchorage names that GeoNames
+    // misses. Backed by the shared CacheManager so repeated lookups
+    // don't hammer either upstream.
+    this.geocodingService = new GeocodingService(
+      new CacheManager(this.logger),
+      this.logger,
+    );
 
     // AgentManager will be initialized after all agents are set up
     // For now, create a placeholder that returns mock data
@@ -1243,6 +1256,61 @@ export class HttpServer {
     );
 
     // Founding member spots remaining (public)
+    // Geocoding — public endpoint, no auth required so the planner form
+    // can autocomplete as the user types before they log in. Cached per-
+    // query upstream and rate-limited via the global rate limiter (no
+    // per-route limiter here — the upstream geocoders enforce their own).
+    this.app.get("/api/geocode", async (req, res) => {
+      const schema = z.object({
+        q: z.string().min(2).max(120),
+        limit: z.coerce.number().int().min(1).max(10).optional(),
+      });
+      const parsed = schema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid query",
+          details: parsed.error.issues,
+        });
+      }
+      try {
+        const results = await this.geocodingService.search(
+          parsed.data.q,
+          parsed.data.limit ?? 5,
+        );
+        res.json({ results });
+      } catch (error) {
+        this.logger.error({ error, query: parsed.data.q }, "Geocode failed");
+        res.status(503).json({ error: "Geocode service unavailable" });
+      }
+    });
+
+    // Reverse geocode — given lat/lon return a human name. Useful when the
+    // user drops a pin on the map and we want to show "Cowes, UK" not raw
+    // coordinates. Same auth posture as forward geocode.
+    this.app.get("/api/geocode/reverse", async (req, res) => {
+      const schema = z.object({
+        lat: z.coerce.number().min(-90).max(90),
+        lon: z.coerce.number().min(-180).max(180),
+      });
+      const parsed = schema.safeParse(req.query);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid coordinates",
+          details: parsed.error.issues,
+        });
+      }
+      try {
+        const result = await this.geocodingService.reverse(
+          parsed.data.lat,
+          parsed.data.lon,
+        );
+        res.json({ result });
+      } catch (error) {
+        this.logger.error({ error }, "Reverse geocode failed");
+        res.status(503).json({ error: "Reverse geocode service unavailable" });
+      }
+    });
+
     this.app.get("/api/founding-member/spots-remaining", async (req, res) => {
       try {
         const result = await this.postgres.query(
