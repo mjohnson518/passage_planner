@@ -907,81 +907,115 @@ function PlannerPageInner() {
                   <Compass className="h-5 w-5" />
                   Route Visualization
                 </span>
-                {features.exportPassage && (
-                  <div className="flex gap-2">
-                    <Button
-                      data-testid="planner-export-gpx"
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        if (passagePlan) {
-                          const { passageToGPX } = await import(
-                            "../lib/export/gpx"
-                          );
-                          const gpx = passageToGPX({
-                            name: `${formData.departure} to ${formData.destination}`,
-                            waypoints: passagePlan.route.waypoints.map((w) => ({
-                              name: w.name ?? "Waypoint",
-                              latitude: w.latitude,
-                              longitude: w.longitude,
-                              coordinates: {
-                                lat: w.latitude,
-                                lng: w.longitude,
+                <div className="flex gap-2">
+                  <Button
+                    data-testid="planner-save-passage"
+                    size="sm"
+                    variant="default"
+                    onClick={async () => {
+                      if (!passagePlan) return;
+                      try {
+                        const res = await fetch(
+                          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/passages`,
+                          {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: JSON.stringify({
+                              name: `${formData.departure} → ${formData.destination}`,
+                              plan: passagePlan,
+                            }),
+                          },
+                        );
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        toast.success("Passage saved to history");
+                      } catch (err) {
+                        toast.error(
+                          "Could not save passage. Sign in to enable history.",
+                        );
+                      }
+                    }}
+                  >
+                    💾 Save
+                  </Button>
+                  {features.exportPassage && (
+                    <>
+                      <Button
+                        data-testid="planner-export-gpx"
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          if (passagePlan) {
+                            const { passageToGPX } = await import(
+                              "../lib/export/gpx"
+                            );
+                            const gpx = passageToGPX({
+                              name: `${formData.departure} to ${formData.destination}`,
+                              waypoints: passagePlan.route.waypoints.map(
+                                (w) => ({
+                                  name: w.name ?? "Waypoint",
+                                  latitude: w.latitude,
+                                  longitude: w.longitude,
+                                  coordinates: {
+                                    lat: w.latitude,
+                                    lng: w.longitude,
+                                  },
+                                }),
+                              ),
+                              departure: {
+                                name: formData.departure,
+                                latitude: formData.departureCoords.latitude,
+                                longitude: formData.departureCoords.longitude,
+                                coordinates: {
+                                  lat: formData.departureCoords.latitude,
+                                  lng: formData.departureCoords.longitude,
+                                },
                               },
-                            })),
-                            departure: {
-                              name: formData.departure,
-                              latitude: formData.departureCoords.latitude,
-                              longitude: formData.departureCoords.longitude,
-                              coordinates: {
-                                lat: formData.departureCoords.latitude,
-                                lng: formData.departureCoords.longitude,
+                              destination: {
+                                name: formData.destination,
+                                latitude: formData.destinationCoords.latitude,
+                                longitude: formData.destinationCoords.longitude,
+                                coordinates: {
+                                  lat: formData.destinationCoords.latitude,
+                                  lng: formData.destinationCoords.longitude,
+                                },
                               },
-                            },
-                            destination: {
-                              name: formData.destination,
-                              latitude: formData.destinationCoords.latitude,
-                              longitude: formData.destinationCoords.longitude,
-                              coordinates: {
-                                lat: formData.destinationCoords.latitude,
-                                lng: formData.destinationCoords.longitude,
-                              },
-                            },
-                          });
-                          const blob = new Blob([gpx], {
-                            type: "application/gpx+xml",
-                          });
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = `${formData.departure}-${formData.destination}.gpx`;
-                          a.click();
-                          toast.success("GPX file downloaded");
-                        }
-                      }}
-                    >
-                      📥 GPX
-                    </Button>
-                    <Button
-                      data-testid="planner-export-pdf"
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        if (passagePlan) {
-                          const { generatePassagePDF } = await import(
-                            "../lib/export/pdf"
-                          );
-                          generatePassagePDF({
-                            name: `${formData.departure} to ${formData.destination}`,
-                          } as PassageExport);
-                          toast.success("PDF export started");
-                        }
-                      }}
-                    >
-                      📄 PDF
-                    </Button>
-                  </div>
-                )}
+                            });
+                            const blob = new Blob([gpx], {
+                              type: "application/gpx+xml",
+                            });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `${formData.departure}-${formData.destination}.gpx`;
+                            a.click();
+                            toast.success("GPX file downloaded");
+                          }
+                        }}
+                      >
+                        📥 GPX
+                      </Button>
+                      <Button
+                        data-testid="planner-export-pdf"
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          if (passagePlan) {
+                            const { generatePassagePDF } = await import(
+                              "../lib/export/pdf"
+                            );
+                            generatePassagePDF({
+                              name: `${formData.departure} to ${formData.destination}`,
+                            } as PassageExport);
+                            toast.success("PDF export started");
+                          }
+                        }}
+                      >
+                        📄 PDF
+                      </Button>
+                    </>
+                  )}
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
