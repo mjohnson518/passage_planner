@@ -1,0 +1,267 @@
+/**
+ * OpenMeteoWeatherService — global marine weather provider.
+ *
+ * Open-Meteo (https://open-meteo.com) aggregates GFS, ICON, ECMWF and others
+ * into a free, no-API-key, globally-available forecast. We use it as the
+ * primary provider for any waypoint outside NOAA's marine zone coverage,
+ * and as a fallback when NOAA returns errors.
+ *
+ * SAFETY:
+ * - Returns the same `MarineWeatherForecast` shape as NOAAWeatherService so
+ *   callers can swap providers without re-handling each response.
+ * - All times come back from the API in ISO-8601 with a `timezone=auto`
+ *   resolution; we re-cast them to Date so downstream freshness checks
+ *   ([WEATHER_CACHE_TTL_S]/[MAX_WEATHER_AGE_MS]) still fire.
+ * - Wind speeds are requested in knots and gusts directly (not 1.5x est).
+ * - Wave height is reported in metres per Open-Meteo defaults.
+ * - If the API call fails, the error propagates — the caller decides whether
+ *   to try yet another provider or surface degradation to the user. We do
+ *   not return a silent fallback shape from this layer.
+ */
+
+import { Logger } from "pino";
+import axios, { AxiosInstance } from "axios";
+import CircuitBreaker from "opossum";
+import { CacheManager } from "./CacheManager";
+import {
+  MarineWeatherForecast,
+  WeatherPeriod,
+  WaveData,
+  WindData,
+  VisibilityData,
+} from "./NOAAWeatherService";
+import { CircuitBreakerFactory } from "./resilience/circuit-breaker";
+import { WEATHER_CACHE_TTL_S } from "../constants/safety-thresholds";
+
+const WEATHER_API = "https://api.open-meteo.com/v1/forecast";
+const MARINE_API = "https://marine-api.open-meteo.com/v1/marine";
+
+export class OpenMeteoWeatherService {
+  private cache: CacheManager;
+  private logger: Logger;
+  private http: AxiosInstance;
+  /**
+   * Circuit breaker guarding the Open-Meteo weather endpoint. If
+   * Open-Meteo returns 50%+ errors in a 10s rolling window we trip the
+   * circuit for 60s so downstream callers fall back to cached forecasts
+   * or NOAA rather than piling up retries against a known-failing host.
+   */
+  private weatherBreaker: CircuitBreaker;
+  private marineBreaker: CircuitBreaker;
+
+  constructor(cache: CacheManager, logger: Logger) {
+    this.cache = cache;
+    this.logger = logger;
+    this.http = axios.create({
+      timeout: 15000,
+      headers: { "User-Agent": "Helmwise/1.0 (https://helmwise.co)" },
+    });
+    this.weatherBreaker = CircuitBreakerFactory.create(
+      "openmeteo:weather",
+      (params: Record<string, unknown>) =>
+        this.http.get(WEATHER_API, { params }).then((r) => r.data),
+      { timeout: 15000 },
+    );
+    this.marineBreaker = CircuitBreakerFactory.create(
+      "openmeteo:marine",
+      (params: Record<string, unknown>) =>
+        this.http.get(MARINE_API, { params }).then((r) => r.data),
+      { timeout: 15000 },
+    );
+  }
+
+  async getMarineForecast(
+    latitude: number,
+    longitude: number,
+    forecastDays = 7,
+  ): Promise<MarineWeatherForecast> {
+    const cacheKey = `openmeteo:marine:${latitude.toFixed(3)}:${longitude.toFixed(3)}:${forecastDays}`;
+    const cached = await this.cache.get<MarineWeatherForecast>(cacheKey);
+    if (cached) {
+      return {
+        ...cached,
+        issuedAt: new Date(cached.issuedAt),
+      };
+    }
+
+    const [weather, marine] = await Promise.all([
+      this.fetchWeather(latitude, longitude, forecastDays),
+      this.fetchMarine(latitude, longitude, forecastDays).catch((err) => {
+        // Marine endpoint can return 400 for inland or polar coords; log but
+        // continue with weather-only data so we still produce a forecast.
+        this.logger.warn(
+          { err, latitude, longitude },
+          "Open-Meteo marine endpoint failed; returning wind/weather only",
+        );
+        return null;
+      }),
+    ]);
+
+    const forecast = this.buildForecast(latitude, longitude, weather, marine);
+
+    await this.cache.set(cacheKey, forecast, WEATHER_CACHE_TTL_S);
+    return forecast;
+  }
+
+  private async fetchWeather(
+    latitude: number,
+    longitude: number,
+    forecastDays: number,
+  ) {
+    return this.weatherBreaker.fire({
+      latitude,
+      longitude,
+      hourly: [
+        "temperature_2m",
+        "precipitation_probability",
+        "wind_speed_10m",
+        "wind_direction_10m",
+        "wind_gusts_10m",
+        "visibility",
+        "weather_code",
+      ].join(","),
+      wind_speed_unit: "kn",
+      temperature_unit: "fahrenheit",
+      timezone: "auto",
+      forecast_days: forecastDays,
+    });
+  }
+
+  private async fetchMarine(
+    latitude: number,
+    longitude: number,
+    forecastDays: number,
+  ) {
+    return this.marineBreaker.fire({
+      latitude,
+      longitude,
+      hourly: [
+        "wave_height",
+        "wave_direction",
+        "wave_period",
+        "wind_wave_height",
+        "swell_wave_height",
+        "swell_wave_period",
+      ].join(","),
+      timezone: "auto",
+      forecast_days: forecastDays,
+    });
+  }
+
+  private buildForecast(
+    latitude: number,
+    longitude: number,
+    weather: any,
+    marine: any | null,
+  ): MarineWeatherForecast {
+    const hourly = weather?.hourly;
+    const times: string[] = hourly?.time ?? [];
+
+    const periods: WeatherPeriod[] = times.map((t, i) => {
+      const wind = hourly.wind_speed_10m?.[i] ?? 0;
+      const dir = hourly.wind_direction_10m?.[i];
+      const gust = hourly.wind_gusts_10m?.[i] ?? wind * 1.3;
+      const temp = hourly.temperature_2m?.[i] ?? NaN;
+      const pop = hourly.precipitation_probability?.[i];
+      const hour = new Date(t).getUTCHours();
+      const isDaytime = hour >= 6 && hour < 18;
+      return {
+        startTime: new Date(t),
+        endTime: new Date(new Date(t).getTime() + 60 * 60 * 1000),
+        temperature: Math.round(temp),
+        temperatureUnit: "F",
+        windSpeed: `${Math.round(wind)} kt`,
+        windDirection: this.bearingToCardinal(dir),
+        shortForecast: this.weatherCodeToText(hourly.weather_code?.[i]),
+        detailedForecast: `Wind ${Math.round(wind)}kt gusts ${Math.round(gust)}kt from ${this.bearingToCardinal(dir)}. ${this.weatherCodeToText(hourly.weather_code?.[i])}.`,
+        precipitationChance: pop ?? null,
+        isDaytime,
+      };
+    });
+
+    const windData: WindData[] = times.map((t, i) => ({
+      time: new Date(t),
+      speed: hourly.wind_speed_10m?.[i] ?? 0,
+      gusts:
+        hourly.wind_gusts_10m?.[i] ?? (hourly.wind_speed_10m?.[i] ?? 0) * 1.3,
+      direction: hourly.wind_direction_10m?.[i] ?? NaN,
+      gustsEstimated: hourly.wind_gusts_10m?.[i] == null,
+    }));
+
+    const visibility: VisibilityData[] = times.map((t, i) => {
+      const visMeters = hourly.visibility?.[i] ?? 16000;
+      return {
+        time: new Date(t),
+        distance: visMeters / 1852, // m → nm
+        conditions:
+          visMeters < 1000 ? "fog" : visMeters < 5000 ? "haze" : "clear",
+      };
+    });
+
+    const waveHeight: WaveData[] = marine?.hourly?.time
+      ? marine.hourly.time.map((t: string, i: number) => ({
+          time: new Date(t),
+          height: marine.hourly.wave_height?.[i] ?? 0,
+          period: marine.hourly.wave_period?.[i] ?? 0,
+          direction: marine.hourly.wave_direction?.[i] ?? 0,
+        }))
+      : [];
+
+    const dataWarnings: string[] = [];
+    if (!marine) {
+      dataWarnings.push(
+        "Open-Meteo marine wave data unavailable at this location " +
+          "(possibly inland or polar). Wind and weather data still apply.",
+      );
+    }
+
+    return {
+      location: { latitude, longitude },
+      issuedAt: new Date(),
+      periods,
+      warnings: [], // Open-Meteo does not publish marine warnings.
+      waveHeight,
+      windData,
+      visibility,
+      dataWarnings,
+    };
+  }
+
+  private bearingToCardinal(deg: number | null | undefined): string {
+    if (deg == null || Number.isNaN(deg)) return "VAR";
+    const dirs = [
+      "N",
+      "NNE",
+      "NE",
+      "ENE",
+      "E",
+      "ESE",
+      "SE",
+      "SSE",
+      "S",
+      "SSW",
+      "SW",
+      "WSW",
+      "W",
+      "WNW",
+      "NW",
+      "NNW",
+    ];
+    return dirs[Math.round((deg % 360) / 22.5) % 16];
+  }
+
+  private weatherCodeToText(code: number | null | undefined): string {
+    // WMO weather codes (subset most common at sea).
+    if (code == null) return "Clear";
+    if (code === 0) return "Clear";
+    if (code <= 3) return "Partly cloudy";
+    if (code <= 48) return "Fog";
+    if (code <= 57) return "Drizzle";
+    if (code <= 67) return "Rain";
+    if (code <= 77) return "Snow";
+    if (code <= 82) return "Rain showers";
+    if (code <= 86) return "Snow showers";
+    if (code <= 99) return "Thunderstorm";
+    return "Unknown";
+  }
+}

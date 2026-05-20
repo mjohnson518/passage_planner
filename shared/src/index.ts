@@ -25,6 +25,11 @@ export * from "./services/StripeService";
 export * from "./services/FeatureGate";
 export * from "./services/NOAAWeatherService";
 export * from "./services/NOAATidalService";
+export * from "./services/OpenMeteoWeatherService";
+export * from "./services/OpenMeteoTidalService";
+export * from "./services/GlobalWeatherService";
+export * from "./services/GlobalTidalService";
+export * from "./services/GeocodingService";
 export * from "./services/OpenSeaMapService";
 export {
   PortDetails,
