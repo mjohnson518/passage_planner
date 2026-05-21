@@ -16,33 +16,28 @@
  * html2canvas ships its types as `typings: dist/types/index.d.ts` but
  * moduleResolution=bundler does not always resolve that legacy field; we
  * declare a minimal surface here for the one call site that uses it.
+ *
+ * `any` is intentional throughout — these are loose pass-throughs to
+ * runtime SDKs whose published types we cannot constrain further.
  */
 
 declare module "@sentry/nextjs" {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export function init(options: Record<string, any>): unknown;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export function captureException(error: unknown, hint?: any): string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export function captureMessage(message: string, hint?: any): string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export function replayIntegration(options?: Record<string, any>): unknown;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export function browserTracingIntegration(
     options?: Record<string, any>,
   ): unknown;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export function captureRequestError(
     error: unknown,
     request: any,
     errorContext: any,
   ): Promise<void>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   export function withScope(callback: (scope: any) => void): void;
 }
 
 declare module "html2canvas" {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const html2canvas: (
     element: HTMLElement,
     options?: Record<string, any>,

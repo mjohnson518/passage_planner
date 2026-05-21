@@ -41,8 +41,9 @@ export default function InteractiveMap({
 
         // Fix Leaflet icon paths for the default marker. Without this the
         // marker images 404 on Next.js because the leaflet npm package
-        // expects them at relative paths.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // expects them at relative paths. The `as any` cast is needed
+        // because Leaflet's typing of `Icon.Default.prototype` doesn't
+        // surface `_getIconUrl` even though it's the documented escape.
         delete (L.Icon.Default.prototype as any)._getIconUrl;
         L.Icon.Default.mergeOptions({
           iconRetinaUrl: "/leaflet/marker-icon-2x.png",
