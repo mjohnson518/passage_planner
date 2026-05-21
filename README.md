@@ -9,10 +9,14 @@ Helmwise is a production-ready SaaS platform that helps sailors plan safer, smar
 ## Features
 
 - **Intelligent Route Planning** — AI agents analyze weather, tides, currents, and hazards
-- **Real-Time Marine Data** — NOAA forecasts, NDBC buoy data, tidal predictions
+- **Global Coverage** — NOAA inside US waters; Open-Meteo (GFS/ICON/ECMWF) everywhere else, with region-aware automatic provider selection
+- **Real-Time Marine Data** — NOAA forecasts, NDBC buoy waves, NOAA + Open-Meteo modelled tides, multi-model wind/wave aggregation
+- **Global Geocoding** — Search any port or marina worldwide; Open-Meteo (GeoNames) + Nominatim fallback, both with circuit-breaker isolation
 - **Safety-Critical Architecture** — Non-negotiable margins: 20% keel clearance, 20% weather buffer, 30% fuel/water reserve
 - **SAFETY_UNVERIFIED Status** — Plans blocked with a prominent warning when safety checks cannot be completed
+- **Piracy / Anti-Shipping Awareness** — NGA ASAM incidents queried per route via PostGIS spatial functions; degrades safely with audit-logged "data unavailable" warning
 - **Zod-Validated External Data** — All NOAA/NDBC API responses schema-validated before use in navigation decisions
+- **Save & Revisit Passages** — Plans persist per user with full route, weather, and safety analysis
 - **Fleet Management** — Multi-vessel tracking with crew collaboration (Pro tier)
 - **PWA Support** — Installable, offline-capable progressive web app
 
@@ -21,14 +25,15 @@ Helmwise is a production-ready SaaS platform that helps sailors plan safer, smar
 ```
 Frontend (Next.js 14, App Router)
         ↓ HTTP / Socket.IO
-Orchestrator (Express.js, port 8080)
-        ├─→ WeatherAgent   (NOAA + OpenWeather + NDBC buoys)
-        ├─→ TidalAgent     (tidal predictions, current ETA adjustment)
-        ├─→ RouteAgent     (geolib route calculations)
-        ├─→ SafetyAgent    (hazard detection, restricted areas)
-        └─→ PortAgent      (port information, 40+ ports)
+Orchestrator (Express.js, port 8080) — in-process agent registry
+        ├─→ WeatherAgent   (GlobalWeatherService: NOAA → Open-Meteo + NDBC buoys + GRIB wind/wave)
+        ├─→ TidalAgent     (NOAA CO-OPS → Open-Meteo modelled-tide fallback)
+        ├─→ RouteAgent     (geolib great-circle / rhumb-line / optimal)
+        ├─→ SafetyAgent    (restricted areas, depth checks, NOAA NAV warnings, piracy zones)
+        ├─→ PortAgent      (96 ports: US, Caribbean, EU, Med, UK, AU/NZ, SE Asia, Pacific, ZA, CA)
+        └─→ GeocodingService (Open-Meteo / Nominatim, behind /api/geocode)
         ↓
-PostgreSQL/Supabase (PostGIS, RLS) + Redis/Upstash
+PostgreSQL/Supabase (PostGIS, RLS) + Redis/Upstash (cache, sessions, saved passages)
 ```
 
 ## Quick Start
@@ -48,6 +53,7 @@ npm run dev
 ```
 
 **Local URLs:**
+
 - App: http://localhost:3000
 - API: http://localhost:8080
 
@@ -55,37 +61,41 @@ npm run dev
 
 Helmwise treats safety as a first-class constraint, not a feature. Key design decisions:
 
-| Concern | Implementation |
-|---------|---------------|
-| Stale weather data | Rejected if >1 hour old (`WEATHER_REJECT_AGE_MS`) |
-| Stale tidal data | Rejected if >24 hours old (`TIDAL_REJECT_AGE_MS`) |
-| Safety check failure | Plan marked `SAFETY_UNVERIFIED`; red banner shown; export blocked |
-| Fuel/water reserves | 30% buffer enforced; critical warning if vessel capacity insufficient |
-| Route duration | 20% weather delay buffer applied to all calculated durations |
-| Restricted areas | Distance-adaptive sampling (1 point/nm, min 50) to catch small zones |
-| External API data | Zod schema validation at every API boundary before use |
-| Auth bypass | `SKIP_AUTH=true` causes immediate `process.exit(1)` in production |
+| Concern              | Implementation                                                        |
+| -------------------- | --------------------------------------------------------------------- |
+| Stale weather data   | Rejected if >1 hour old (`WEATHER_REJECT_AGE_MS`)                     |
+| Stale tidal data     | Rejected if >24 hours old (`TIDAL_REJECT_AGE_MS`)                     |
+| Safety check failure | Plan marked `SAFETY_UNVERIFIED`; red banner shown; export blocked     |
+| Fuel/water reserves  | 30% buffer enforced; critical warning if vessel capacity insufficient |
+| Route duration       | 20% weather delay buffer applied to all calculated durations          |
+| Restricted areas     | Distance-adaptive sampling (1 point/nm, min 50) to catch small zones  |
+| External API data    | Zod schema validation at every API boundary before use                |
+| Auth bypass          | `SKIP_AUTH=true` causes immediate `process.exit(1)` in production     |
 
 All safety thresholds live in `shared/src/constants/safety-thresholds.ts` — the single source of truth across all agents.
 
 ## Pricing
 
-| Tier | Price | Passages | Features |
-|------|-------|----------|----------|
-| Free | $0 | 5/month | Basic planning |
-| Premium | $19/mo | 50/month | Advanced weather, priority support |
-| Pro | $49/mo | Unlimited | Fleet management, API access |
+| Tier       | Price   | Passages  | Forecast | Features                                                                               |
+| ---------- | ------- | --------- | -------- | -------------------------------------------------------------------------------------- |
+| Free       | $0      | 2/month   | 3 days   | Basic planning, weather, tidal, basic route, GPX export                                |
+| Premium    | $19/mo  | Unlimited | 7 days   | Advanced agents, GPX/PDF/KML export, top-up packs, email support                       |
+| Pro        | $49/mo  | Unlimited | 10 days  | + Fleet management (5 members), API access (1000 req/day), custom agents, priority SLA |
+| Enterprise | Contact | Unlimited | 14 days  | + Unlimited fleet, white-label, dedicated support                                      |
+
+Limits are enforced from `shared/src/plans.ts` — the single source of truth. Top-up packs let Free / Premium users purchase additional passages without upgrading tiers.
 
 ## Tech Stack
 
-- **Frontend:** Next.js 14, TypeScript, Tailwind CSS, Socket.IO client, Zustand, Leaflet
-- **Backend:** Node.js, Express, MCP (Model Context Protocol), Socket.IO
-- **Auth:** Supabase (`@supabase/ssr`), JWT, httpOnly-ready cookies
-- **Database:** PostgreSQL + PostGIS (Supabase), RLS on all tables
-- **Cache:** Redis (Upstash)
-- **Payments:** Stripe (webhook verification, customer portal)
-- **Email:** Resend (CAN-SPAM compliant, List-Unsubscribe headers)
-- **Observability:** Pino structured logging, Sentry error tracking, circuit breakers
+- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS, Socket.IO client, Zustand, Leaflet + OpenSeaMap nautical overlay, Sonner toasts
+- **Backend:** Node.js, Express, Socket.IO. Agents implement MCP tool schemas so they _can_ run as standalone stdio MCP servers, but in production they're instantiated in-process by `SimpleOrchestrator` — no JSON-RPC at runtime.
+- **Auth:** Supabase (`@supabase/ssr`), JWT (HS256), httpOnly-ready cookies
+- **Database:** PostgreSQL + PostGIS (Supabase), RLS on all user tables
+- **Cache & sessions:** Redis (Upstash), `ioredis` client with exponential-backoff retry
+- **Payments:** Stripe (webhook idempotency via `subscription_events` table, customer portal, top-up packs)
+- **Email:** Resend (CAN-SPAM compliant, List-Unsubscribe headers, audit-logged sends)
+- **Resilience:** Opossum circuit breakers around every outbound provider (NOAA, Open-Meteo, NDBC, Nominatim); fail-loud refresh of forecasts >1h old
+- **Observability:** Pino structured logging with secret redaction, Sentry error tracking on both frontend and orchestrator
 
 ## Security Highlights
 
@@ -101,21 +111,29 @@ All safety thresholds live in `shared/src/constants/safety-thresholds.ts` — th
 ## Deployment
 
 See [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md) for complete deployment instructions including:
+
 - Environment variables and API keys
 - Database migrations
 - Infrastructure setup
 - Pre-launch checklist
 
 **Required Services:**
+
 - Supabase (auth + database)
 - Redis (Upstash recommended)
 - Stripe (payments)
 - Resend (email)
 
-**API Keys (all free tiers available):**
-- NOAA Weather API
-- NDBC Buoy Data (no key needed)
-- OpenWeather API
+**External Data Providers (no API key required for any of these):**
+
+- NOAA Weather API (US coverage; primary inside US waters)
+- Open-Meteo Weather / Marine API (global coverage; primary outside US, fallback inside)
+- NDBC Buoy Data (US wave observations)
+- NOAA CO-OPS (US tidal stations)
+- Nominatim / Open-Meteo Geocoding (place-name → coordinates, worldwide)
+- NGA ASAM (piracy / anti-shipping incidents, worldwide)
+
+Optional: set `NOAA_API_KEY` for higher NOAA rate limits — without it the orchestrator falls back to anonymous quotas, which are enough for development.
 
 ## Development
 
@@ -134,6 +152,7 @@ cd agents/weather && npm test -- --testPathPattern="index"
 ```
 
 **Test Coverage Requirements:**
+
 - Overall: ≥85%
 - Safety-critical paths (`agents/safety/`, `agents/weather/`, `agents/route/`, `agents/tidal/`): ≥90%
 
@@ -154,11 +173,11 @@ passage-planner/
 │   │   └── services/              # Email, AgentManager, PassagePlanner
 │   └── Dockerfile          # Multi-stage production build
 ├── agents/                 # Specialized MCP agents
-│   ├── weather/            # NOAA + NDBC + OpenWeather
+│   ├── weather/            # NOAA + Open-Meteo + NDBC buoys + GRIB
 │   ├── tidal/              # Tidal predictions
-│   ├── safety/             # Hazard detection, restricted areas
-│   ├── route/              # Route optimization
-│   └── port/               # Port database (40+ ports)
+│   ├── safety/             # Hazard detection, restricted areas, piracy zones (NGA ASAM)
+│   ├── route/              # Route optimization (great-circle / rhumb-line / optimal)
+│   └── port/               # Port database (96 ports, global)
 ├── shared/                 # Shared across all workspaces
 │   ├── src/constants/      # Safety thresholds (single source of truth)
 │   ├── src/types/          # Zod schemas + TypeScript types
