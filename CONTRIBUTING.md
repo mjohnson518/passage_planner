@@ -142,6 +142,33 @@ Blocking feedback must be actionable. Prefer "please add a test that asserts X" 
 - Redis is required for rate limiting and session state; use `npm run docker:up` or `docker run -d -p 6379:6379 redis:7-alpine`.
 - Supabase service-role keys are **not** required for local dev on read paths; they are for migrations and admin scripts only.
 
+### When `npm install` produces a corrupt tree (macOS)
+
+We have seen `npm install` on macOS leave `node_modules` in a partial state — duplicate `* 2.*` files (`Readme 2.md`, `build 2/`, `package 2.json`), and individual packages missing their built output (`@sentry/nextjs/build/cjs/config/` absent, `ioredis/built/` absent, `lucide-react` missing its types, `class-variance-authority` not installed at all despite being in `package-lock.json`). The build succeeds locally on a fresh tree but Railway's clean `npm ci` is the first to flag a missing module.
+
+Symptoms:
+
+- `npm run type-check` reports `Cannot find module '<X>' or its corresponding type declarations` for a package that is in `package.json`.
+- `npm run build` fails inside `next build` with `Cannot find module './config/withSentryConfig.js'` (or similar nested-package files).
+- `npm test` errors with `Cannot find module '@jest/core/node_modules/jest-util/build/index.js'`.
+- `find node_modules -name "* 2*" | wc -l` reports a non-zero count.
+
+Fix:
+
+```bash
+rm -rf node_modules
+npm ci
+```
+
+`npm ci` is more reliable than `npm install` here because it deletes and reinstalls strictly from `package-lock.json`. If a specific package is still broken after `ci`, force-reinstall it:
+
+```bash
+rm -rf node_modules/<package-name>
+npm install --no-save <package-name>@<version-from-lockfile>
+```
+
+When in doubt, mirror Railway's environment: `rm -rf node_modules && npm ci && npm run build`. If that's green, the push is safe.
+
 ---
 
 ## Related Docs
