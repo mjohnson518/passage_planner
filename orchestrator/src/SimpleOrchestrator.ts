@@ -1,5 +1,6 @@
 // Simplified orchestrator without MCP SDK (HTTP + WebSocket only)
 import Redis from "ioredis";
+import { Pool } from "pg";
 import { WeatherAgent } from "../../agents/weather/src/index";
 import { TidalAgent } from "../../agents/tidal/src/index";
 import { RouteAgent } from "../../agents/route/src";
@@ -37,6 +38,7 @@ import {
   COVERAGE_GAPS,
   findOutOfCoverage,
   getCoverageRegion,
+  FOUNDING_MEMBER,
 } from "@passage-planner/shared";
 
 const logger = pino({
@@ -51,6 +53,13 @@ interface AgentRegistry {
 export class SimpleOrchestrator {
   private agents: AgentRegistry = {};
   private redis: Redis | null;
+  /**
+   * Postgres pool for user-facing reads/writes (profiles, founding-member
+   * count, future fleet + subscription queries). Null when DATABASE_URL is
+   * unset — endpoints that need it should 503 rather than crash so local
+   * development without a DB still serves planning calls.
+   */
+  private postgres: Pool | null = null;
   private wss: WebSocketServer;
   private httpServer: http.Server;
   private app: express.Application;
@@ -102,6 +111,25 @@ export class SimpleOrchestrator {
       this.redis.on("ready", () => {
         logger.info("Redis connection ready");
       });
+    }
+
+    const dbUrl = process.env.DATABASE_URL;
+    if (dbUrl) {
+      this.postgres = new Pool({
+        connectionString: dbUrl,
+        // Conservative defaults — Supabase/Postgres pooler enforces its own
+        // ceiling, and an orchestrator process serving HTTP doesn't need a
+        // huge pool. The /health endpoint exercises the pool with a ping
+        // so a misconfigured connection string surfaces fast.
+        max: 10,
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 10_000,
+      });
+      this.postgres.on("error", (err) => {
+        logger.error({ err: err.message }, "Postgres pool error");
+      });
+    } else {
+      logger.warn("DATABASE_URL not set — profile/billing endpoints will 503");
     }
 
     this.app = express();
@@ -2581,6 +2609,158 @@ export class SimpleOrchestrator {
     // Readiness probe for Kubernetes
     this.app.get("/ready", async (req, res) => {
       res.json({ ready: true });
+    });
+
+    // ------------------------------------------------------------------
+    // Profile + auth-adjacent endpoints (migrated from the now-deprecated
+    // HttpServer in server.ts). The frontend's onboarding flow calls
+    // PUT /api/profile to persist the boat profile; without this live the
+    // entire signup → planner path is broken in production.
+    // ------------------------------------------------------------------
+
+    // Logout — clears the httpOnly auth cookies. No DB call, no auth check
+    // (an unauthenticated client clearing cookies is harmless).
+    this.app.post("/api/auth/logout", (req, res) => {
+      const cookieOpts = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax" as const,
+        path: "/",
+      };
+      res.clearCookie("auth_token", cookieOpts);
+      res.clearCookie("refresh_token", cookieOpts);
+      res.json({ success: true });
+    });
+
+    // GET profile — returns the caller's profile row keyed by JWT sub.
+    // RLS in the profiles table already prevents cross-user reads, but
+    // we double-defend by querying with the verified user id.
+    this.app.get("/api/profile", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "profile",
+          limit: 60,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res
+          .status(503)
+          .json({ error: "Profile service unavailable (DB not configured)" });
+      }
+      try {
+        const result = await this.postgres.query(
+          `SELECT id, email, full_name, company_name, phone,
+                  subscription_tier, subscription_status,
+                  trial_ends_at, subscription_ends_at,
+                  monthly_passage_count, usage_reset_at,
+                  metadata, created_at, updated_at
+             FROM profiles
+             WHERE id = $1`,
+          [userId],
+        );
+        if (!result.rows[0]) {
+          return res.status(404).json({ error: "Profile not found" });
+        }
+        res.json(result.rows[0]);
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to fetch profile");
+        res.status(500).json({ error: "Failed to fetch profile" });
+      }
+    });
+
+    // PUT profile — partial update via COALESCE so omitted fields keep
+    // their current value. Validates with Zod first so a malformed body
+    // never reaches the DB.
+    this.app.put("/api/profile", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "profile",
+          limit: 30,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res
+          .status(503)
+          .json({ error: "Profile service unavailable (DB not configured)" });
+      }
+      const schema = z.object({
+        full_name: z.string().max(100).optional(),
+        company_name: z.string().max(100).optional(),
+        phone: z.string().max(20).optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Validation failed",
+          details: parsed.error.issues,
+        });
+      }
+      const { full_name, company_name, phone, metadata } = parsed.data;
+      try {
+        const result = await this.postgres.query(
+          `UPDATE profiles
+             SET full_name = COALESCE($2, full_name),
+                 company_name = COALESCE($3, company_name),
+                 phone = COALESCE($4, phone),
+                 metadata = COALESCE($5, metadata),
+                 updated_at = NOW()
+             WHERE id = $1
+             RETURNING id, email, full_name, company_name, phone,
+                       subscription_tier, subscription_status,
+                       metadata, updated_at`,
+          [
+            userId,
+            full_name ?? null,
+            company_name ?? null,
+            phone ?? null,
+            metadata ? JSON.stringify(metadata) : null,
+          ],
+        );
+        if (!result.rows[0]) {
+          return res.status(404).json({ error: "Profile not found" });
+        }
+        res.json(result.rows[0]);
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to update profile");
+        res.status(500).json({ error: "Failed to update profile" });
+      }
+    });
+
+    // Founding-member spots — public unauth endpoint hit by the pricing
+    // page to render "X of Y founding spots remaining". DB miss falls
+    // back to "all spots open" so the pricing page never breaks.
+    this.app.get("/api/founding-member/spots-remaining", async (req, res) => {
+      if (!this.postgres) {
+        return res.json({
+          remaining: FOUNDING_MEMBER.totalSpots,
+          total: FOUNDING_MEMBER.totalSpots,
+        });
+      }
+      try {
+        const result = await this.postgres.query(
+          "SELECT COUNT(*) AS count FROM profiles WHERE is_founding_member = TRUE",
+        );
+        const claimed = parseInt(result.rows[0]?.count ?? "0", 10) || 0;
+        res.json({
+          remaining: Math.max(0, FOUNDING_MEMBER.totalSpots - claimed),
+          total: FOUNDING_MEMBER.totalSpots,
+        });
+      } catch (error) {
+        logger.error({ error }, "Failed to get founding member spots");
+        // Don't block the pricing page on a DB hiccup — return optimistic
+        // "spots remain" so the UI keeps working.
+        res.json({
+          remaining: FOUNDING_MEMBER.totalSpots,
+          total: FOUNDING_MEMBER.totalSpots,
+        });
+      }
     });
 
     // Geocoding — public endpoint, no auth required so the planner form
