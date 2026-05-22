@@ -215,6 +215,71 @@ Supabase takes automatic daily backups. Restore via Supabase Dashboard → Datab
 
 ---
 
+## Applying Migrations
+
+Migrations are plain SQL files in `infrastructure/postgres/migrations/`, applied **in numerical order**. There is no migration runner — order is enforced by the `NN_` filename prefix, not by a `schema_migrations` table.
+
+### Idempotency convention
+
+Every migration must be safe to re-run. Use:
+
+- `CREATE TABLE IF NOT EXISTS`
+- `CREATE INDEX IF NOT EXISTS`
+- `DROP POLICY IF EXISTS ... ; CREATE POLICY ...` for RLS
+- `CREATE OR REPLACE FUNCTION` for SQL functions
+
+Re-running the full set on a database that already has the tables must be a no-op. Adding a new migration that doesn't follow this convention will break the next redeploy retry.
+
+### Current set (apply in order)
+
+| #   | File                           | Purpose                                                                        |
+| --- | ------------------------------ | ------------------------------------------------------------------------------ |
+| 007 | `007_vessel_profiles.sql`      | `vessel_profiles` (boat dimensions, draft, fuel/water)                         |
+| 008 | `008_user_feedback.sql`        | `user_feedback` for the feedback widget                                        |
+| 009 | `009_analytics_events.sql`     | `analytics_events` + feature-flag rows                                         |
+| 010 | `010_production_readiness.sql` | `usage_events`, `safety_audit_logs`, `restricted_areas`                        |
+| 011 | `011_vessel_profiles_rls.sql`  | RLS policies on `vessel_profiles`                                              |
+| 012 | `012_pricing_foundations.sql`  | `subscriptions`, `subscription_events`, founding-member flag                   |
+| 013 | `013_global_hazard_feeds.sql`  | `piracy_zones`, `navarea_warnings` ingest tables                               |
+| 014 | `014_hazards_along_route.sql`  | `public.hazards_along_route()` PostGIS function (50nm buffer, 24-month window) |
+
+### Pending application (as of this writing)
+
+- **013** + **014** must be applied to staging and production before `SafetyAgent.piracyAlongRoute` returns non-empty results. Without them the planner falls through to the `piracy_data_unavailable` transparency warning rather than the actual NGA ASAM incident list.
+
+### Apply procedure (one-shot via psql)
+
+```bash
+psql "$DATABASE_URL" <<'SQL'
+\i infrastructure/postgres/migrations/007_vessel_profiles.sql
+\i infrastructure/postgres/migrations/008_user_feedback.sql
+\i infrastructure/postgres/migrations/009_analytics_events.sql
+\i infrastructure/postgres/migrations/010_production_readiness.sql
+\i infrastructure/postgres/migrations/011_vessel_profiles_rls.sql
+\i infrastructure/postgres/migrations/012_pricing_foundations.sql
+\i infrastructure/postgres/migrations/013_global_hazard_feeds.sql
+\i infrastructure/postgres/migrations/014_hazards_along_route.sql
+SQL
+```
+
+Or via the Supabase Dashboard SQL Editor — paste each file's contents, run in order.
+
+### Smoke check
+
+```sql
+SELECT to_regclass('public.usage_events')         IS NOT NULL AS usage_events_ok,
+       to_regclass('public.safety_audit_logs')    IS NOT NULL AS audit_logs_ok,
+       to_regclass('public.restricted_areas')     IS NOT NULL AS restricted_ok,
+       to_regclass('public.subscriptions')        IS NOT NULL AS subs_ok,
+       to_regclass('public.subscription_events')  IS NOT NULL AS sub_events_ok,
+       to_regclass('public.piracy_zones')         IS NOT NULL AS piracy_ok;
+SELECT proname FROM pg_proc WHERE proname = 'hazards_along_route';  -- one row expected
+```
+
+All `_ok` columns should return `t`. The function check should return exactly one row.
+
+---
+
 ## Deploy & Rollback Procedure
 
 **Deploy** — merge to `main` triggers Railway auto-deploy. CI gates: `npm run lint && npm run type-check && npm test`.
