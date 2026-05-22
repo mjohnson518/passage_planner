@@ -260,7 +260,7 @@ function PlannerPageInner() {
       </div>
 
       <div className="mb-6">
-        <h1 className="text-2xl lg:text-3xl font-bold font-display">
+        <h1 className="text-3xl font-bold tracking-tight font-display">
           Plan New Passage
         </h1>
         <p className="text-muted-foreground mt-1">

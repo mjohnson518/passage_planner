@@ -294,9 +294,9 @@ function PassagesPageInner() {
       <div className="absolute inset-0 chart-grid opacity-30 pointer-events-none" />
       <div className="relative flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight font-display text-gradient">
+          <h1 className="text-3xl font-bold tracking-tight font-display">
             Passages
-          </h2>
+          </h1>
           <p className="text-muted-foreground">
             Manage your sailing routes and passage plans
           </p>

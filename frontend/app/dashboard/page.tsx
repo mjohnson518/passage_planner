@@ -203,7 +203,7 @@ export default function DashboardPage() {
               <Anchor className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-display text-2xl lg:text-3xl">
+              <h1 className="text-3xl font-bold tracking-tight font-display">
                 Welcome back,{" "}
                 <span className="text-gradient">{displayName}</span>
               </h1>

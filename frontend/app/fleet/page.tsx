@@ -361,7 +361,9 @@ function FleetPageContent() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-start mb-8">
         <div>
-          <h1 className="text-3xl font-bold mb-2">{fleet.name}</h1>
+          <h1 className="text-3xl font-bold tracking-tight font-display mb-2">
+            {fleet.name}
+          </h1>
           {fleet.description && (
             <p className="text-muted-foreground">{fleet.description}</p>
           )}
