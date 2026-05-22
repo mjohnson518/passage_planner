@@ -19,6 +19,8 @@ import {
   BaseAgent,
   GeocodingService,
   CacheManager,
+  StripeService,
+  TOP_UP_PACKS,
 } from "@passage-planner/shared";
 import { WebSocketServer, WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
@@ -74,6 +76,13 @@ export class SimpleOrchestrator {
    * find them on a chart first.
    */
   private geocodingService: GeocodingService;
+  /**
+   * Stripe wrapper backing /api/subscription/* and the webhook handler.
+   * Handles signature verification, checkout-session creation, customer
+   * portal sessions, and subscription/top-up event dispatch. Webhook
+   * idempotency is enforced via the `subscription_events` table.
+   */
+  private stripeService: StripeService;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -143,9 +152,14 @@ export class SimpleOrchestrator {
       new CacheManager(logger),
       logger,
     );
+    this.stripeService = new StripeService(logger);
 
     this.initializeAgents();
     this.setupWebSocket();
+    // CRITICAL: register the Stripe webhook BEFORE setupHttpServer() so it
+    // sits ahead of the global express.json() middleware. Stripe signature
+    // verification requires the raw Buffer body, not a parsed object.
+    this.registerStripeWebhookEarly();
     this.setupHttpServer();
   }
 
@@ -2398,6 +2412,175 @@ export class SimpleOrchestrator {
     });
   }
 
+  /**
+   * Stripe webhook — registered separately so `express.raw({ type:
+   * "application/json" })` runs instead of the global JSON parser, and so
+   * the route handler sees `req.body` as a Buffer. Stripe signature
+   * verification will reject any tampered body, so this is the one
+   * endpoint where we deliberately bypass JSON parsing.
+   *
+   * Called from the constructor BEFORE setupHttpServer() so it sits ahead
+   * of the global express.json() in the middleware chain.
+   */
+  private registerStripeWebhookEarly() {
+    this.app.post(
+      "/api/stripe/webhook",
+      express.raw({ type: "application/json" }),
+      async (req, res) => {
+        const signature = req.headers["stripe-signature"] as string;
+        try {
+          // Pre-parse the event id for idempotency before doing full
+          // signature verification. If the JSON parse fails (e.g. attacker
+          // sending garbage), we skip the cache check and let the signature
+          // step reject the request.
+          let stripeEventId: string | undefined;
+          try {
+            stripeEventId = JSON.parse((req.body as Buffer).toString()).id;
+          } catch {
+            /* non-fatal */
+          }
+
+          // Idempotency: if we've already processed this event, ack
+          // without re-running side effects. Stripe retries on 5xx and
+          // we'd double-credit top-ups otherwise.
+          if (stripeEventId && this.postgres) {
+            const existing = await this.postgres.query(
+              "SELECT id FROM subscription_events WHERE stripe_event_id = $1",
+              [stripeEventId],
+            );
+            if (existing.rows.length > 0) {
+              return res.json({ received: true });
+            }
+          }
+
+          const result = await this.stripeService.handleWebhook(
+            signature,
+            req.body as Buffer,
+          );
+
+          if (!result) {
+            return res.json({ received: true });
+          }
+
+          const r = result as any;
+          if (r.type === "top_up" && this.postgres) {
+            // Credit bonus passages to the user from a one-shot top-up.
+            const pack = r.pack as "small" | "large";
+            const passages = TOP_UP_PACKS[pack]?.passages || 0;
+            if (passages > 0) {
+              await this.postgres.query(
+                "UPDATE profiles SET bonus_passages = bonus_passages + $1 WHERE id = $2",
+                [passages, r.userId],
+              );
+            }
+          } else if (r.type === "invoice_paid" && this.postgres) {
+            // Reset monthly passage usage at the billing cycle renewal.
+            await this.postgres.query(
+              `DELETE FROM usage_events
+               WHERE user_id = $1 AND action = 'passage_planned'
+                 AND created_at < date_trunc('month', CURRENT_DATE)`,
+              [r.userId],
+            );
+          } else if (r.type === "payment_failed" && this.postgres) {
+            await this.postgres.query(
+              "UPDATE subscriptions SET status = $1 WHERE user_id = $2",
+              ["past_due", r.userId],
+            );
+            if (r.userId) {
+              await this.postgres.query(
+                "UPDATE profiles SET subscription_status = $1 WHERE id = $2",
+                ["past_due", r.userId],
+              );
+            }
+          } else if (r.type === "subscription") {
+            await this.updateSubscription(r);
+            if (r.founding && r.userId && this.postgres) {
+              await this.postgres.query(
+                `UPDATE profiles
+                 SET is_founding_member = TRUE, founding_member_at = NOW()
+                 WHERE id = $1 AND is_founding_member = FALSE`,
+                [r.userId],
+              );
+            }
+          } else {
+            // Legacy path (subscription update/cancel without `type` field)
+            await this.updateSubscription(result);
+          }
+
+          if (stripeEventId && this.postgres) {
+            await this.postgres.query(
+              `INSERT INTO subscription_events (stripe_event_id, event_type, processed_at)
+               VALUES ($1, $2, NOW())
+               ON CONFLICT (stripe_event_id) DO NOTHING`,
+              [stripeEventId, r.type || "unknown"],
+            );
+          }
+
+          res.json({ received: true });
+        } catch (error) {
+          logger.error({ error }, "Webhook processing failed");
+          res.status(400).json({ error: "Webhook error" });
+        }
+      },
+    );
+  }
+
+  /**
+   * Map a Stripe price tier+period combo to the configured price id. The
+   * env vars are required at runtime; if any is missing the checkout
+   * route will return 500 (caller sees a clear error and we don't create
+   * a half-configured subscription).
+   */
+  private getPriceId(tier: string, period: string): string | undefined {
+    const map: Record<string, string | undefined> = {
+      premium_monthly: process.env.STRIPE_PREMIUM_MONTHLY_PRICE_ID,
+      premium_yearly: process.env.STRIPE_PREMIUM_YEARLY_PRICE_ID,
+      premium_annual: process.env.STRIPE_PREMIUM_YEARLY_PRICE_ID,
+      pro_monthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
+      pro_yearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID,
+      pro_annual: process.env.STRIPE_PRO_YEARLY_PRICE_ID,
+    };
+    return map[`${tier}_${period}`];
+  }
+
+  /**
+   * Sync a Stripe subscription event back into the `subscriptions` and
+   * `profiles` tables. COALESCE protects unchanged fields when Stripe
+   * sends a partial update.
+   */
+  private async updateSubscription(data: any): Promise<void> {
+    if (!this.postgres) return;
+    await this.postgres.query(
+      `UPDATE subscriptions
+       SET tier = COALESCE($2, tier),
+           status = COALESCE($3, status),
+           current_period_start = COALESCE($4, current_period_start),
+           current_period_end = COALESCE($5, current_period_end),
+           stripe_customer_id = COALESCE($6, stripe_customer_id),
+           stripe_subscription_id = COALESCE($7, stripe_subscription_id),
+           updated_at = NOW()
+       WHERE user_id = $1`,
+      [
+        data.userId,
+        data.tier ?? null,
+        data.status ?? null,
+        data.currentPeriodStart ?? null,
+        data.currentPeriodEnd ?? null,
+        data.stripeCustomerId ?? null,
+        data.stripeSubscriptionId ?? null,
+      ],
+    );
+    if (data.tier || data.status) {
+      await this.postgres.query(
+        `UPDATE profiles
+         SET subscription_tier = COALESCE($2, subscription_tier),
+             subscription_status = COALESCE($3, subscription_status)
+         WHERE id = $1`,
+        [data.userId, data.tier ?? null, data.status ?? null],
+      );
+    }
+  }
+
   private setupHttpServer() {
     this.app.use(express.json({ limit: "1mb" }));
 
@@ -2730,6 +2913,179 @@ export class SimpleOrchestrator {
       } catch (error) {
         logger.error({ error, userId }, "Failed to update profile");
         res.status(500).json({ error: "Failed to update profile" });
+      }
+    });
+
+    // ------------------------------------------------------------------
+    // Stripe checkout + customer portal (migrated from server.ts).
+    // The frontend proxies at /frontend/app/api/stripe/* target these
+    // /api/subscription/* paths — naming inherited from the prior impl.
+    // ------------------------------------------------------------------
+
+    // POST /api/subscription/create-checkout-session — auth'd. Blocks
+    // duplicate subscriptions (returns 409 + redirect-to-portal hint) and
+    // applies the founding-member discount coupon when eligible.
+    this.app.post(
+      "/api/subscription/create-checkout-session",
+      async (req, res) => {
+        if (
+          !(await this.checkRateLimit(req, res, {
+            bucket: "billing",
+            limit: 10,
+          }))
+        )
+          return;
+        const userId = await this.verifyAuthAndGetUserId(req, res);
+        if (!userId) return;
+        if (!this.postgres) {
+          return res
+            .status(503)
+            .json({ error: "Billing unavailable (DB not configured)" });
+        }
+        const schema = z.object({
+          tier: z.enum(["premium", "pro"]),
+          period: z.enum(["monthly", "annual", "yearly"]).optional(),
+          founding: z.boolean().optional(),
+          successUrl: z.string().url().optional(),
+          cancelUrl: z.string().url().optional(),
+        });
+        const parsed = schema.safeParse(req.body);
+        if (!parsed.success) {
+          return res.status(400).json({
+            error: "Validation failed",
+            details: parsed.error.issues,
+          });
+        }
+        const {
+          tier,
+          period: rawPeriod = "monthly",
+          founding = false,
+        } = parsed.data;
+        // Frontend uses "yearly" historically; FOUNDING_MEMBER.billingPeriod
+        // is "annual"; getPriceId accepts both. Normalize to "annual" so the
+        // founding-discount eligibility check matches the shared constant.
+        const period: "monthly" | "annual" =
+          rawPeriod === "yearly" ? "annual" : rawPeriod;
+        const priceId = this.getPriceId(tier, period);
+        if (!priceId) {
+          logger.error(
+            { tier, period },
+            "Stripe price id env var missing for tier/period combo",
+          );
+          return res
+            .status(500)
+            .json({ error: "Billing misconfigured — contact support" });
+        }
+        try {
+          // Block duplicate subscriptions: if the user already has an active
+          // paid subscription, send them to the customer portal instead of
+          // creating a second Stripe session (which would charge twice).
+          const existing = await this.postgres.query(
+            `SELECT tier, status FROM subscriptions
+             WHERE user_id = $1
+               AND status IN ('active', 'trialing', 'past_due')
+             LIMIT 1`,
+            [userId],
+          );
+          if (existing.rows[0] && existing.rows[0].tier !== "free") {
+            return res.status(409).json({
+              error: "Active subscription exists",
+              message:
+                "You already have an active subscription. Use the billing portal to change plans.",
+              currentTier: existing.rows[0].tier,
+              action: "open_customer_portal",
+            });
+          }
+
+          let foundingDiscount: string | undefined;
+          if (
+            founding &&
+            tier === FOUNDING_MEMBER.appliesToTier &&
+            period === FOUNDING_MEMBER.billingPeriod
+          ) {
+            const spotsResult = await this.postgres.query(
+              "SELECT COUNT(*) AS count FROM profiles WHERE is_founding_member = TRUE",
+            );
+            const claimed =
+              parseInt(spotsResult.rows[0]?.count ?? "0", 10) || 0;
+            if (claimed < FOUNDING_MEMBER.totalSpots) {
+              foundingDiscount = FOUNDING_MEMBER.stripeCouponId;
+            }
+          }
+
+          // Look up the user's email for the Stripe checkout pre-fill.
+          const profileResult = await this.postgres.query(
+            "SELECT email FROM profiles WHERE id = $1",
+            [userId],
+          );
+          const userEmail = profileResult.rows[0]?.email;
+
+          const appUrl =
+            process.env.NEXT_PUBLIC_APP_URL ?? "https://helmwise.co";
+          const session = await this.stripeService.createCheckoutSession(
+            userId,
+            priceId,
+            parsed.data.successUrl ?? `${appUrl}/profile?success=true`,
+            parsed.data.cancelUrl ?? `${appUrl}/profile?canceled=true`,
+            userEmail,
+            foundingDiscount,
+          );
+
+          res.json({
+            sessionUrl: session.url,
+            foundingApplied: !!foundingDiscount,
+          });
+        } catch (error) {
+          logger.error({ error, userId }, "Checkout session creation failed");
+          res.status(500).json({ error: "Failed to create checkout session" });
+        }
+      },
+    );
+
+    // POST /api/subscription/customer-portal — auth'd. Returns a Stripe
+    // portal URL for the user to manage / cancel their subscription.
+    this.app.post("/api/subscription/customer-portal", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "billing",
+          limit: 10,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res
+          .status(503)
+          .json({ error: "Billing unavailable (DB not configured)" });
+      }
+      try {
+        const subscription = await this.postgres.query(
+          "SELECT stripe_customer_id FROM subscriptions WHERE user_id = $1",
+          [userId],
+        );
+        if (!subscription.rows[0]?.stripe_customer_id) {
+          return res.status(404).json({
+            error: "No subscription found",
+            message:
+              "You need an active subscription to access the customer portal",
+          });
+        }
+        const { returnUrl } = (req.body ?? {}) as { returnUrl?: string };
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://helmwise.co";
+        const session = await this.stripeService.createPortalSession(
+          subscription.rows[0].stripe_customer_id,
+          returnUrl ?? `${appUrl}/profile`,
+        );
+        res.json({ url: session.url, success: true });
+      } catch (error) {
+        logger.error(
+          { error, userId },
+          "Failed to create customer portal session",
+        );
+        res
+          .status(500)
+          .json({ error: "Failed to create customer portal session" });
       }
     });
 
