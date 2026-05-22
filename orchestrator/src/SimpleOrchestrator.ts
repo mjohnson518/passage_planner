@@ -22,7 +22,10 @@ import {
   CacheManager,
   StripeService,
   TOP_UP_PACKS,
+  getFleetSeatLimit,
 } from "@passage-planner/shared";
+import { emailService } from "./services/EmailService";
+import * as crypto from "crypto";
 import { WebSocketServer, WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
 import express from "express";
@@ -2553,6 +2556,28 @@ export class SimpleOrchestrator {
   }
 
   /**
+   * Read a user's current subscription row. Returns undefined if the user
+   * has no row in `subscriptions` (i.e. has never subscribed); callers
+   * should treat that as "free tier". DB-down returns undefined too —
+   * fleet routes downstream interpret missing subscription as "free".
+   */
+  private async getSubscription(
+    userId: string,
+  ): Promise<{ tier: string; status: string } | undefined> {
+    if (!this.postgres) return undefined;
+    try {
+      const result = await this.postgres.query(
+        "SELECT tier, status FROM subscriptions WHERE user_id = $1",
+        [userId],
+      );
+      return result.rows[0];
+    } catch (error) {
+      logger.warn({ error, userId }, "getSubscription DB query failed");
+      return undefined;
+    }
+  }
+
+  /**
    * Sync a Stripe subscription event back into the `subscriptions` and
    * `profiles` tables. COALESCE protects unchanged fields when Stripe
    * sends a partial update.
@@ -3125,6 +3150,505 @@ export class SimpleOrchestrator {
           remaining: FOUNDING_MEMBER.totalSpots,
           total: FOUNDING_MEMBER.totalSpots,
         });
+      }
+    });
+
+    // ------------------------------------------------------------------
+    // Fleet routes (Pro-tier feature). UI in frontend/app/fleet/page.tsx
+    // already wires these — they 404'd in production until this commit.
+    // Schema lives in infrastructure/docker/postgres/init.sql:161+
+    // (fleets, fleet_members, fleet_vessels, fleet_invitations tables).
+    // ------------------------------------------------------------------
+
+    // POST /api/fleet/create — Pro-tier gated. One fleet per owner.
+    this.app.post("/api/fleet/create", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "fleet", limit: 30 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res
+          .status(503)
+          .json({ error: "Fleet service unavailable (DB not configured)" });
+      }
+      const schema = z.object({
+        name: z.string().min(1).max(100),
+        description: z.string().max(500).optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Validation failed", details: parsed.error.issues });
+      }
+      const { name, description } = parsed.data;
+      try {
+        const subscription = await this.getSubscription(userId);
+        if (!subscription || subscription.tier !== "pro") {
+          return res
+            .status(403)
+            .json({ error: "Fleet management requires Pro subscription" });
+        }
+        const existing = await this.postgres.query(
+          "SELECT id FROM fleets WHERE owner_id = $1",
+          [userId],
+        );
+        if (existing.rows.length > 0) {
+          return res.status(400).json({ error: "Fleet already exists" });
+        }
+        const result = await this.postgres.query(
+          `INSERT INTO fleets (owner_id, name, description)
+             VALUES ($1, $2, $3)
+             RETURNING *`,
+          [userId, name, description ?? null],
+        );
+        await this.postgres.query(
+          `INSERT INTO fleet_members (fleet_id, user_id, role)
+             VALUES ($1, $2, 'admin')`,
+          [result.rows[0].id, userId],
+        );
+        res.json(result.rows[0]);
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to create fleet");
+        res.status(500).json({ error: "Failed to create fleet" });
+      }
+    });
+
+    // GET /api/fleet — single fleet for the caller (404 if none).
+    this.app.get("/api/fleet", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "fleet", limit: 60 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res
+          .status(503)
+          .json({ error: "Fleet service unavailable (DB not configured)" });
+      }
+      try {
+        const result = await this.postgres.query(
+          `SELECT f.*, fm.role
+             FROM fleets f
+             JOIN fleet_members fm ON f.id = fm.fleet_id
+             WHERE fm.user_id = $1
+             LIMIT 1`,
+          [userId],
+        );
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: "No fleet found" });
+        }
+        res.json(result.rows[0]);
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to get fleet");
+        res.status(500).json({ error: "Failed to get fleet" });
+      }
+    });
+
+    // GET /api/fleet/:fleetId/vessels — list vessels in a fleet.
+    this.app.get("/api/fleet/:fleetId/vessels", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "fleet", limit: 60 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res
+          .status(503)
+          .json({ error: "Fleet service unavailable (DB not configured)" });
+      }
+      const { fleetId } = req.params;
+      try {
+        const access = await this.postgres.query(
+          "SELECT 1 FROM fleet_members WHERE fleet_id = $1 AND user_id = $2",
+          [fleetId, userId],
+        );
+        if (access.rows.length === 0) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        const result = await this.postgres.query(
+          `SELECT * FROM fleet_vessels WHERE fleet_id = $1 ORDER BY created_at ASC`,
+          [fleetId],
+        );
+        res.json(result.rows);
+      } catch (error) {
+        logger.error({ error, userId, fleetId }, "Failed to list vessels");
+        res.status(500).json({ error: "Failed to list vessels" });
+      }
+    });
+
+    // POST /api/fleet/:fleetId/vessels — admin/captain only.
+    this.app.post("/api/fleet/:fleetId/vessels", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "fleet", limit: 30 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res
+          .status(503)
+          .json({ error: "Fleet service unavailable (DB not configured)" });
+      }
+      const schema = z.object({
+        name: z.string().min(1).max(100),
+        type: z.string().max(50).optional(),
+        length: z.number().optional(),
+        beam: z.number().optional(),
+        draft: z.number().optional(),
+        registration: z.string().max(100).optional(),
+        homePort: z.string().max(100).optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Validation failed", details: parsed.error.issues });
+      }
+      const { fleetId } = req.params;
+      try {
+        const access = await this.postgres.query(
+          `SELECT role FROM fleet_members
+             WHERE fleet_id = $1 AND user_id = $2 AND role IN ('admin', 'captain')`,
+          [fleetId, userId],
+        );
+        if (access.rows.length === 0) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        const v = parsed.data;
+        const result = await this.postgres.query(
+          `INSERT INTO fleet_vessels (fleet_id, name, type, length, beam, draft, registration, home_port)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             RETURNING *`,
+          [
+            fleetId,
+            v.name,
+            v.type ?? null,
+            v.length ?? null,
+            v.beam ?? null,
+            v.draft ?? null,
+            v.registration ?? null,
+            v.homePort ?? null,
+          ],
+        );
+        res.json(result.rows[0]);
+      } catch (error) {
+        logger.error({ error, userId, fleetId }, "Failed to add vessel");
+        res.status(500).json({ error: "Failed to add vessel" });
+      }
+    });
+
+    // GET /api/fleet/:fleetId/members — list crew members.
+    this.app.get("/api/fleet/:fleetId/members", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "fleet", limit: 60 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res
+          .status(503)
+          .json({ error: "Fleet service unavailable (DB not configured)" });
+      }
+      const { fleetId } = req.params;
+      try {
+        const access = await this.postgres.query(
+          "SELECT 1 FROM fleet_members WHERE fleet_id = $1 AND user_id = $2",
+          [fleetId, userId],
+        );
+        if (access.rows.length === 0) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        const result = await this.postgres.query(
+          `SELECT fm.user_id, fm.role, fm.created_at,
+                  p.email, p.full_name
+             FROM fleet_members fm
+             LEFT JOIN profiles p ON p.id = fm.user_id
+             WHERE fm.fleet_id = $1
+             ORDER BY fm.created_at ASC`,
+          [fleetId],
+        );
+        res.json(result.rows);
+      } catch (error) {
+        logger.error({ error, userId, fleetId }, "Failed to list members");
+        res.status(500).json({ error: "Failed to list members" });
+      }
+    });
+
+    // POST /api/fleet/:fleetId/invite — admin only. Sends Resend emails.
+    this.app.post("/api/fleet/:fleetId/invite", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "fleet", limit: 10 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res
+          .status(503)
+          .json({ error: "Fleet service unavailable (DB not configured)" });
+      }
+      const schema = z.object({
+        invites: z
+          .array(
+            z.object({
+              email: z.string().email(),
+              name: z.string().min(1).max(120).optional(),
+              role: z.string().max(40).optional(),
+              permissions: z.record(z.string(), z.unknown()).optional(),
+            }),
+          )
+          .min(1)
+          .max(10),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Validation failed", details: parsed.error.issues });
+      }
+      const { fleetId } = req.params;
+      const { invites } = parsed.data;
+      try {
+        const access = await this.postgres.query(
+          `SELECT role FROM fleet_members
+             WHERE fleet_id = $1 AND user_id = $2 AND role = 'admin'`,
+          [fleetId, userId],
+        );
+        if (access.rows.length === 0) {
+          return res
+            .status(403)
+            .json({ error: "Admin access required to invite crew" });
+        }
+
+        // Enforce per-tier seat limits.
+        const ownerSub = await this.getSubscription(userId);
+        const seatLimit = getFleetSeatLimit(ownerSub?.tier ?? "free");
+        if (seatLimit !== -1) {
+          const memberCountResult = await this.postgres.query(
+            "SELECT COUNT(*) AS count FROM fleet_members WHERE fleet_id = $1",
+            [fleetId],
+          );
+          const currentMembers =
+            parseInt(memberCountResult.rows[0]?.count ?? "0", 10) || 0;
+          if (currentMembers + invites.length > seatLimit) {
+            return res.status(403).json({
+              error: `Fleet member limit reached (${seatLimit} seats on ${ownerSub?.tier ?? "free"} plan)`,
+              upgradeUrl: "/pricing",
+            });
+          }
+        }
+
+        const fleetResult = await this.postgres.query(
+          "SELECT name FROM fleets WHERE id = $1",
+          [fleetId],
+        );
+        const fleetName = fleetResult.rows[0]?.name ?? "Fleet";
+
+        const inviterResult = await this.postgres.query(
+          "SELECT email, full_name FROM profiles WHERE id = $1",
+          [userId],
+        );
+        const inviterName =
+          inviterResult.rows[0]?.full_name ??
+          inviterResult.rows[0]?.email ??
+          "A fleet admin";
+
+        const results: Array<{
+          email: string;
+          success: boolean;
+          invitationId?: string;
+          error?: string;
+        }> = [];
+        for (const invite of invites) {
+          try {
+            const token = crypto.randomBytes(32).toString("hex");
+            const inviteResult = await this.postgres.query(
+              `INSERT INTO fleet_invitations
+                 (fleet_id, email, name, role, permissions, invited_by, token, expires_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, NOW() + INTERVAL '7 days')
+               ON CONFLICT (fleet_id, email) DO UPDATE SET
+                 name = EXCLUDED.name,
+                 role = EXCLUDED.role,
+                 permissions = EXCLUDED.permissions,
+                 invited_by = EXCLUDED.invited_by,
+                 token = EXCLUDED.token,
+                 expires_at = NOW() + INTERVAL '7 days',
+                 created_at = NOW()
+               RETURNING id, token`,
+              [
+                fleetId,
+                invite.email,
+                invite.name ?? invite.email,
+                invite.role ?? "crew",
+                JSON.stringify(invite.permissions ?? {}),
+                userId,
+                token,
+              ],
+            );
+            const invitationToken = inviteResult.rows[0].token;
+            try {
+              await emailService.sendFleetInvitationEmail(
+                invite.email,
+                invite.name ?? invite.email,
+                fleetName,
+                inviterName,
+                invite.role ?? "crew",
+                invitationToken,
+              );
+            } catch (emailErr) {
+              logger.warn(
+                { error: emailErr, email: invite.email },
+                "Fleet invite created but email send failed",
+              );
+            }
+            results.push({
+              email: invite.email,
+              success: true,
+              invitationId: inviteResult.rows[0].id,
+            });
+          } catch (err) {
+            logger.error({ err, email: invite.email }, "Invite insert failed");
+            results.push({
+              email: invite.email,
+              success: false,
+              error: "Failed to create invitation",
+            });
+          }
+        }
+        res.json({
+          success: true,
+          invitations: results,
+          sent: results.filter((r) => r.success).length,
+          failed: results.filter((r) => !r.success).length,
+        });
+      } catch (error) {
+        logger.error({ error, userId, fleetId }, "Failed to send invitations");
+        res.status(500).json({ error: "Failed to send invitations" });
+      }
+    });
+
+    // POST /api/fleet/invitations/:token/accept — invited user clicks the
+    // emailed link. Verifies the token belongs to the caller's email and
+    // adds them to fleet_members.
+    this.app.post("/api/fleet/invitations/:token/accept", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "fleet", limit: 30 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res
+          .status(503)
+          .json({ error: "Fleet service unavailable (DB not configured)" });
+      }
+      const { token } = req.params;
+      try {
+        const inviteResult = await this.postgres.query(
+          `SELECT fi.*, f.name AS fleet_name
+             FROM fleet_invitations fi
+             JOIN fleets f ON f.id = fi.fleet_id
+             WHERE fi.token = $1
+               AND fi.expires_at > NOW()
+               AND fi.accepted_at IS NULL`,
+          [token],
+        );
+        if (inviteResult.rows.length === 0) {
+          return res
+            .status(404)
+            .json({ error: "Invitation not found or expired" });
+        }
+        const invite = inviteResult.rows[0];
+        const userResult = await this.postgres.query(
+          "SELECT email FROM profiles WHERE id = $1",
+          [userId],
+        );
+        if (userResult.rows[0]?.email !== invite.email) {
+          return res.status(403).json({
+            error: "This invitation was sent to a different email address",
+          });
+        }
+        await this.postgres.query(
+          `INSERT INTO fleet_members (fleet_id, user_id, role)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (fleet_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+          [invite.fleet_id, userId, invite.role],
+        );
+        await this.postgres.query(
+          `UPDATE fleet_invitations SET accepted_at = NOW() WHERE token = $1`,
+          [token],
+        );
+        res.json({
+          success: true,
+          message: `Successfully joined ${invite.fleet_name}`,
+          fleet: {
+            id: invite.fleet_id,
+            name: invite.fleet_name,
+            role: invite.role,
+          },
+        });
+      } catch (error) {
+        logger.error({ error, userId, token }, "Failed to accept invitation");
+        res.status(500).json({ error: "Failed to accept invitation" });
+      }
+    });
+
+    // POST /api/fleet/invitations/:token/reject — delete the invitation.
+    this.app.post("/api/fleet/invitations/:token/reject", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "fleet", limit: 30 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res
+          .status(503)
+          .json({ error: "Fleet service unavailable (DB not configured)" });
+      }
+      const { token } = req.params;
+      try {
+        const inviteResult = await this.postgres.query(
+          `SELECT fi.*, f.name AS fleet_name
+             FROM fleet_invitations fi
+             JOIN fleets f ON f.id = fi.fleet_id
+             WHERE fi.token = $1
+               AND fi.expires_at > NOW()
+               AND fi.accepted_at IS NULL`,
+          [token],
+        );
+        if (inviteResult.rows.length === 0) {
+          return res
+            .status(404)
+            .json({ error: "Invitation not found or expired" });
+        }
+        const invite = inviteResult.rows[0];
+        const userResult = await this.postgres.query(
+          "SELECT email FROM profiles WHERE id = $1",
+          [userId],
+        );
+        if (userResult.rows[0]?.email !== invite.email) {
+          return res.status(403).json({
+            error: "This invitation was sent to a different email address",
+          });
+        }
+        await this.postgres.query(
+          "DELETE FROM fleet_invitations WHERE token = $1",
+          [token],
+        );
+        res.json({
+          success: true,
+          message: `Declined invitation to ${invite.fleet_name}`,
+        });
+      } catch (error) {
+        logger.error({ error, userId, token }, "Failed to reject invitation");
+        res.status(500).json({ error: "Failed to reject invitation" });
       }
     });
 
