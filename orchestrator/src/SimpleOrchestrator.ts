@@ -1945,17 +1945,27 @@ export class SimpleOrchestrator {
 
   /**
    * Rate limiting using Redis sliding window
-   * 20 requests/minute per IP, fails open if Redis is down
+   * Per-endpoint-bucket rate limiting. Default is the legacy `plan` bucket
+   * (20 req/min/IP) to preserve existing /api/plan and /api/passage-planning
+   * behaviour. Other call sites should pass an explicit bucket so typing in
+   * an autocomplete doesn't burn down the planning quota:
+   *   - `geocode`  : 60/min/IP — supports debounced typing without hitting
+   *                  Nominatim's 1 req/sec policy.
+   *   - `passages` : 30/min/IP — saves are infrequent but spiky on edit.
+   * Fails open if Redis is down (returns true). Returns false (and writes
+   * a 429 response) only when the bucket is over the limit.
    */
   private async checkRateLimit(
     req: express.Request,
     res: express.Response,
+    options: { bucket?: string; limit?: number; windowSeconds?: number } = {},
   ): Promise<boolean> {
     try {
       const ip = req.ip || req.socket.remoteAddress || "unknown";
-      const key = `ratelimit:plan:${ip}`;
-      const limit = 20;
-      const windowSeconds = 60;
+      const bucket = options.bucket ?? "plan";
+      const limit = options.limit ?? 20;
+      const windowSeconds = options.windowSeconds ?? 60;
+      const key = `ratelimit:${bucket}:${ip}`;
 
       if (!this.redis) return true; // No Redis — skip rate limiting
 
@@ -2574,10 +2584,16 @@ export class SimpleOrchestrator {
     });
 
     // Geocoding — public endpoint, no auth required so the planner form
-    // can autocomplete as the user types before they log in. Open-Meteo
-    // and Nominatim already rate-limit themselves; an abusive client
-    // hits the cache anyway. Validation rejects pathological queries.
+    // can autocomplete as the user types before they log in. Per-IP rate
+    // limit at 60/min protects Nominatim's 1 req/sec ToS and keeps a
+    // typing burst from getting our server IP banned upstream. The
+    // GeocodingService already caches at 7-day TTL so repeated lookups
+    // never touch the upstream at all.
     this.app.get("/api/geocode", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "geocode", limit: 60 }))
+      )
+        return;
       const schema = z.object({
         q: z.string().min(2).max(120),
         limit: z.coerce.number().int().min(1).max(10).optional(),
@@ -2617,6 +2633,13 @@ export class SimpleOrchestrator {
       `passages:user:${userId}:${passageId}`;
 
     this.app.post("/api/passages", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "passages",
+          limit: 30,
+        }))
+      )
+        return;
       const userId = await this.verifyAuthAndGetUserId(req, res);
       if (!userId) return; // 401 already sent
 
@@ -2668,6 +2691,13 @@ export class SimpleOrchestrator {
     });
 
     this.app.get("/api/passages", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "passages",
+          limit: 30,
+        }))
+      )
+        return;
       const userId = await this.verifyAuthAndGetUserId(req, res);
       if (!userId) return;
 
@@ -2697,6 +2727,13 @@ export class SimpleOrchestrator {
     });
 
     this.app.get("/api/passages/recent", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "passages",
+          limit: 30,
+        }))
+      )
+        return;
       const userId = await this.verifyAuthAndGetUserId(req, res);
       if (!userId) return;
       if (!this.redis) return res.json({ passages: [] });
@@ -2727,6 +2764,13 @@ export class SimpleOrchestrator {
     });
 
     this.app.delete("/api/passages/:id", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "passages",
+          limit: 30,
+        }))
+      )
+        return;
       const userId = await this.verifyAuthAndGetUserId(req, res);
       if (!userId) return;
       if (!this.redis)
@@ -2745,7 +2789,12 @@ export class SimpleOrchestrator {
 
     // Reverse geocode — for when the user drops a pin on the map and the
     // planner wants to show "Cowes, UK" instead of bare coordinates.
+    // Shares the `geocode` rate-limit bucket with forward geocode.
     this.app.get("/api/geocode/reverse", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "geocode", limit: 60 }))
+      )
+        return;
       const schema = z.object({
         lat: z.coerce.number().min(-90).max(90),
         lon: z.coerce.number().min(-180).max(180),
