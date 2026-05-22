@@ -15,6 +15,7 @@ import {
   WeatherRoutingService,
   WeatherRoute,
 } from "./services/weather-routing";
+import { CronService } from "./services/CronService";
 import {
   BaseAgent,
   GeocodingService,
@@ -83,6 +84,14 @@ export class SimpleOrchestrator {
    * idempotency is enforced via the `subscription_events` table.
    */
   private stripeService: StripeService;
+  /**
+   * Cron scheduler: trial-end reminders (daily 09:00 PT), monthly usage
+   * reports (1st of month 10:00 PT), email-log cleanup (Sunday 02:00 PT),
+   * external-API health checks (hourly), and NGA ASAM piracy ingest
+   * (nightly 03:00 PT). Started in `start()` after HTTP comes up so the
+   * server can serve traffic even if Resend or NGA are unreachable.
+   */
+  private cronService: CronService | null = null;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -3371,10 +3380,42 @@ export class SimpleOrchestrator {
         resolve();
       });
     });
+
+    // Background cron jobs (welcome/trial/usage emails, ASAM piracy
+    // ingest, external-API health). Disabled by default in development
+    // so a local `npm run dev` doesn't spam Resend or attempt to write
+    // to a production DB; set DISABLE_CRON=false (or omit it in prod)
+    // to enable. In production we always want them on.
+    const cronDisabled = process.env.DISABLE_CRON === "true";
+    if (!cronDisabled) {
+      try {
+        this.cronService = new CronService(logger);
+        this.cronService.start();
+        logger.info("Cron service started");
+      } catch (error) {
+        // Cron failing to start must not block HTTP — the orchestrator
+        // is still useful for planning. Log loudly and continue.
+        logger.error({ error }, "Failed to start cron service");
+        this.cronService = null;
+      }
+    } else {
+      logger.info("Cron service disabled via DISABLE_CRON=true");
+    }
   }
 
   async shutdown() {
     logger.info("Shutting down orchestrator...");
+
+    // Stop cron jobs first so a long-running job doesn't fire mid-shutdown
+    // and try to write to a closing DB/Redis pool.
+    if (this.cronService) {
+      try {
+        this.cronService.stop();
+        logger.info("Cron service stopped");
+      } catch (error) {
+        logger.error({ error }, "Error stopping cron service");
+      }
+    }
 
     // Flush pending audit log writes before shutting down
     try {
