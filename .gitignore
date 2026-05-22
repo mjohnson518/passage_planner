@@ -103,6 +103,7 @@ ralph-loop.sh
 playwright-report/
 test-results/
 .playwright/
+.playwright-mcp/
 
 # Temporary files
 *.bak
