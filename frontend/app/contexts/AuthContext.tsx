@@ -1,195 +1,211 @@
-'use client'
+"use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { User, Session } from '@supabase/supabase-js'
-import { useRouter } from 'next/navigation'
-import { config } from '../config'
-import { toast } from '../hooks/use-toast'
-import { getSupabase } from '../lib/supabase-client'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
+import { User, Session } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
+import { config } from "../config";
+import { toast } from "sonner";
+import { getSupabase } from "../lib/supabase-client";
 
 interface AuthContextType {
-  user: User | null
-  session: Session | null
-  loading: boolean
-  signUp: (email: string, password: string) => Promise<void>
-  signIn: (email: string, password: string) => Promise<void>
-  signOut: () => Promise<void>
-  resetPassword: (email: string) => Promise<void>
-  updateProfile: (data: any) => Promise<void>
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
+  signUp: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updateProfile: (data: any) => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
-  
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
   // Lazy load Supabase client
-  const supabase = getSupabase()
+  const supabase = getSupabase();
 
   useEffect(() => {
     if (!supabase) {
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
-    
+
     // Check active sessions
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session)
-        setUser(session?.user ?? null)
-        setLoading(false)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
 
-        if (event === 'SIGNED_IN' && session?.user?.id) {
-          // Check if user needs onboarding (e.g., no boat profiles)
-          const { data: boats } = await supabase
-            .from('boat_profiles')
-            .select('id')
-            .eq('user_id', session.user.id)
-            .limit(1)
-          
-          if (!boats || boats.length === 0) {
-            router.push('/onboarding')
-          } else {
-            router.push('/dashboard')
-          }
-        } else if (event === 'SIGNED_OUT') {
-          router.push('/')
+      if (event === "SIGNED_IN" && session?.user?.id) {
+        // Check if user needs onboarding (e.g., no boat profiles)
+        const { data: boats } = await supabase
+          .from("boat_profiles")
+          .select("id")
+          .eq("user_id", session.user.id)
+          .limit(1);
+
+        if (!boats || boats.length === 0) {
+          router.push("/onboarding");
+        } else {
+          router.push("/dashboard");
         }
+      } else if (event === "SIGNED_OUT") {
+        router.push("/");
       }
-    )
+    });
 
-    return () => subscription.unsubscribe()
-  }, [router])
+    return () => subscription.unsubscribe();
+  }, [router]);
 
   const signUp = async (email: string, password: string) => {
     if (!supabase) {
-      toast.error('Authentication not available')
-      return
+      toast.error("Authentication not available");
+      return;
     }
-    
+
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            subscription_tier: 'free',
-            signup_source: 'web',
-          }
-        }
-      })
+            subscription_tier: "free",
+            signup_source: "web",
+          },
+        },
+      });
 
-      if (error) throw error
+      if (error) throw error;
 
-      toast.success('Account created!', {
-        description: 'Please check your email to verify your account.',
-      })
+      toast.success("Account created!", {
+        description: "Please check your email to verify your account.",
+      });
 
       // Create user profile
       if (data.user) {
-        await fetch('/api/users/profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        await fetch("/api/users/profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             userId: data.user.id,
             email: data.user.email,
           }),
-        })
+        });
       }
     } catch (error: any) {
-      toast.error('Signup failed', { description: error.message })
-      throw error
+      toast.error("Signup failed", { description: error.message });
+      throw error;
     }
-  }
+  };
 
   const signIn = async (email: string, password: string) => {
     if (!supabase) {
-      toast.error('Authentication not available', { 
-        description: 'Please configure Supabase environment variables.' 
-      })
-      throw new Error('Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.')
+      toast.error("Authentication not available", {
+        description: "Please configure Supabase environment variables.",
+      });
+      throw new Error(
+        "Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      );
     }
-    
+
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-      })
+      });
 
-      if (error) throw error
+      if (error) throw error;
 
-      toast.success('Welcome back!', { description: 'You have successfully signed in.' })
+      toast.success("Welcome back!", {
+        description: "You have successfully signed in.",
+      });
     } catch (error: any) {
-      toast.error('Login failed', { description: error.message })
-      throw error
+      toast.error("Login failed", { description: error.message });
+      throw error;
     }
-  }
+  };
 
   const signOut = async () => {
     if (!supabase) {
-      toast.error('Authentication not available')
-      return
+      toast.error("Authentication not available");
+      return;
     }
-    
-    try {
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
 
-      toast('Signed out', { description: 'You have been signed out successfully.' })
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      toast("Signed out", {
+        description: "You have been signed out successfully.",
+      });
     } catch (error: any) {
-      toast.error('Error signing out', { description: error.message })
+      toast.error("Error signing out", { description: error.message });
     }
-  }
+  };
 
   const resetPassword = async (email: string) => {
     if (!supabase) {
-      toast.error('Authentication not available')
-      return
+      toast.error("Authentication not available");
+      return;
     }
-    
+
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
-      })
+      });
 
-      if (error) throw error
+      if (error) throw error;
 
-      toast.success('Password reset email sent', { description: 'Check your email for the password reset link.' })
+      toast.success("Password reset email sent", {
+        description: "Check your email for the password reset link.",
+      });
     } catch (error: any) {
-      toast.error('Password reset failed', { description: error.message })
-      throw error
+      toast.error("Password reset failed", { description: error.message });
+      throw error;
     }
-  }
+  };
 
   const updateProfile = async (data: any) => {
     if (!supabase) {
-      toast.error('Authentication not available')
-      return
+      toast.error("Authentication not available");
+      return;
     }
-    
+
     try {
       const { error } = await supabase.auth.updateUser({
         data,
-      })
+      });
 
-      if (error) throw error
+      if (error) throw error;
 
-      toast.success('Profile updated', { description: 'Your profile has been updated successfully.' })
+      toast.success("Profile updated", {
+        description: "Your profile has been updated successfully.",
+      });
     } catch (error: any) {
-      toast.error('Update failed', { description: error.message })
-      throw error
+      toast.error("Update failed", { description: error.message });
+      throw error;
     }
-  }
+  };
 
   return (
     <AuthContext.Provider
@@ -206,13 +222,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     >
       {children}
     </AuthContext.Provider>
-  )
+  );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-  return context
-} 
+  return context;
+}

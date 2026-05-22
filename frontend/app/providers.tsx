@@ -1,32 +1,34 @@
-'use client'
+"use client";
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import dynamic from 'next/dynamic'
-import { ThemeProvider } from 'next-themes'
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
+import { ThemeProvider } from "next-themes";
 
 const ReactQueryDevtools = dynamic(
-  () => import('@tanstack/react-query-devtools').then(m => ({ default: m.ReactQueryDevtools })),
-  { ssr: false }
-)
-import { useState, useEffect } from 'react'
-import { Toaster } from 'sonner'
-import { AuthProvider } from './contexts/AuthContext'
-import { SocketProvider } from './contexts/SocketContext'
-import { useServiceWorker } from './hooks/useServiceWorker'
+  () =>
+    import("@tanstack/react-query-devtools").then((m) => ({
+      default: m.ReactQueryDevtools,
+    })),
+  { ssr: false },
+);
+import { useState, useEffect } from "react";
+import { AuthProvider } from "./contexts/AuthContext";
+import { SocketProvider } from "./contexts/SocketContext";
+import { useServiceWorker } from "./hooks/useServiceWorker";
 
 function ServiceWorkerProvider({ children }: { children: React.ReactNode }) {
-  const { isOffline } = useServiceWorker()
+  const { isOffline } = useServiceWorker();
 
   useEffect(() => {
     // Show offline indicator
     if (isOffline) {
-      document.body.classList.add('offline')
+      document.body.classList.add("offline");
     } else {
-      document.body.classList.remove('offline')
+      document.body.classList.remove("offline");
     }
-  }, [isOffline])
+  }, [isOffline]);
 
-  return <>{children}</>
+  return <>{children}</>;
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -39,8 +41,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
             refetchOnWindowFocus: false,
           },
         },
-      })
-  )
+      }),
+  );
 
   return (
     <ThemeProvider
@@ -52,14 +54,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <SocketProvider>
-            <ServiceWorkerProvider>
-              {children}
-            </ServiceWorkerProvider>
+            <ServiceWorkerProvider>{children}</ServiceWorkerProvider>
           </SocketProvider>
         </AuthProvider>
-        <Toaster richColors closeButton />
-        {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
+        {/* Toaster mounted once at the root in app/layout.tsx — no need to mount twice. */}
+        {process.env.NODE_ENV === "development" && (
+          <ReactQueryDevtools initialIsOpen={false} />
+        )}
       </QueryClientProvider>
     </ThemeProvider>
-  )
+  );
 }
