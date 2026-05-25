@@ -30,6 +30,12 @@ import {
   SHARE_DEFAULT_EXPIRY_DAYS,
   SHARE_MAX_EXPIRY_DAYS,
 } from "./services/ShareService";
+import { SatCommService } from "./services/SatCommService";
+import {
+  getAdapter,
+  KNOWN_VENDORS,
+  type Vendor,
+} from "./services/satcomm/adapters";
 import {
   BaseAgent,
   GeocodingService,
@@ -125,6 +131,12 @@ export class SimpleOrchestrator {
    * so share endpoints can 503 cleanly without crashing.
    */
   private shareService: ShareService | null = null;
+  /**
+   * Sat-comm device + position-report ingestion (S2). Initialised when
+   * Postgres is up; works with or without Redis/Push (off-route detection
+   * and alerts are best-effort).
+   */
+  private satCommService: SatCommService | null = null;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -181,6 +193,12 @@ export class SimpleOrchestrator {
         logger.error({ err: err.message }, "Postgres pool error");
       });
       this.pushService = new PushService(this.postgres, logger);
+      this.satCommService = new SatCommService(
+        this.postgres,
+        this.redis,
+        this.pushService,
+        logger,
+      );
     } else {
       logger.warn("DATABASE_URL not set — profile/billing endpoints will 503");
     }
@@ -204,6 +222,10 @@ export class SimpleOrchestrator {
     // sits ahead of the global express.json() middleware. Stripe signature
     // verification requires the raw Buffer body, not a parsed object.
     this.registerStripeWebhookEarly();
+    // Sat-comm webhook (S2) — same pattern as Stripe: HMAC signature
+    // verification needs the raw Buffer body so global json() must not run
+    // first. Registered here so it sits ahead of express.json().
+    this.registerSatCommWebhookEarly();
     this.setupHttpServer();
   }
 
@@ -2688,6 +2710,81 @@ export class SimpleOrchestrator {
   }
 
   /**
+   * Sat-comm position webhook (S2).
+   *
+   * `POST /api/sat-comm/:vendor/webhook?device=<deviceId>`
+   *
+   * Public endpoint with HMAC signature verification per device. The HMAC is
+   * computed against the raw request body so we register with
+   * `express.raw({ type: "*\/*" })` instead of the global JSON parser; the
+   * vendor adapter parses the body after auth succeeds.
+   *
+   * Failure modes:
+   *   400 — vendor unsupported or malformed payload
+   *   401 — signature mismatch or missing device
+   *   503 — sat-comm service unavailable (DB down)
+   */
+  private registerSatCommWebhookEarly() {
+    this.app.post(
+      "/api/sat-comm/:vendor/webhook",
+      express.raw({ type: "*/*" }),
+      async (req, res) => {
+        if (!this.satCommService) {
+          return res.status(503).json({ error: "Sat-comm unavailable" });
+        }
+        const vendor = req.params.vendor;
+        const deviceId = (req.query.device as string | undefined) ?? "";
+        if (!KNOWN_VENDORS.includes(vendor as Vendor)) {
+          return res.status(400).json({ error: "Unsupported vendor" });
+        }
+        if (!deviceId) {
+          return res.status(400).json({ error: "device query param required" });
+        }
+        const adapter = getAdapter(vendor);
+        if (!adapter) {
+          return res.status(400).json({ error: "Unsupported vendor" });
+        }
+        const device = await this.satCommService.getDeviceByVendorDeviceId(
+          vendor,
+          deviceId,
+        );
+        if (!device) {
+          // Same 401 as a signature mismatch so attackers can't enumerate
+          // valid (vendor, deviceId) pairs.
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+        const ctx = {
+          rawBody: req.body as Buffer,
+          headers: req.headers as Record<string, string | string[] | undefined>,
+          webhookSecret: device.webhook_secret,
+          deviceId: device.id,
+        };
+        if (!adapter.verify(ctx)) {
+          logger.warn(
+            { vendor, deviceId: device.id },
+            "Sat-comm signature mismatch",
+          );
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+        try {
+          const position = adapter.parse(ctx);
+          const result = await this.satCommService.ingestPosition(
+            device,
+            position,
+          );
+          res.json({ ok: true, ...result });
+        } catch (err) {
+          logger.error(
+            { err, vendor, deviceId: device.id },
+            "Sat-comm ingest failed",
+          );
+          res.status(400).json({ error: (err as Error).message });
+        }
+      },
+    );
+  }
+
+  /**
    * Map a Stripe price tier+period combo to the configured price id. The
    * env vars are required at runtime; if any is missing the checkout
    * route will return 500 (caller sees a clear error and we don't create
@@ -4746,6 +4843,272 @@ export class SimpleOrchestrator {
         res.status(500).json({ error: "Failed to load shared passage" });
       }
     });
+
+    // ------------------------------------------------------------------
+    // Sat-comm devices (S2) — Pro tier only.
+    //
+    // Owner-facing device CRUD + position history + manual position
+    // injection. The webhook ingestion endpoint is registered separately
+    // (registerSatCommWebhookEarly) so the global JSON parser doesn't
+    // touch the body before HMAC verification.
+    // ------------------------------------------------------------------
+    const requireProTier = async (
+      req: express.Request,
+      res: express.Response,
+      userId: string,
+    ): Promise<string | null> => {
+      if (!this.postgres) {
+        res.status(503).json({ error: "Tier check unavailable" });
+        return null;
+      }
+      try {
+        const result = await this.postgres.query(
+          `SELECT subscription_tier FROM profiles WHERE id = $1`,
+          [userId],
+        );
+        const tier = (result.rows[0]?.subscription_tier ?? "free") as string;
+        if (tier !== "pro" && tier !== "enterprise") {
+          res.status(403).json({
+            error: "Sat-comm position reporting requires a Pro subscription",
+            upgradeRequired: true,
+          });
+          return null;
+        }
+        return tier;
+      } catch (error) {
+        logger.error({ error, userId }, "Tier check failed");
+        res.status(500).json({ error: "Tier check failed" });
+        return null;
+      }
+    };
+
+    const deviceCreateSchema = z.object({
+      vendor: z.enum(["generic", "garmin_inreach", "iridiumgo", "yb_tracking"]),
+      device_id: z.string().min(1).max(200),
+      nickname: z.string().max(100).optional(),
+    });
+
+    this.app.get("/api/sat-comm/devices", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "satcomm-devices",
+          limit: 60,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.satCommService) {
+        return res.status(503).json({ error: "Sat-comm unavailable" });
+      }
+      try {
+        const devices = await this.satCommService.listDevices(userId);
+        // Strip webhook_secret from the list — it's shown ONCE on create and
+        // not exposed thereafter (rotate-by-recreate semantics).
+        res.json({
+          devices: devices.map((d) => ({
+            ...d,
+            webhook_secret: undefined,
+          })),
+        });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to list sat-comm devices");
+        res.status(500).json({ error: "Failed to list devices" });
+      }
+    });
+
+    this.app.post("/api/sat-comm/devices", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "satcomm-devices",
+          limit: 10,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.satCommService) {
+        return res.status(503).json({ error: "Sat-comm unavailable" });
+      }
+      const tier = await requireProTier(req, res, userId);
+      if (!tier) return;
+      const parsed = deviceCreateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid device",
+          details: parsed.error.issues,
+        });
+      }
+      try {
+        const device = await this.satCommService.createDevice({
+          userId,
+          vendor: parsed.data.vendor,
+          deviceId: parsed.data.device_id,
+          nickname: parsed.data.nickname,
+        });
+        const base = (
+          process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"
+        ).replace(/\/+$/, "");
+        // 201 with the secret EXPOSED exactly once — the UI must capture it
+        // and instruct the user to store it. Subsequent reads omit it.
+        res.status(201).json({
+          device,
+          webhookUrl: `${base}/api/sat-comm/${device.vendor}/webhook?device=${encodeURIComponent(device.device_id)}`,
+        });
+      } catch (error) {
+        const msg = (error as Error).message ?? String(error);
+        if (msg.includes("sat_comm_devices_vendor_device_unique")) {
+          return res.status(409).json({
+            error: "Device already registered to another account",
+          });
+        }
+        logger.error({ error, userId }, "Failed to create sat-comm device");
+        res.status(500).json({ error: "Failed to create device" });
+      }
+    });
+
+    this.app.delete("/api/sat-comm/devices/:id", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "satcomm-devices",
+          limit: 30,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.satCommService) {
+        return res.status(503).json({ error: "Sat-comm unavailable" });
+      }
+      try {
+        const ok = await this.satCommService.deleteDevice(
+          userId,
+          req.params.id,
+        );
+        if (!ok) return res.status(404).json({ error: "Not found" });
+        res.json({ ok: true });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to delete sat-comm device");
+        res.status(500).json({ error: "Failed to delete device" });
+      }
+    });
+
+    this.app.get("/api/sat-comm/devices/:id/positions", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "satcomm-positions",
+          limit: 60,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.satCommService) {
+        return res.status(503).json({ error: "Sat-comm unavailable" });
+      }
+      const device = await this.satCommService.getDeviceForOwner(
+        userId,
+        req.params.id,
+      );
+      if (!device) return res.status(404).json({ error: "Not found" });
+      try {
+        const positions = await this.satCommService.listLatestPositions(
+          device.id,
+          100,
+        );
+        res.json({ positions });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to list positions");
+        res.status(500).json({ error: "Failed to load positions" });
+      }
+    });
+
+    this.app.delete("/api/sat-comm/devices/:id/positions", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "satcomm-positions",
+          limit: 10,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.satCommService) {
+        return res.status(503).json({ error: "Sat-comm unavailable" });
+      }
+      const device = await this.satCommService.getDeviceForOwner(
+        userId,
+        req.params.id,
+      );
+      if (!device) return res.status(404).json({ error: "Not found" });
+      try {
+        const purged = await this.satCommService.purgePositionReports(
+          device.id,
+        );
+        res.json({ ok: true, purged });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to purge positions");
+        res.status(500).json({ error: "Failed to purge positions" });
+      }
+    });
+
+    // Manual position injection — owner-only. Lets users without a supported
+    // sat-comm device test the off-route alert pipeline.
+    const testPositionSchema = z.object({
+      lat: z.number().min(-90).max(90),
+      lon: z.number().min(-180).max(180),
+      speed_kn: z.number().min(0).max(200).optional(),
+      course_deg: z.number().min(0).max(360).optional(),
+      battery_pct: z.number().int().min(0).max(100).optional(),
+      message_text: z.string().max(1000).optional(),
+    });
+
+    this.app.post(
+      "/api/sat-comm/devices/:id/test-position",
+      async (req, res) => {
+        if (
+          !(await this.checkRateLimit(req, res, {
+            bucket: "satcomm-positions",
+            limit: 30,
+          }))
+        )
+          return;
+        const userId = await this.verifyAuthAndGetUserId(req, res);
+        if (!userId) return;
+        if (!this.satCommService) {
+          return res.status(503).json({ error: "Sat-comm unavailable" });
+        }
+        const device = await this.satCommService.getDeviceForOwner(
+          userId,
+          req.params.id,
+        );
+        if (!device) return res.status(404).json({ error: "Not found" });
+        const parsed = testPositionSchema.safeParse(req.body);
+        if (!parsed.success) {
+          return res.status(400).json({
+            error: "Invalid position",
+            details: parsed.error.issues,
+          });
+        }
+        try {
+          const result = await this.satCommService.ingestPosition(device, {
+            deviceId: device.id,
+            reportedAt: new Date(),
+            lat: parsed.data.lat,
+            lon: parsed.data.lon,
+            speedKn: parsed.data.speed_kn,
+            courseDeg: parsed.data.course_deg,
+            batteryPct: parsed.data.battery_pct,
+            messageText: parsed.data.message_text,
+            rawPayload: { source: "manual_test", body: parsed.data },
+          });
+          res.json({ ok: true, ...result });
+        } catch (error) {
+          logger.error({ error, userId }, "Test position ingest failed");
+          res.status(500).json({ error: "Failed to ingest position" });
+        }
+      },
+    );
 
     this.app.get("/api/geocode/reverse", async (req, res) => {
       if (
