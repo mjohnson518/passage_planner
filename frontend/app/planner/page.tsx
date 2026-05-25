@@ -58,6 +58,7 @@ import { logger } from "../lib/logger";
 import type { PassageExport } from "../types/shared";
 import { isInCoverage } from "../../lib/coverage";
 import { SendFloatPlanButton } from "../components/planner/SendFloatPlanButton";
+import { SharePlanButton } from "../components/planner/SharePlanButton";
 
 // Dynamic import for map component to avoid SSR issues
 const RouteMap = dynamic(() => import("../components/map/RouteMap"), {
@@ -969,6 +970,7 @@ function PlannerPageInner() {
                     departureLabel={formData.departure}
                     destinationLabel={formData.destination}
                   />
+                  <SharePlanButton passageId={savedPassageId} />
                   {features.exportPassage && (
                     <>
                       <Button

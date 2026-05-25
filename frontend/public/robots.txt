@@ -1,4 +1,7 @@
 User-agent: *
 Allow: /
+# Public share links carry sensitive (though redacted) passage data and must
+# not be indexed — defence in depth alongside the page-level noindex meta.
+Disallow: /p/
 
 Sitemap: https://helmwise.co/sitemap.xml

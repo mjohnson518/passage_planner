@@ -26,6 +26,11 @@ import {
   type FloatPlanInput,
 } from "./services/FloatPlanPdfService";
 import {
+  ShareService,
+  SHARE_DEFAULT_EXPIRY_DAYS,
+  SHARE_MAX_EXPIRY_DAYS,
+} from "./services/ShareService";
+import {
   BaseAgent,
   GeocodingService,
   CacheManager,
@@ -115,6 +120,11 @@ export class SimpleOrchestrator {
    * for every send. Backed by pdfkit; no native deps.
    */
   private floatPlanPdf: FloatPlanPdfService = new FloatPlanPdfService();
+  /**
+   * Public-share token service (S4). Wired once Redis is up; null otherwise
+   * so share endpoints can 503 cleanly without crashing.
+   */
+  private shareService: ShareService | null = null;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -152,6 +162,7 @@ export class SimpleOrchestrator {
       this.redis.on("ready", () => {
         logger.info("Redis connection ready");
       });
+      this.shareService = new ShareService(this.redis, logger);
     }
 
     const dbUrl = process.env.DATABASE_URL;
@@ -1785,6 +1796,18 @@ export class SimpleOrchestrator {
     }
 
     return warnings;
+  }
+
+  /**
+   * Build the user-facing share URL for a token. Uses NEXT_PUBLIC_APP_URL
+   * when set so the link points to the production domain (helmwise.co)
+   * rather than the orchestrator's localhost host.
+   */
+  private shareUrl(token: string): string {
+    const base = (
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://helmwise.co"
+    ).replace(/\/+$/, "");
+    return `${base}/p/${token}`;
   }
 
   /**
@@ -3974,6 +3997,19 @@ export class SimpleOrchestrator {
 
       const passageId = req.params.id;
       try {
+        // Best-effort: revoke any active share link first so its public URL
+        // stops resolving immediately. Failure here is logged but does not
+        // block the actual passage deletion.
+        if (this.shareService) {
+          try {
+            await this.shareService.revoke(userId, passageId);
+          } catch (err) {
+            logger.warn(
+              { err, userId, passageId },
+              "Share revoke during passage delete failed",
+            );
+          }
+        }
         await this.redis.del(passageDetailKey(userId, passageId));
         await this.redis.zrem(passagesKey(userId), passageId);
         res.json({ success: true });
@@ -4527,6 +4563,187 @@ export class SimpleOrchestrator {
       } catch (error) {
         logger.error({ error, userId }, "Failed to list float plan history");
         res.status(500).json({ error: "Failed to load history" });
+      }
+    });
+
+    // ------------------------------------------------------------------
+    // Public share links (S4)
+    //
+    // Premium-only. Three owner-facing endpoints (status/create/revoke) +
+    // one PUBLIC read endpoint (no auth). The public endpoint returns a
+    // strictly-redacted payload — vessel identifiers (MMSI/EPIRB/InReach),
+    // owner email, and crew medical notes are stripped before the response
+    // leaves the server. See ShareService#redact for the allow-list.
+    // ------------------------------------------------------------------
+    const createShareSchema = z.object({
+      expiresInDays: z
+        .number()
+        .int()
+        .min(1)
+        .max(SHARE_MAX_EXPIRY_DAYS)
+        .optional(),
+    });
+
+    // Premium tier check — returns the user's tier or sends a 402-style
+    // response and returns null. Premium and above can share links; free
+    // users hit a paywall prompt.
+    const requirePremiumTier = async (
+      req: express.Request,
+      res: express.Response,
+      userId: string,
+    ): Promise<string | null> => {
+      if (!this.postgres) {
+        // If profiles can't be checked, fail closed rather than open — a
+        // share link is a security-sensitive resource.
+        res.status(503).json({ error: "Tier check unavailable" });
+        return null;
+      }
+      try {
+        const result = await this.postgres.query(
+          `SELECT subscription_tier FROM profiles WHERE id = $1`,
+          [userId],
+        );
+        const tier = (result.rows[0]?.subscription_tier ?? "free") as string;
+        if (tier === "free") {
+          res.status(403).json({
+            error: "Share links require a Premium subscription",
+            upgradeRequired: true,
+          });
+          return null;
+        }
+        return tier;
+      } catch (error) {
+        logger.error({ error, userId }, "Tier check failed");
+        res.status(500).json({ error: "Tier check failed" });
+        return null;
+      }
+    };
+
+    this.app.get("/api/passages/:id/share", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "share", limit: 60 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.shareService) {
+        return res.status(503).json({ error: "Share service unavailable" });
+      }
+      try {
+        const meta = await this.shareService.getStatus(userId, req.params.id);
+        if (!meta) return res.json({ share: null });
+        res.json({
+          share: meta,
+          url: this.shareUrl(meta.token),
+        });
+      } catch (error) {
+        logger.error(
+          { error, userId, passageId: req.params.id },
+          "Failed to load share status",
+        );
+        res.status(500).json({ error: "Failed to load share status" });
+      }
+    });
+
+    this.app.post("/api/passages/:id/share", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "share", limit: 20 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.shareService) {
+        return res.status(503).json({ error: "Share service unavailable" });
+      }
+      const tier = await requirePremiumTier(req, res, userId);
+      if (!tier) return;
+      const parsed = createShareSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid body", details: parsed.error.issues });
+      }
+      const expiresInDays =
+        parsed.data.expiresInDays ?? SHARE_DEFAULT_EXPIRY_DAYS;
+      try {
+        const meta = await this.shareService.createOrRotate(
+          userId,
+          req.params.id,
+          expiresInDays,
+        );
+        res.status(201).json({
+          share: meta,
+          url: this.shareUrl(meta.token),
+        });
+      } catch (error) {
+        const msg = (error as Error).message ?? String(error);
+        if (msg === "PASSAGE_NOT_FOUND") {
+          return res.status(404).json({ error: "Passage not found" });
+        }
+        logger.error(
+          { error, userId, passageId: req.params.id },
+          "Failed to create share link",
+        );
+        res.status(500).json({ error: "Failed to create share link" });
+      }
+    });
+
+    this.app.delete("/api/passages/:id/share", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "share", limit: 30 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.shareService) {
+        return res.status(503).json({ error: "Share service unavailable" });
+      }
+      try {
+        const revoked = await this.shareService.revoke(userId, req.params.id);
+        // 200 even when nothing to revoke — the caller's desired state
+        // ("no share link active") is achieved either way.
+        res.json({ ok: true, revoked });
+      } catch (error) {
+        logger.error(
+          { error, userId, passageId: req.params.id },
+          "Failed to revoke share link",
+        );
+        res.status(500).json({ error: "Failed to revoke share link" });
+      }
+    });
+
+    // PUBLIC read endpoint — no auth required, IP rate-limited. Returns a
+    // redacted payload; 404 for missing/revoked tokens (revoked and never-
+    // existed look identical to a guesser by design).
+    this.app.get("/api/share/:token", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "share-public",
+          limit: 60,
+        }))
+      )
+        return;
+      if (!this.shareService) {
+        return res.status(503).json({ error: "Share service unavailable" });
+      }
+      try {
+        const result = await this.shareService.lookupByToken(req.params.token);
+        if (!result) {
+          return res
+            .status(404)
+            .json({ error: "Share link not found or expired" });
+        }
+        // Hint search engines + CDNs not to cache the redacted payload too
+        // aggressively — viewCount is updated per-request.
+        res.set("Cache-Control", "private, max-age=60");
+        res.set("X-Robots-Tag", "noindex, nofollow");
+        res.json(result.payload);
+      } catch (error) {
+        logger.error(
+          { error, token: req.params.token },
+          "Public share lookup failed",
+        );
+        res.status(500).json({ error: "Failed to load shared passage" });
       }
     });
 
