@@ -36,6 +36,38 @@ import { WEATHER_CACHE_TTL_S } from "../constants/safety-thresholds";
 const WEATHER_API = "https://api.open-meteo.com/v1/forecast";
 const MARINE_API = "https://marine-api.open-meteo.com/v1/marine";
 
+// Models Open-Meteo exposes that we surface in the multi-model comparison
+// view (R1). Keeping the list short and curated — three is a useful number
+// for sailor cognitive load; more would surface noise.
+export const MULTI_MODEL_DEFAULT: ReadonlyArray<string> = [
+  "gfs_seamless",
+  "ecmwf_ifs025",
+  "icon_seamless",
+];
+
+export interface ModelTimeseries {
+  model: string;
+  /** Hourly timestamps as ISO strings (parallel arrays below). */
+  time: string[];
+  windSpeedKt: number[];
+  windGustKt: number[];
+  windDirectionDeg: number[];
+  temperatureF: number[];
+  /** Wave height in metres, parallel to weather-model time array (best-effort
+   *  resampled where a wave-supporting model exists; empty otherwise). */
+  waveHeightM?: number[];
+}
+
+export interface MultiModelMarineForecast {
+  location: { latitude: number; longitude: number };
+  issuedAt: Date;
+  models: ModelTimeseries[];
+  /** Models that the marine wave endpoint returned data for. Wave coverage
+   *  is sparser than weather coverage — coastal and open-ocean usually OK,
+   *  inland and high-latitude often missing. */
+  modelsWithWaves: string[];
+}
+
 export class OpenMeteoWeatherService {
   private cache: CacheManager;
   private logger: Logger;
@@ -227,6 +259,106 @@ export class OpenMeteoWeatherService {
     };
   }
 
+  /**
+   * Multi-model forecast (R1) — fetches the same window from several models
+   * (default GFS/ECMWF/ICON) and returns each as its own parallel timeseries.
+   * Open-Meteo's `models=` parameter returns suffixed columns
+   * (e.g. `wind_speed_10m_gfs_seamless`) which we re-shape here.
+   *
+   * Failure mode: any individual model that returns no data is omitted from
+   * the response rather than crashing the call — the disagreement helper
+   * downstream tolerates models being absent.
+   */
+  async getMultiModelMarineForecast(
+    latitude: number,
+    longitude: number,
+    forecastDays = 5,
+    models: ReadonlyArray<string> = MULTI_MODEL_DEFAULT,
+  ): Promise<MultiModelMarineForecast> {
+    const cacheKey = `openmeteo:multi:${latitude.toFixed(3)}:${longitude.toFixed(3)}:${forecastDays}:${models.join(",")}`;
+    const cached = await this.cache.get<MultiModelMarineForecast>(cacheKey);
+    if (cached) {
+      return { ...cached, issuedAt: new Date(cached.issuedAt) };
+    }
+
+    const modelsParam = models.join(",");
+    const [weather, marine] = await Promise.all([
+      this.weatherBreaker.fire({
+        latitude,
+        longitude,
+        hourly: [
+          "wind_speed_10m",
+          "wind_direction_10m",
+          "wind_gusts_10m",
+          "temperature_2m",
+        ].join(","),
+        models: modelsParam,
+        wind_speed_unit: "kn",
+        temperature_unit: "fahrenheit",
+        timezone: "auto",
+        forecast_days: forecastDays,
+      }),
+      this.marineBreaker
+        .fire({
+          latitude,
+          longitude,
+          hourly: ["wave_height"].join(","),
+          models: modelsParam,
+          timezone: "auto",
+          forecast_days: forecastDays,
+        })
+        .catch((err) => {
+          this.logger.warn(
+            { err, latitude, longitude },
+            "Open-Meteo multi-model marine fetch failed; returning weather-only",
+          );
+          return null;
+        }),
+    ]);
+
+    const hourly = (weather as { hourly?: Record<string, unknown> } | null)
+      ?.hourly;
+    const times: string[] = Array.isArray(hourly?.time)
+      ? (hourly.time as string[])
+      : [];
+
+    const marineHourly = (marine as { hourly?: Record<string, unknown> } | null)
+      ?.hourly;
+    const modelsWithWaves: string[] = [];
+
+    const out: ModelTimeseries[] = [];
+    for (const model of models) {
+      const winds = pickArray(hourly, `wind_speed_10m_${model}`);
+      const gusts = pickArray(hourly, `wind_gusts_10m_${model}`);
+      const dirs = pickArray(hourly, `wind_direction_10m_${model}`);
+      const temps = pickArray(hourly, `temperature_2m_${model}`);
+      // If a model returned no wind data at all, skip it entirely — Open-Meteo
+      // sometimes silently drops models for locations they don't cover well.
+      if (winds.length === 0) continue;
+      const waves = pickArray(marineHourly, `wave_height_${model}`);
+      if (waves.length > 0) modelsWithWaves.push(model);
+      out.push({
+        model,
+        time: times,
+        windSpeedKt: winds,
+        windGustKt: gusts.length > 0 ? gusts : winds.map((w) => w * 1.3),
+        windDirectionDeg: dirs,
+        temperatureF: temps,
+        waveHeightM: waves.length > 0 ? waves : undefined,
+      });
+    }
+
+    const forecast: MultiModelMarineForecast = {
+      location: { latitude, longitude },
+      issuedAt: new Date(),
+      models: out,
+      modelsWithWaves,
+    };
+
+    await this.cache.set(cacheKey, forecast, WEATHER_CACHE_TTL_S);
+    return forecast;
+  }
+
   private bearingToCardinal(deg: number | null | undefined): string {
     if (deg == null || Number.isNaN(deg)) return "VAR";
     const dirs = [
@@ -250,6 +382,10 @@ export class OpenMeteoWeatherService {
     return dirs[Math.round((deg % 360) / 22.5) % 16];
   }
 
+  // Defensive number-array accessor used by multi-model parsing — Open-Meteo
+  // returns `null` entries for hours a model doesn't cover. We collapse those
+  // to NaN so the disagreement calculator can filter them out per-row.
+
   private weatherCodeToText(code: number | null | undefined): string {
     // WMO weather codes (subset most common at sea).
     if (code == null) return "Clear";
@@ -264,4 +400,16 @@ export class OpenMeteoWeatherService {
     if (code <= 99) return "Thunderstorm";
     return "Unknown";
   }
+}
+
+function pickArray(
+  hourly: Record<string, unknown> | null | undefined,
+  field: string,
+): number[] {
+  if (!hourly) return [];
+  const raw = hourly[field];
+  if (!Array.isArray(raw)) return [];
+  return raw.map((v) =>
+    v === null || v === undefined || v === "" ? NaN : Number(v),
+  );
 }

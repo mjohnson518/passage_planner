@@ -27,6 +27,7 @@ export * from "./services/NOAAWeatherService";
 export * from "./services/NOAATidalService";
 export * from "./services/OpenMeteoWeatherService";
 export * from "./services/OpenMeteoTidalService";
+export * from "./services/MultiModelDisagreement";
 export * from "./services/GlobalWeatherService";
 export * from "./services/GlobalTidalService";
 export * from "./services/GeocodingService";

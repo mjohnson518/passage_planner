@@ -49,6 +49,10 @@ export interface PassagePlanningRequest {
     crewExperience?: "novice" | "intermediate" | "advanced" | "professional";
     crewSize?: number;
   };
+  /** Premium-only (R1) — request the multi-model GFS/ECMWF/ICON comparison.
+   *  Free users still get a plan; the server soft-downgrades and surfaces
+   *  `modelComparisonGated: true` in the response instead. */
+  multiModel?: boolean;
 }
 
 /**
@@ -278,6 +282,34 @@ export interface PassagePlanningResponse {
     /** Average speed for the weather-optimized route (knots), when available */
     averageSpeed?: number | string;
   };
+  /** R1 multi-model comparison — present when the caller requested it and
+   *  the user's tier permits it. `null` + `modelComparisonGated: true` means
+   *  the request was made but the user is on Free. */
+  modelComparison?: {
+    location: { latitude: number; longitude: number };
+    issuedAt: string;
+    models: string[];
+    evaluatedAt: string;
+    windSpeed: ModelVariableAgreement | null;
+    windGust: ModelVariableAgreement | null;
+    waveHeight: ModelVariableAgreement | null;
+    temperature: ModelVariableAgreement | null;
+    recommendation: string;
+  } | null;
+  modelComparisonGated?: boolean;
+}
+
+export interface ModelVariableAgreement {
+  variable:
+    | "wind_speed_kt"
+    | "wind_gust_kt"
+    | "wave_height_m"
+    | "temperature_f";
+  consensus: number;
+  worstCase: number;
+  spread: number;
+  status: "agree" | "mild" | "divergent";
+  perModel: Record<string, number>;
 }
 
 /**

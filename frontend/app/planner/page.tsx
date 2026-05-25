@@ -59,6 +59,7 @@ import type { PassageExport } from "../types/shared";
 import { isInCoverage } from "../../lib/coverage";
 import { SendFloatPlanButton } from "../components/planner/SendFloatPlanButton";
 import { SharePlanButton } from "../components/planner/SharePlanButton";
+import { ModelAgreementCard } from "../components/planner/ModelAgreementCard";
 
 // Dynamic import for map component to avoid SSR issues
 const RouteMap = dynamic(() => import("../components/map/RouteMap"), {
@@ -89,6 +90,10 @@ function PlannerPageInner() {
   // saves the plan. Drives the Send Float Plan button (S1) — disabled until
   // the user saves, since float plans need a stable passage id to reference.
   const [savedPassageId, setSavedPassageId] = useState<string | null>(null);
+  // R1 — opt-in multi-model weather comparison (Premium feature). Default off
+  // so existing free-tier flows are unchanged. Backend soft-downgrades for
+  // non-premium users; the UI surfaces the upsell teaser in that case.
+  const [multiModel, setMultiModel] = useState(false);
 
   const [formData, setFormData] = useState({
     departure: "",
@@ -230,6 +235,7 @@ function PlannerPageInner() {
           crewExperience: "advanced",
           crewSize: formData.crewSize || 2,
         },
+        multiModel,
       };
 
       const result = await planPassage(planRequest);
@@ -514,6 +520,17 @@ function PlannerPageInner() {
               </div>
             </CardContent>
           </Card>
+
+          {/* R1 — Multi-model agreement (Premium). Shown when the user
+              requested multi-model AND the server returned data; otherwise the
+              card surfaces the upsell teaser. */}
+          {(passagePlan.modelComparison ||
+            passagePlan.modelComparisonGated) && (
+            <ModelAgreementCard
+              comparison={passagePlan.modelComparison ?? null}
+              gated={passagePlan.modelComparisonGated === true}
+            />
+          )}
 
           {/* Weather Data */}
           <Card data-testid="planner-weather-results">
@@ -1623,6 +1640,33 @@ function PlannerPageInner() {
           </TabsContent>
         </Card>
       </Tabs>
+
+      {/* Multi-model toggle (R1) — Premium feature, soft-degrades on the
+          server so Free users still get a plan. */}
+      <div className="max-w-4xl mx-auto mt-4 mb-2">
+        <label className="flex items-start gap-3 cursor-pointer rounded-md border border-border bg-card p-3 hover:bg-muted/40 transition-colors">
+          <input
+            type="checkbox"
+            checked={multiModel}
+            onChange={(e) => setMultiModel(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+          />
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">
+                Compare multiple weather models
+              </span>
+              <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
+                Premium
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Surface where GFS, ECMWF, and ICON disagree about the forecast for
+              your departure. Wider spread = lower confidence.
+            </p>
+          </div>
+        </label>
+      </div>
 
       {/* Action buttons - Fixed on mobile */}
       <div className="fixed bottom-20 left-0 right-0 p-4 bg-background border-t lg:relative lg:bottom-auto lg:p-0 lg:border-0 lg:bg-transparent lg:mt-6">

@@ -43,6 +43,9 @@ import {
   StripeService,
   TOP_UP_PACKS,
   getFleetSeatLimit,
+  OpenMeteoWeatherService,
+  summariseModelDisagreement,
+  type ModelComparisonSummary,
 } from "@passage-planner/shared";
 import { emailService } from "./services/EmailService";
 import * as crypto from "crypto";
@@ -137,6 +140,12 @@ export class SimpleOrchestrator {
    * and alerts are best-effort).
    */
   private satCommService: SatCommService | null = null;
+  /**
+   * Multi-model weather provider (R1) — Premium feature that fetches the
+   * same forecast from several models (GFS / ECMWF / ICON) so the planner
+   * can surface where they agree and where they don't.
+   */
+  private multiModelWeather: OpenMeteoWeatherService;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -211,6 +220,10 @@ export class SimpleOrchestrator {
     this.weatherAggregator = new WeatherAggregator(logger);
     this.weatherRouting = new WeatherRoutingService(logger);
     this.geocodingService = new GeocodingService(
+      new CacheManager(logger),
+      logger,
+    );
+    this.multiModelWeather = new OpenMeteoWeatherService(
       new CacheManager(logger),
       logger,
     );
@@ -1821,6 +1834,56 @@ export class SimpleOrchestrator {
   }
 
   /**
+   * Multi-model weather comparison (R1). Fires a single Open-Meteo call with
+   * `models=` and reduces the per-model timeseries to a sailor-facing
+   * agreement summary. Designed to NEVER throw — a planning request must
+   * still succeed even if Open-Meteo is down or the location is poorly
+   * covered. Returns null on any failure so callers can omit the section.
+   */
+  private async maybeFetchModelComparison(
+    lat: number,
+    lon: number,
+    departureTime: Date,
+  ): Promise<ModelComparisonSummary | null> {
+    try {
+      const forecast = await this.multiModelWeather.getMultiModelMarineForecast(
+        lat,
+        lon,
+        5, // 5-day horizon — long enough for any non-trans-ocean passage
+      );
+      if (forecast.models.length === 0) return null;
+      return summariseModelDisagreement(forecast, departureTime);
+    } catch (error) {
+      logger.warn(
+        { error, lat, lon },
+        "Multi-model fetch failed; omitting model comparison from plan",
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Tier helper — returns true if the user is Premium or above. Used by the
+   * R1 multi-model gate (soft downgrade: free users get the plan without the
+   * comparison rather than a hard 403). Returns false on lookup failure so
+   * gated features fail closed.
+   */
+  private async isPremiumOrAbove(userId: string): Promise<boolean> {
+    if (!this.postgres) return false;
+    try {
+      const result = await this.postgres.query(
+        `SELECT subscription_tier FROM profiles WHERE id = $1`,
+        [userId],
+      );
+      const tier = (result.rows[0]?.subscription_tier ?? "free") as string;
+      return tier !== "free";
+    } catch (error) {
+      logger.warn({ error, userId }, "isPremiumOrAbove lookup failed");
+      return false;
+    }
+  }
+
+  /**
    * Build the user-facing share URL for a token. Uses NEXT_PUBLIC_APP_URL
    * when set so the link points to the production domain (helmwise.co)
    * rather than the orchestrator's localhost host.
@@ -2899,11 +2962,13 @@ export class SimpleOrchestrator {
 
     // REST endpoint for passage planning (original)
     this.app.post("/api/plan", async (req, res) => {
-      // Auth + rate limit
-      if (!(await this.verifyAuth(req, res))) return;
+      // Auth + rate limit. verifyAuthAndGetUserId lets us tier-check the R1
+      // multi-model upgrade silently — Free users still get a plan, just
+      // without the model comparison card.
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
       if (!(await this.checkRateLimit(req, res))) return;
 
-      // Validate input
       const validation = this.validatePassageRequest(req.body);
       if (!validation.success) {
         const { error } = validation as { success: false; error: string };
@@ -2911,16 +2976,52 @@ export class SimpleOrchestrator {
         return;
       }
 
+      const wantsMultiModel = req.body?.multiModel === true;
+      const eligibleForMultiModel =
+        wantsMultiModel && (await this.isPremiumOrAbove(userId));
+
       try {
         logger.info(
           {
             departure: req.body.departure?.name,
             destination: req.body.destination?.name,
+            multiModelRequested: wantsMultiModel,
+            multiModelGranted: eligibleForMultiModel,
           },
           "Received planning request via /api/plan",
         );
-        const plan = await this.planPassage(validation.data);
-        res.json({ success: true, plan });
+
+        // Fire the plan + model comparison in parallel — comparison must not
+        // delay the plan response if Open-Meteo is slow.
+        const planPromise = this.planPassage(validation.data);
+        const departureLat = validation.data.departure?.latitude ?? 0;
+        const departureLon = validation.data.departure?.longitude ?? 0;
+        const departureTime = validation.data.departure?.time
+          ? new Date(validation.data.departure.time)
+          : new Date();
+        const comparisonPromise = eligibleForMultiModel
+          ? this.maybeFetchModelComparison(
+              departureLat,
+              departureLon,
+              departureTime,
+            )
+          : Promise.resolve(null);
+
+        const [plan, modelComparison] = await Promise.all([
+          planPromise,
+          comparisonPromise,
+        ]);
+        const enrichedPlan =
+          modelComparison !== null
+            ? { ...plan, modelComparison }
+            : wantsMultiModel && !eligibleForMultiModel
+              ? {
+                  ...plan,
+                  modelComparison: null,
+                  modelComparisonGated: true,
+                }
+              : plan;
+        res.json({ success: true, plan: enrichedPlan });
       } catch (error: any) {
         logger.error({ error }, "Planning failed");
         res.status(500).json({
@@ -2933,11 +3034,11 @@ export class SimpleOrchestrator {
 
     // Frontend-compatible endpoint — returns PassagePlanningResponse shape
     this.app.post("/api/passage-planning/analyze", async (req, res) => {
-      // Auth + rate limit
-      if (!(await this.verifyAuth(req, res))) return;
+      // verifyAuthAndGetUserId so we can do the R1 multi-model tier check.
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
       if (!(await this.checkRateLimit(req, res))) return;
 
-      // Validate input
       const validation = this.validatePassageRequest(req.body);
       if (!validation.success) {
         const { error } = validation as { success: false; error: string };
@@ -2945,17 +3046,50 @@ export class SimpleOrchestrator {
         return;
       }
 
+      const wantsMultiModel = req.body?.multiModel === true;
+      const eligibleForMultiModel =
+        wantsMultiModel && (await this.isPremiumOrAbove(userId));
+
       try {
         logger.info(
           {
             departure: req.body.departure?.name,
             destination: req.body.destination?.name,
+            multiModelRequested: wantsMultiModel,
+            multiModelGranted: eligibleForMultiModel,
           },
           "Received planning request via /api/passage-planning/analyze",
         );
-        const plan = await this.planPassage(validation.data);
+        const planPromise = this.planPassage(validation.data);
+        const departureLat = validation.data.departure?.latitude ?? 0;
+        const departureLon = validation.data.departure?.longitude ?? 0;
+        const departureTime = validation.data.departure?.time
+          ? new Date(validation.data.departure.time)
+          : new Date();
+        const comparisonPromise = eligibleForMultiModel
+          ? this.maybeFetchModelComparison(
+              departureLat,
+              departureLon,
+              departureTime,
+            )
+          : Promise.resolve(null);
+
+        const [plan, modelComparison] = await Promise.all([
+          planPromise,
+          comparisonPromise,
+        ]);
         const response = this.mapPlanToAnalyzeResponse(plan);
-        res.json(response);
+        const enriched =
+          modelComparison !== null
+            ? { ...response, modelComparison }
+            : wantsMultiModel && !eligibleForMultiModel
+              ? {
+                  ...response,
+                  modelComparison: null,
+                  modelComparisonGated: true,
+                }
+              : response;
+        res.json(enriched);
       } catch (error: any) {
         logger.error({ error }, "Planning failed");
         res.status(500).json({
