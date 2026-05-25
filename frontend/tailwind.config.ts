@@ -1,12 +1,12 @@
-import type { Config } from 'tailwindcss'
+import type { Config } from "tailwindcss";
 
 const config: Config = {
   darkMode: ["class"],
   content: [
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
-    './pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './emails/**/*.{js,ts,jsx,tsx,mdx}',
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./emails/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     container: {
@@ -18,10 +18,20 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        display: ['var(--font-heading)', 'Playfair Display', 'Georgia', 'serif'],
-        body: ['var(--font-body)', 'Source Sans 3', 'system-ui', 'sans-serif'],
-        heading: ['var(--font-heading)', 'Playfair Display', 'Georgia', 'serif'],
-        mono: ['var(--font-mono)', 'Roboto Mono', 'Courier New', 'monospace'],
+        display: [
+          "var(--font-heading)",
+          "Playfair Display",
+          "Georgia",
+          "serif",
+        ],
+        body: ["var(--font-body)", "Source Sans 3", "system-ui", "sans-serif"],
+        heading: [
+          "var(--font-heading)",
+          "Playfair Display",
+          "Georgia",
+          "serif",
+        ],
+        mono: ["var(--font-mono)", "Roboto Mono", "Courier New", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -59,59 +69,59 @@ const config: Config = {
         },
         // Maritime Color Palette
         ocean: {
-          deep: 'hsl(var(--ocean-deep))',
-          mid: 'hsl(var(--ocean-mid))',
-          light: 'hsl(var(--ocean-light))',
-          50: '#e8f4f8',
-          100: '#c5e4ed',
-          200: '#9ed3e1',
-          300: '#77c1d5',
-          400: '#59b3cc',
-          500: '#3ba5c3',
-          600: '#3596b3',
-          700: '#2d839e',
-          800: '#26718a',
-          900: '#1a5266',
+          deep: "hsl(var(--ocean-deep))",
+          mid: "hsl(var(--ocean-mid))",
+          light: "hsl(var(--ocean-light))",
+          50: "#e8f4f8",
+          100: "#c5e4ed",
+          200: "#9ed3e1",
+          300: "#77c1d5",
+          400: "#59b3cc",
+          500: "#3ba5c3",
+          600: "#3596b3",
+          700: "#2d839e",
+          800: "#26718a",
+          900: "#1a5266",
         },
         brass: {
-          DEFAULT: 'hsl(var(--brass))',
-          dark: 'hsl(var(--brass-dark))',
-          50: '#fdf8ed',
-          100: '#f9ecd0',
-          200: '#f3d9a0',
-          300: '#ecc46b',
-          400: '#e5ae3d',
-          500: '#d49a25',
-          600: '#b97b1c',
-          700: '#985d1a',
-          800: '#7d4a1c',
-          900: '#683d1b',
+          DEFAULT: "hsl(var(--brass))",
+          dark: "hsl(var(--brass-dark))",
+          50: "#fdf8ed",
+          100: "#f9ecd0",
+          200: "#f3d9a0",
+          300: "#ecc46b",
+          400: "#e5ae3d",
+          500: "#d49a25",
+          600: "#b97b1c",
+          700: "#985d1a",
+          800: "#7d4a1c",
+          900: "#683d1b",
         },
-        parchment: 'hsl(var(--parchment))',
-        ink: 'hsl(var(--ink))',
-        success: 'hsl(var(--success))',
-        warning: 'hsl(var(--warning))',
-        'chart-grid': 'hsl(var(--chart-grid))',
+        parchment: "hsl(var(--parchment))",
+        ink: "hsl(var(--ink))",
+        success: "hsl(var(--success))",
+        warning: "hsl(var(--warning))",
+        "chart-grid": "hsl(var(--chart-grid))",
         // Night Watch palette
-        seafoam: 'hsl(var(--seafoam))',
-        night: 'hsl(var(--night))',
-        'amber-sail': 'hsl(var(--amber-sail))',
+        seafoam: "hsl(var(--seafoam))",
+        night: "hsl(var(--night))",
+        "amber-sail": "hsl(var(--amber-sail))",
         // Chart data visualization
         chart: {
-          1: 'hsl(var(--chart-1))',
-          2: 'hsl(var(--chart-2))',
-          3: 'hsl(var(--chart-3))',
-          4: 'hsl(var(--chart-4))',
-          5: 'hsl(var(--chart-5))',
+          1: "hsl(var(--chart-1))",
+          2: "hsl(var(--chart-2))",
+          3: "hsl(var(--chart-3))",
+          4: "hsl(var(--chart-4))",
+          5: "hsl(var(--chart-5))",
         },
         // Safety status
         status: {
-          go: 'hsl(var(--status-go))',
-          'go-bg': 'hsl(var(--status-go-bg))',
-          caution: 'hsl(var(--status-caution))',
-          'caution-bg': 'hsl(var(--status-caution-bg))',
-          nogo: 'hsl(var(--status-nogo))',
-          'nogo-bg': 'hsl(var(--status-nogo-bg))',
+          go: "hsl(var(--status-go))",
+          "go-bg": "hsl(var(--status-go-bg))",
+          caution: "hsl(var(--status-caution))",
+          "caution-bg": "hsl(var(--status-caution-bg))",
+          nogo: "hsl(var(--status-nogo))",
+          "nogo-bg": "hsl(var(--status-nogo-bg))",
         },
       },
       borderRadius: {
@@ -119,15 +129,29 @@ const config: Config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      // Semantic z-index scale. Use these instead of raw z-50 so a future
+      // stacking change doesn't require auditing every modal/popover.
+      // Order (low → high): base content → sticky header → dropdowns →
+      // popovers → modals → toasts → tooltips.
+      zIndex: {
+        header: "40",
+        dropdown: "50",
+        popover: "50",
+        "modal-overlay": "60",
+        modal: "60",
+        toast: "70",
+        tooltip: "80",
+      },
       boxShadow: {
-        'maritime': '0 4px 20px -2px hsl(var(--primary) / 0.15)',
-        'maritime-lg': '0 20px 40px -15px hsl(var(--primary) / 0.2)',
-        'brass': '0 4px 14px 0 hsl(var(--brass) / 0.35)',
-        'card': '0 1px 3px 0 hsl(var(--foreground) / 0.05), 0 1px 2px -1px hsl(var(--foreground) / 0.05)',
-        'card-hover': '0 20px 40px -15px hsl(var(--primary) / 0.15), 0 8px 16px -8px hsl(var(--foreground) / 0.1)',
-        'inner-light': 'inset 0 1px 0 0 hsl(var(--background) / 0.5)',
-        'glow-seafoam': '0 0 24px hsl(var(--seafoam) / 0.4)',
-        'glow-seafoam-lg': '0 0 48px hsl(var(--seafoam) / 0.25)',
+        maritime: "0 4px 20px -2px hsl(var(--primary) / 0.15)",
+        "maritime-lg": "0 20px 40px -15px hsl(var(--primary) / 0.2)",
+        brass: "0 4px 14px 0 hsl(var(--brass) / 0.35)",
+        card: "0 1px 3px 0 hsl(var(--foreground) / 0.05), 0 1px 2px -1px hsl(var(--foreground) / 0.05)",
+        "card-hover":
+          "0 20px 40px -15px hsl(var(--primary) / 0.15), 0 8px 16px -8px hsl(var(--foreground) / 0.1)",
+        "inner-light": "inset 0 1px 0 0 hsl(var(--background) / 0.5)",
+        "glow-seafoam": "0 0 24px hsl(var(--seafoam) / 0.4)",
+        "glow-seafoam-lg": "0 0 48px hsl(var(--seafoam) / 0.25)",
       },
       keyframes: {
         "accordion-down": {
@@ -199,23 +223,27 @@ const config: Config = {
         "scale-in": "scale-in 0.2s ease-out",
       },
       backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'ocean-gradient': 'linear-gradient(135deg, hsl(var(--ocean-deep)) 0%, hsl(var(--primary)) 50%, hsl(var(--ocean-mid)) 100%)',
-        'brass-gradient': 'linear-gradient(135deg, hsl(var(--brass)) 0%, hsl(var(--brass-dark)) 100%)',
-        'hero-gradient': 'radial-gradient(ellipse 80% 50% at 50% -20%, hsl(var(--primary) / 0.08) 0%, transparent 50%)',
-        'chart-grid': 'linear-gradient(hsl(var(--chart-grid) / 0.5) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--chart-grid) / 0.5) 1px, transparent 1px)',
+        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
+        "ocean-gradient":
+          "linear-gradient(135deg, hsl(var(--ocean-deep)) 0%, hsl(var(--primary)) 50%, hsl(var(--ocean-mid)) 100%)",
+        "brass-gradient":
+          "linear-gradient(135deg, hsl(var(--brass)) 0%, hsl(var(--brass-dark)) 100%)",
+        "hero-gradient":
+          "radial-gradient(ellipse 80% 50% at 50% -20%, hsl(var(--primary) / 0.08) 0%, transparent 50%)",
+        "chart-grid":
+          "linear-gradient(hsl(var(--chart-grid) / 0.5) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--chart-grid) / 0.5) 1px, transparent 1px)",
       },
       backgroundSize: {
-        'chart': '40px 40px',
+        chart: "40px 40px",
       },
       typography: {
         DEFAULT: {
           css: {
-            fontFamily: 'Source Sans 3, system-ui, sans-serif',
-            h1: { fontFamily: 'Playfair Display, Georgia, serif' },
-            h2: { fontFamily: 'Playfair Display, Georgia, serif' },
-            h3: { fontFamily: 'Playfair Display, Georgia, serif' },
-            h4: { fontFamily: 'Playfair Display, Georgia, serif' },
+            fontFamily: "Source Sans 3, system-ui, sans-serif",
+            h1: { fontFamily: "Playfair Display, Georgia, serif" },
+            h2: { fontFamily: "Playfair Display, Georgia, serif" },
+            h3: { fontFamily: "Playfair Display, Georgia, serif" },
+            h4: { fontFamily: "Playfair Display, Georgia, serif" },
           },
         },
       },
@@ -226,6 +254,6 @@ const config: Config = {
     require("@tailwindcss/forms"),
     require("@tailwindcss/typography"),
   ],
-}
+};
 
-export default config
+export default config;
