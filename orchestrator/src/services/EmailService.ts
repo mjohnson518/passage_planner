@@ -526,6 +526,78 @@ export class EmailService {
       </div>
     `;
   }
+
+  // Send a float plan to a single recipient as a PDF attachment. Caller iterates
+  // over the recipient list so per-recipient failures can be surfaced (one bad
+  // address must not cancel delivery to the others). The PDF carries the full
+  // safety contract; the email body is a brief framing message that explains
+  // what to do without burying it in marketing copy.
+  async sendFloatPlanEmail(args: {
+    to: string;
+    recipientName: string;
+    senderName: string;
+    vesselName: string;
+    departurePort: string;
+    destinationPort: string;
+    eta: string;
+    pdfBuffer: Buffer;
+  }): Promise<{ id: string }> {
+    const {
+      to,
+      recipientName,
+      senderName,
+      vesselName,
+      departurePort,
+      destinationPort,
+      eta,
+      pdfBuffer,
+    } = args;
+    const subject = `Float plan: ${vesselName} departing ${departurePort}`;
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+        <p>Hi ${recipientName},</p>
+        <p><strong>${senderName}</strong> has shared a float plan with you for an upcoming passage.</p>
+        <table style="border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+          <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Vessel</td><td style="padding: 4px 0;"><strong>${vesselName}</strong></td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">From</td><td style="padding: 4px 0;">${departurePort}</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">To</td><td style="padding: 4px 0;">${destinationPort}</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">ETA</td><td style="padding: 4px 0;">${eta}</td></tr>
+        </table>
+        <div style="background: #fff7ed; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 16px 0; font-size: 14px;">
+          <p style="margin: 0 0 8px;"><strong>Helmwise does NOT automatically alert authorities.</strong></p>
+          <p style="margin: 0;">You are receiving this plan because ${senderName} has identified you as someone who should know if they are overdue. The attached PDF explains exactly what to do if ${vesselName} does not check in by the ETA above.</p>
+        </div>
+        <p>Please save the attached PDF somewhere accessible — phone, email star, printed copy in your wallet.</p>
+        <p>Fair winds,<br/>Helmwise</p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;"/>
+        <p style="font-size: 12px; color: #94a3b8;">
+          This message was sent at the request of ${senderName} (${senderName ? "the person planning the passage" : "the operator"}).
+          Helmwise (helmwise.co) is a maritime passage planning tool — not a registered SAR service.
+        </p>
+      </div>
+    `;
+    const result = await resend.emails.send({
+      from: this.from,
+      to,
+      subject,
+      html,
+      attachments: [
+        {
+          filename: `float-plan-${vesselName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`,
+          content: pdfBuffer,
+        },
+      ],
+    });
+    const id =
+      (result as unknown as { data?: { id?: string } }).data?.id ??
+      (result as unknown as { id?: string }).id ??
+      "unknown";
+    logger.info(
+      { to, vesselName, resendId: id },
+      "Float plan email dispatched",
+    );
+    return { id };
+  }
 }
 
 // Export singleton instance

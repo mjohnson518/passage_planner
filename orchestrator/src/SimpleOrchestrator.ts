@@ -22,6 +22,10 @@ import {
   type PushTopic,
 } from "./services/PushService";
 import {
+  FloatPlanPdfService,
+  type FloatPlanInput,
+} from "./services/FloatPlanPdfService";
+import {
   BaseAgent,
   GeocodingService,
   CacheManager,
@@ -106,6 +110,11 @@ export class SimpleOrchestrator {
    * local dev without VAPID keys doesn't surface confusing 500s.
    */
   private pushService: PushService | null = null;
+  /**
+   * Float plan PDF generator (S1). Stateless — instantiated once and reused
+   * for every send. Backed by pdfkit; no native deps.
+   */
+  private floatPlanPdf: FloatPlanPdfService = new FloatPlanPdfService();
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -1776,6 +1785,112 @@ export class SimpleOrchestrator {
     }
 
     return warnings;
+  }
+
+  /**
+   * Map a Redis-saved passage record + sender + contacts to a FloatPlanInput.
+   * The `plan` field is `unknown` at the schema boundary so every read is
+   * guarded — missing pieces render as "—" rather than crashing the PDF.
+   */
+  private buildFloatPlanInput(
+    sender: { name: string; email: string; phone: string | null },
+    passageRecord: { name?: string; plan: unknown } | null,
+    contacts: Array<{
+      id: string;
+      name: string;
+      email: string;
+      relationship: string | null;
+      phone: string | null;
+    }>,
+  ): FloatPlanInput {
+    const plan = (passageRecord?.plan ?? {}) as Record<string, any>;
+    const route = (plan.route ?? {}) as Record<string, any>;
+    const summary = (plan.summary ?? {}) as Record<string, any>;
+    const ports = (plan.ports ?? {}) as Record<string, any>;
+    const vesselSrc = (plan.vessel ?? plan.request?.vessel ?? {}) as Record<
+      string,
+      any
+    >;
+
+    const departureTime =
+      summary.departureTime ?? plan.request?.departure?.time ?? undefined;
+    const estimatedArrival = summary.estimatedArrival ?? undefined;
+    const fmtTime = (t: unknown): string | undefined => {
+      if (!t) return undefined;
+      try {
+        return new Date(t as string).toUTCString();
+      } catch {
+        return undefined;
+      }
+    };
+
+    const waypoints: FloatPlanInput["passage"]["waypoints"] = Array.isArray(
+      route.waypoints,
+    )
+      ? route.waypoints.slice(0, 12).map((wp: any) => ({
+          name: wp.name ?? wp.label,
+          lat: typeof wp.lat === "number" ? wp.lat : wp.latitude,
+          lon: typeof wp.lon === "number" ? wp.lon : wp.longitude,
+          eta: fmtTime(wp.eta),
+        }))
+      : undefined;
+
+    const warnings: string[] = Array.isArray(summary.warnings)
+      ? summary.warnings.slice(0, 4)
+      : [];
+
+    return {
+      sender: { name: sender.name, email: sender.email, phone: sender.phone },
+      vessel: {
+        name: vesselSrc.name ?? "Vessel",
+        type: vesselSrc.type,
+        length_ft: vesselSrc.length_ft ?? vesselSrc.lengthFt,
+        color: vesselSrc.color,
+        registration: vesselSrc.registration,
+        hailing_port: vesselSrc.hailing_port ?? vesselSrc.hailingPort,
+        distinguishing_features:
+          vesselSrc.distinguishing_features ?? vesselSrc.distinguishingFeatures,
+        mmsi: vesselSrc.mmsi,
+        epirb: vesselSrc.epirb,
+        inreach_id: vesselSrc.inreach_id ?? vesselSrc.inreachId,
+      },
+      passage: {
+        name: passageRecord?.name,
+        departure_port:
+          ports.departure?.nearest?.name ??
+          plan.request?.departure?.port ??
+          plan.request?.departure?.name,
+        destination_port:
+          ports.arrival?.nearest?.name ??
+          plan.request?.destination?.port ??
+          plan.request?.destination?.name,
+        departure_time: fmtTime(departureTime),
+        eta: fmtTime(estimatedArrival),
+        distance_nm:
+          typeof route.totalDistance === "number"
+            ? route.totalDistance
+            : typeof summary.totalDistance === "number"
+              ? summary.totalDistance
+              : undefined,
+        waypoints,
+        weather_summary: warnings.length > 0 ? warnings.join("\n") : undefined,
+      },
+      crew: Array.isArray(plan.crew)
+        ? plan.crew.map((c: any) => ({
+            name: c.name ?? "Crew",
+            age: c.age,
+            role: c.role,
+            medical_notes: c.medical_notes ?? c.medicalNotes,
+          }))
+        : undefined,
+      recipients: contacts.map((c) => ({
+        name: c.name,
+        email: c.email,
+        relationship: c.relationship,
+        phone: c.phone,
+      })),
+      generatedAt: new Date(),
+    };
   }
 
   /**
@@ -3999,6 +4114,419 @@ export class SimpleOrchestrator {
       } catch (error) {
         logger.error({ error, userId }, "Failed to update push preferences");
         res.status(500).json({ error: "Failed to update preferences" });
+      }
+    });
+
+    // ------------------------------------------------------------------
+    // Float plans (S1) — emergency contact CRUD + PDF-email delivery.
+    //
+    // Contacts: max 5 per user, DB-enforced via trigger. PII (email/phone)
+    // never logged.
+    //
+    // Send flow: load passage from Redis → render PDF → email each chosen
+    // recipient via Resend with the PDF attached → write an append-only
+    // float_plans row capturing recipients + delivery status. Per-recipient
+    // failures are surfaced; one bad address does not cancel delivery to the
+    // other recipients.
+    // ------------------------------------------------------------------
+    const contactSchema = z.object({
+      name: z.string().min(1).max(100),
+      email: z.string().email().max(254),
+      phone: z.string().max(40).optional(),
+      relationship: z.string().max(50).optional(),
+      notify_on_overdue: z.boolean().optional(),
+    });
+
+    this.app.get("/api/float-plan-contacts", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "float-plan-contacts",
+          limit: 60,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res.status(503).json({ error: "DB unavailable" });
+      }
+      try {
+        const result = await this.postgres.query(
+          `SELECT id, name, email, phone, relationship, notify_on_overdue,
+                  created_at, updated_at
+             FROM float_plan_contacts
+             WHERE user_id = $1
+             ORDER BY created_at ASC`,
+          [userId],
+        );
+        res.json({ contacts: result.rows });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to list float plan contacts");
+        res.status(500).json({ error: "Failed to list contacts" });
+      }
+    });
+
+    this.app.post("/api/float-plan-contacts", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "float-plan-contacts",
+          limit: 20,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res.status(503).json({ error: "DB unavailable" });
+      }
+      const parsed = contactSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid contact", details: parsed.error.issues });
+      }
+      const { name, email, phone, relationship, notify_on_overdue } =
+        parsed.data;
+      try {
+        const result = await this.postgres.query(
+          `INSERT INTO float_plan_contacts
+             (user_id, name, email, phone, relationship, notify_on_overdue)
+           VALUES ($1, $2, $3, $4, $5, COALESCE($6, TRUE))
+           RETURNING id, name, email, phone, relationship, notify_on_overdue,
+                     created_at, updated_at`,
+          [
+            userId,
+            name,
+            email,
+            phone ?? null,
+            relationship ?? null,
+            notify_on_overdue ?? null,
+          ],
+        );
+        res.status(201).json({ contact: result.rows[0] });
+      } catch (error) {
+        const msg = (error as Error).message ?? String(error);
+        if (msg.includes("Maximum 5 emergency contacts")) {
+          return res
+            .status(409)
+            .json({ error: "Maximum 5 emergency contacts per user" });
+        }
+        if (msg.includes("float_plan_contacts_email_format")) {
+          return res.status(400).json({ error: "Invalid email format" });
+        }
+        logger.error({ error, userId }, "Failed to create float plan contact");
+        res.status(500).json({ error: "Failed to create contact" });
+      }
+    });
+
+    this.app.put("/api/float-plan-contacts/:id", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "float-plan-contacts",
+          limit: 30,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res.status(503).json({ error: "DB unavailable" });
+      }
+      const parsed = contactSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid contact", details: parsed.error.issues });
+      }
+      try {
+        const result = await this.postgres.query(
+          `UPDATE float_plan_contacts
+             SET name = COALESCE($3, name),
+                 email = COALESCE($4, email),
+                 phone = COALESCE($5, phone),
+                 relationship = COALESCE($6, relationship),
+                 notify_on_overdue = COALESCE($7, notify_on_overdue),
+                 updated_at = NOW()
+             WHERE id = $1 AND user_id = $2
+             RETURNING id, name, email, phone, relationship, notify_on_overdue,
+                       created_at, updated_at`,
+          [
+            req.params.id,
+            userId,
+            parsed.data.name ?? null,
+            parsed.data.email ?? null,
+            parsed.data.phone ?? null,
+            parsed.data.relationship ?? null,
+            parsed.data.notify_on_overdue ?? null,
+          ],
+        );
+        if (!result.rows[0])
+          return res.status(404).json({ error: "Not found" });
+        res.json({ contact: result.rows[0] });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to update float plan contact");
+        res.status(500).json({ error: "Failed to update contact" });
+      }
+    });
+
+    this.app.delete("/api/float-plan-contacts/:id", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "float-plan-contacts",
+          limit: 30,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res.status(503).json({ error: "DB unavailable" });
+      }
+      try {
+        const result = await this.postgres.query(
+          `DELETE FROM float_plan_contacts WHERE id = $1 AND user_id = $2`,
+          [req.params.id, userId],
+        );
+        if ((result.rowCount ?? 0) === 0) {
+          return res.status(404).json({ error: "Not found" });
+        }
+        res.json({ ok: true });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to delete float plan contact");
+        res.status(500).json({ error: "Failed to delete contact" });
+      }
+    });
+
+    // Send a float plan for a saved passage. Body may specify
+    // `recipientIds: string[]` to scope delivery; otherwise every contact is
+    // notified. Returns per-recipient outcome so the UI can tell the user that
+    // 2/3 succeeded and the third bounced.
+    const sendFloatPlanSchema = z.object({
+      recipientIds: z.array(z.string().uuid()).optional(),
+    });
+
+    this.app.post("/api/passages/:id/float-plan", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "float-plan-send",
+          limit: 10,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres || !this.redis) {
+        return res
+          .status(503)
+          .json({ error: "Storage unavailable — cannot send float plan" });
+      }
+      const parsed = sendFloatPlanSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid body", details: parsed.error.issues });
+      }
+      const passageId = req.params.id;
+
+      // 1. Load the saved passage from Redis.
+      const passageKey = `passages:user:${userId}:${passageId}`;
+      let passageRecord: { name?: string; plan: unknown } | null = null;
+      try {
+        const blob = await this.redis.get(passageKey);
+        if (!blob) {
+          return res.status(404).json({ error: "Passage not found" });
+        }
+        passageRecord = JSON.parse(blob);
+      } catch (error) {
+        logger.error({ error, userId, passageId }, "Failed to load passage");
+        return res.status(500).json({ error: "Failed to load passage" });
+      }
+
+      // 2. Load contacts (filtered by recipientIds if supplied).
+      let contacts: Array<{
+        id: string;
+        name: string;
+        email: string;
+        phone: string | null;
+        relationship: string | null;
+      }>;
+      try {
+        const ids = parsed.data.recipientIds;
+        if (ids && ids.length > 0) {
+          const result = await this.postgres.query(
+            `SELECT id, name, email, phone, relationship
+               FROM float_plan_contacts
+               WHERE user_id = $1 AND id = ANY($2::uuid[])`,
+            [userId, ids],
+          );
+          contacts = result.rows;
+        } else {
+          const result = await this.postgres.query(
+            `SELECT id, name, email, phone, relationship
+               FROM float_plan_contacts
+               WHERE user_id = $1
+               ORDER BY created_at ASC`,
+            [userId],
+          );
+          contacts = result.rows;
+        }
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to load contacts");
+        return res.status(500).json({ error: "Failed to load contacts" });
+      }
+      if (contacts.length === 0) {
+        return res.status(400).json({
+          error:
+            "No emergency contacts on file. Add at least one before sending a float plan.",
+        });
+      }
+
+      // 3. Load sender profile (name + email for the PDF + email body).
+      let sender = {
+        name: "Helmwise user",
+        email: "",
+        phone: null as string | null,
+      };
+      try {
+        const profile = await this.postgres.query(
+          `SELECT email, full_name, phone FROM profiles WHERE id = $1`,
+          [userId],
+        );
+        if (profile.rows[0]) {
+          sender = {
+            name:
+              profile.rows[0].full_name ||
+              profile.rows[0].email ||
+              "Helmwise user",
+            email: profile.rows[0].email ?? "",
+            phone: profile.rows[0].phone ?? null,
+          };
+        }
+      } catch (error) {
+        // Sender profile is optional — fall through with defaults rather than
+        // blocking a safety-critical send because of a profile read hiccup.
+        logger.warn({ error, userId }, "Sender profile lookup failed");
+      }
+
+      // 4. Build the PDF input by introspecting whatever shape the planner
+      //    saved into Redis. Defensive: missing fields render as "—" rather
+      //    than crashing the PDF.
+      const pdfInput = this.buildFloatPlanInput(
+        sender,
+        passageRecord,
+        contacts,
+      );
+      let pdfBuffer: Buffer;
+      try {
+        pdfBuffer = await this.floatPlanPdf.render(pdfInput);
+      } catch (error) {
+        logger.error(
+          { error, userId, passageId },
+          "Float plan PDF render failed",
+        );
+        return res.status(500).json({ error: "Failed to generate PDF" });
+      }
+
+      // 5. Send per recipient; collect outcomes.
+      const deliveryStatus: Record<
+        string,
+        { ok: boolean; resendId?: string; error?: string }
+      > = {};
+      await Promise.all(
+        contacts.map(async (contact) => {
+          try {
+            const { id: resendId } = await emailService.sendFloatPlanEmail({
+              to: contact.email,
+              recipientName: contact.name,
+              senderName: sender.name,
+              vesselName: pdfInput.vessel.name ?? "Vessel",
+              departurePort: pdfInput.passage.departure_port ?? "—",
+              destinationPort: pdfInput.passage.destination_port ?? "—",
+              eta: pdfInput.passage.eta ?? "—",
+              pdfBuffer,
+            });
+            deliveryStatus[contact.id] = { ok: true, resendId };
+          } catch (error) {
+            deliveryStatus[contact.id] = {
+              ok: false,
+              error: (error as Error).message ?? "Send failed",
+            };
+            logger.error(
+              { error, userId, contactId: contact.id },
+              "Float plan delivery failed for contact",
+            );
+          }
+        }),
+      );
+
+      const anySent = Object.values(deliveryStatus).some((s) => s.ok);
+      const sentAt = anySent ? new Date() : null;
+
+      // 6. Append audit row (immutable per RLS — no UPDATE policy).
+      try {
+        const insert = await this.postgres.query(
+          `INSERT INTO float_plans
+             (user_id, passage_id, generated_at, sent_at, recipients,
+              delivery_status, snapshot)
+           VALUES ($1, $2, NOW(), $3, $4::jsonb, $5::jsonb, $6::jsonb)
+           RETURNING id, generated_at, sent_at`,
+          [
+            userId,
+            passageId,
+            sentAt,
+            JSON.stringify(
+              contacts.map((c) => ({
+                contact_id: c.id,
+                name: c.name,
+                email: c.email,
+                relationship: c.relationship,
+              })),
+            ),
+            JSON.stringify(deliveryStatus),
+            JSON.stringify(pdfInput),
+          ],
+        );
+        res.json({
+          floatPlanId: insert.rows[0].id,
+          generatedAt: insert.rows[0].generated_at,
+          sentAt: insert.rows[0].sent_at,
+          deliveryStatus,
+        });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to record float plan");
+        // Email may already have gone out — surface partial success.
+        res.status(500).json({
+          error: "Float plan sent but audit record failed to save",
+          deliveryStatus,
+        });
+      }
+    });
+
+    this.app.get("/api/passages/:id/float-plan", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "float-plan-history",
+          limit: 60,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres) {
+        return res.status(503).json({ error: "DB unavailable" });
+      }
+      try {
+        const result = await this.postgres.query(
+          `SELECT id, generated_at, sent_at, recipients, delivery_status
+             FROM float_plans
+             WHERE user_id = $1 AND passage_id = $2
+             ORDER BY generated_at DESC`,
+          [userId, req.params.id],
+        );
+        res.json({ history: result.rows });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to list float plan history");
+        res.status(500).json({ error: "Failed to load history" });
       }
     });
 

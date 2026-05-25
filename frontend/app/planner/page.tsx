@@ -57,6 +57,7 @@ import { features } from "../lib/features";
 import { logger } from "../lib/logger";
 import type { PassageExport } from "../types/shared";
 import { isInCoverage } from "../../lib/coverage";
+import { SendFloatPlanButton } from "../components/planner/SendFloatPlanButton";
 
 // Dynamic import for map component to avoid SSR issues
 const RouteMap = dynamic(() => import("../components/map/RouteMap"), {
@@ -83,6 +84,10 @@ function PlannerPageInner() {
   const [activeTab, setActiveTab] = useState("route");
   const [passagePlan, setPassagePlan] =
     useState<PassagePlanningResponse | null>(null);
+  // The Redis-side passage id captured from POST /api/passages once the user
+  // saves the plan. Drives the Send Float Plan button (S1) — disabled until
+  // the user saves, since float plans need a stable passage id to reference.
+  const [savedPassageId, setSavedPassageId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     departure: "",
@@ -922,7 +927,7 @@ function PlannerPageInner() {
                   <Compass className="h-5 w-5" />
                   Route Visualization
                 </span>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Button
                     data-testid="planner-save-passage"
                     size="sm"
@@ -943,6 +948,12 @@ function PlannerPageInner() {
                           },
                         );
                         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const body = (await res.json().catch(() => ({}))) as {
+                          passage?: { id?: string };
+                        };
+                        if (body.passage?.id) {
+                          setSavedPassageId(body.passage.id);
+                        }
                         toast.success("Passage saved to history");
                       } catch (err) {
                         toast.error(
@@ -953,6 +964,11 @@ function PlannerPageInner() {
                   >
                     💾 Save
                   </Button>
+                  <SendFloatPlanButton
+                    passageId={savedPassageId}
+                    departureLabel={formData.departure}
+                    destinationLabel={formData.destination}
+                  />
                   {features.exportPassage && (
                     <>
                       <Button
