@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import RequireAuth from "../../components/auth/RequireAuth";
 import { Header } from "../../components/layout/Header";
 import { Button } from "../../components/ui/button";
+import { Card, CardContent } from "../../components/ui/card";
 import { useAuth } from "../../contexts/AuthContext";
 import { logger } from "../../lib/logger";
 
@@ -105,85 +106,89 @@ function AccountPrivacyContent() {
             </p>
           </div>
 
-          <section className="rounded-lg border border-border bg-card p-6">
-            <h2 className="font-display text-xl mb-2">Export your data</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Download a JSON bundle containing your account record, vessel
-              profiles, passages, checklists, usage history, and safety audit
-              records.
-            </p>
-            <Button onClick={handleExport} disabled={exporting}>
-              {exporting ? "Preparing export…" : "Download my data"}
-            </Button>
-          </section>
-
-          <section className="rounded-lg border border-destructive/40 bg-card p-6">
-            <h2 className="font-display text-xl mb-2 text-destructive">
-              Delete your account
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              This permanently deletes your account, vessel profiles, passages,
-              and personal data. Anonymized safety audit logs may be retained
-              for regulatory compliance, as described in our{" "}
-              <a href="/privacy" className="text-primary hover:underline">
-                Privacy Policy
-              </a>
-              . This action cannot be undone.
-            </p>
-
-            {deleteStage === "idle" ? (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setDeleteStage("confirm");
-                  setError(null);
-                }}
-              >
-                Delete my account
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="font-display text-xl mb-2">Export your data</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Download a JSON bundle containing your account record, vessel
+                profiles, passages, checklists, usage history, and safety audit
+                records.
+              </p>
+              <Button onClick={handleExport} disabled={exporting}>
+                {exporting ? "Preparing export…" : "Download my data"}
               </Button>
-            ) : (
-              <div className="space-y-3">
-                <label
-                  htmlFor="confirmEmail"
-                  className="block text-sm font-medium"
+            </CardContent>
+          </Card>
+
+          <Card className="border-destructive/40">
+            <CardContent className="p-6">
+              <h2 className="font-display text-xl mb-2 text-destructive">
+                Delete your account
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                This permanently deletes your account, vessel profiles,
+                passages, and personal data. Anonymized safety audit logs may be
+                retained for regulatory compliance, as described in our{" "}
+                <a href="/privacy" className="text-primary hover:underline">
+                  Privacy Policy
+                </a>
+                . This action cannot be undone.
+              </p>
+
+              {deleteStage === "idle" ? (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setDeleteStage("confirm");
+                    setError(null);
+                  }}
                 >
-                  Type <span className="font-mono">{user?.email}</span> to
-                  confirm:
-                </label>
-                <input
-                  id="confirmEmail"
-                  type="email"
-                  value={confirmEmail}
-                  onChange={(e) => setConfirmEmail(e.target.value)}
-                  disabled={deleteStage === "deleting"}
-                  autoComplete="off"
-                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-destructive focus:outline-none focus:ring-1 focus:ring-destructive"
-                />
-                <div className="flex gap-2">
-                  <Button
-                    variant="destructive"
-                    onClick={handleDelete}
-                    disabled={deleteStage === "deleting" || !confirmMatches}
+                  Delete my account
+                </Button>
+              ) : (
+                <div className="space-y-3">
+                  <label
+                    htmlFor="confirmEmail"
+                    className="block text-sm font-medium"
                   >
-                    {deleteStage === "deleting"
-                      ? "Deleting…"
-                      : "Permanently delete account"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setDeleteStage("idle");
-                      setConfirmEmail("");
-                      setError(null);
-                    }}
+                    Type <span className="font-mono">{user?.email}</span> to
+                    confirm:
+                  </label>
+                  <input
+                    id="confirmEmail"
+                    type="email"
+                    value={confirmEmail}
+                    onChange={(e) => setConfirmEmail(e.target.value)}
                     disabled={deleteStage === "deleting"}
-                  >
-                    Cancel
-                  </Button>
+                    autoComplete="off"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-destructive focus:outline-none focus:ring-1 focus:ring-destructive"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      onClick={handleDelete}
+                      disabled={deleteStage === "deleting" || !confirmMatches}
+                    >
+                      {deleteStage === "deleting"
+                        ? "Deleting…"
+                        : "Permanently delete account"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setDeleteStage("idle");
+                        setConfirmEmail("");
+                        setError(null);
+                      }}
+                      disabled={deleteStage === "deleting"}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </section>
+              )}
+            </CardContent>
+          </Card>
 
           {error && (
             <div

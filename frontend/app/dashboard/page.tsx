@@ -13,6 +13,11 @@ import {
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { EmptyState } from "../components/ui/empty-state";
+import {
+  Banner,
+  BannerTitle,
+  BannerDescription,
+} from "../components/ui/banner";
 import { formatPassageDate } from "../lib/format";
 import dynamic from "next/dynamic";
 import { Skeleton } from "../components/ui/skeleton";
@@ -172,32 +177,32 @@ export default function DashboardPage() {
       <div className="absolute inset-0 chart-grid opacity-30 dark:opacity-[0.08]" />
 
       <div className="relative container mx-auto px-4 py-8 lg:py-12 max-w-7xl">
-        {/* Demo Mode Banner */}
+        {/* Demo Mode Banner — uses the shared <Banner variant="demo">
+            so the brass styling stays consistent with any future banners. */}
         {isDemoMode && (
-          <div
+          <Banner
             data-testid="dashboard-demo-banner"
-            className="mb-6 p-4 bg-brass-100 dark:bg-brass-900/20 border border-brass-300 dark:border-brass-700 rounded-lg flex items-center justify-between"
+            variant="demo"
+            icon={<AlertCircle className="h-5 w-5" />}
+            className="mb-6 items-center"
           >
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-brass-600 dark:text-brass-400" />
+            <div className="flex items-center justify-between gap-4 flex-1">
               <div>
-                <p className="font-medium text-brass-800 dark:text-brass-300">
-                  Demo Mode Active
-                </p>
-                <p className="text-sm text-brass-600 dark:text-brass-400">
+                <BannerTitle>Demo Mode Active</BannerTitle>
+                <BannerDescription>
                   You&apos;re exploring Helmwise with sample data
-                </p>
+                </BannerDescription>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExitDemo}
+                className="border-brass-400 text-brass-700 dark:text-brass-300 hover:bg-brass-200 dark:hover:bg-brass-800 flex-shrink-0"
+              >
+                Exit Demo
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExitDemo}
-              className="border-brass-400 text-brass-700 dark:text-brass-300 hover:bg-brass-200 dark:hover:bg-brass-800"
-            >
-              Exit Demo
-            </Button>
-          </div>
+          </Banner>
         )}
 
         {/* Welcome Section */}
