@@ -22,6 +22,7 @@ import { cn } from "../lib/utils";
 import { analytics } from "../lib/analytics";
 import { isSupabaseConfigured } from "../lib/supabase-client";
 import { logger } from "../lib/logger";
+import { AuthBrandColumn } from "../components/auth/AuthBrandColumn";
 
 const passwordRequirements = [
   { regex: /.{8,}/, text: "At least 8 characters" },
@@ -91,246 +92,260 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="section-hero relative min-h-screen flex items-center justify-center px-4 py-12">
-      <div
-        className="absolute inset-0 chart-grid opacity-20 pointer-events-none"
-        aria-hidden
+    <div className="min-h-screen flex">
+      <AuthBrandColumn
+        headline={{ line1: "Start Planning", line2: "Smarter Passages" }}
+        description="Join sailors using AI-powered planning with real-time weather, tidal predictions, and comprehensive safety analysis."
+        features={[
+          "2 free passages every month",
+          "14-day Premium trial included",
+          "No credit card required",
+        ]}
       />
-      <div className="relative w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center justify-center gap-3"
-          >
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Anchor className="h-6 w-6 text-primary" />
-            </div>
-            <span className="font-display text-2xl font-bold">Helmwise</span>
-          </Link>
-          <h1 className="font-display text-3xl font-bold mt-6 mb-2">
-            Create Your <span className="text-gradient">Account</span>
-          </h1>
-          <p className="text-muted-foreground">
-            Start planning your passages with AI assistance
-          </p>
-        </div>
 
-        {/* Signup Form */}
-        <div className="card-nautical p-8">
-          {!supabaseConfigured && (
-            <div className="mb-4 p-3 bg-warning/10 border border-warning/30 rounded-md flex items-start gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-warning text-sm font-medium">
-                  Authentication not configured
-                </p>
-                <p className="text-warning/80 text-xs mt-1">
-                  Supabase environment variables are not set. Please configure
-                  NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
-                </p>
+      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-background">
+        <div className="w-full max-w-md">
+          {/* Mobile Logo */}
+          <div className="lg:hidden text-center mb-8">
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center gap-2"
+            >
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-ocean-deep flex items-center justify-center">
+                <Anchor className="h-5 w-5 text-primary-foreground" />
               </div>
-            </div>
-          )}
+              <span className="font-display text-xl font-bold">Helmwise</span>
+            </Link>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  id="name"
-                  data-testid="signup-name"
-                  name="name"
-                  type="text"
-                  placeholder="Captain Jack Sparrow"
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="pl-10"
-                  required
-                />
+          <div className="text-center mb-8">
+            <h1 className="font-display text-3xl font-bold mb-2">
+              Create your account
+            </h1>
+            <p className="text-muted-foreground">
+              Start planning your passages with AI assistance
+            </p>
+          </div>
+
+          {/* Signup Form */}
+          <div className="card-nautical p-8">
+            {!supabaseConfigured && (
+              <div className="mb-4 p-3 bg-warning/10 border border-warning/30 rounded-md flex items-start gap-2">
+                <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-warning text-sm font-medium">
+                    Authentication not configured
+                  </p>
+                  <p className="text-warning/80 text-xs mt-1">
+                    Supabase environment variables are not set. Please configure
+                    NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  id="email"
-                  data-testid="signup-email"
-                  name="email"
-                  type="email"
-                  placeholder="captain@example.com"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="pl-10"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  id="password"
-                  data-testid="signup-password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="pl-10 pr-10"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
-                </button>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="name"
+                    data-testid="signup-name"
+                    name="name"
+                    type="text"
+                    placeholder="Captain Jack Sparrow"
+                    value={formData.name}
+                    onChange={handleChange}
+                    className="pl-10"
+                    required
+                  />
+                </div>
               </div>
 
-              {/* Password Strength Indicator */}
-              {formData.password && (
-                <div
-                  data-testid="signup-password-strength"
-                  className="space-y-2 mt-2"
-                >
-                  <div className="flex gap-1">
-                    {[...Array(4)].map((_, i) => (
-                      <div
-                        key={i}
-                        className={cn(
-                          "h-1 flex-1 rounded-full transition-colors",
-                          i < passwordStrength
-                            ? passwordStrength <= 2
-                              ? "bg-warning"
-                              : "bg-success"
-                            : "bg-muted",
-                        )}
-                      />
-                    ))}
-                  </div>
-                  <div className="space-y-1">
-                    {passwordRequirements.map((req, i) => (
-                      <div
-                        key={i}
-                        className={cn(
-                          "flex items-center gap-2 text-xs transition-colors",
-                          req.regex.test(formData.password)
-                            ? "text-success"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        <Check
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    data-testid="signup-email"
+                    name="email"
+                    type="email"
+                    placeholder="captain@example.com"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    data-testid="signup-password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="pl-10 pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Password Strength Indicator */}
+                {formData.password && (
+                  <div
+                    data-testid="signup-password-strength"
+                    className="space-y-2 mt-2"
+                  >
+                    <div className="flex gap-1">
+                      {[...Array(4)].map((_, i) => (
+                        <div
+                          key={i}
                           className={cn(
-                            "h-3 w-3",
-                            req.regex.test(formData.password)
-                              ? "opacity-100"
-                              : "opacity-0",
+                            "h-1 flex-1 rounded-full transition-colors",
+                            i < passwordStrength
+                              ? passwordStrength <= 2
+                                ? "bg-warning"
+                                : "bg-success"
+                              : "bg-muted",
                           )}
                         />
-                        {req.text}
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                    <div className="space-y-1">
+                      {passwordRequirements.map((req, i) => (
+                        <div
+                          key={i}
+                          className={cn(
+                            "flex items-center gap-2 text-xs transition-colors",
+                            req.regex.test(formData.password)
+                              ? "text-success"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          <Check
+                            className={cn(
+                              "h-3 w-3",
+                              req.regex.test(formData.password)
+                                ? "opacity-100"
+                                : "opacity-0",
+                            )}
+                          />
+                          {req.text}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  id="confirmPassword"
-                  data-testid="signup-confirm-password"
-                  name="confirmPassword"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="pl-10"
-                  required
-                />
+                )}
               </div>
-            </div>
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="terms"
-                data-testid="signup-terms"
-                checked={agreedToTerms}
-                onCheckedChange={(checked) =>
-                  setAgreedToTerms(checked as boolean)
-                }
-              />
-              <label
-                htmlFor="terms"
-                className="text-sm text-muted-foreground cursor-pointer"
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    id="confirmPassword"
+                    data-testid="signup-confirm-password"
+                    name="confirmPassword"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="terms"
+                  data-testid="signup-terms"
+                  checked={agreedToTerms}
+                  onCheckedChange={(checked) =>
+                    setAgreedToTerms(checked as boolean)
+                  }
+                />
+                <label
+                  htmlFor="terms"
+                  className="text-sm text-muted-foreground cursor-pointer"
+                >
+                  I agree to the{" "}
+                  <Link href="/terms" className="text-primary hover:underline">
+                    Terms of Service
+                  </Link>{" "}
+                  and{" "}
+                  <Link
+                    href="/privacy"
+                    className="text-primary hover:underline"
+                  >
+                    Privacy Policy
+                  </Link>
+                </label>
+              </div>
+
+              <Button
+                type="submit"
+                data-testid="signup-submit"
+                fullWidth
+                disabled={loading || !agreedToTerms || passwordStrength < 4}
+                className="btn-brass h-12"
               >
-                I agree to the{" "}
-                <Link href="/terms" className="text-primary hover:underline">
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link href="/privacy" className="text-primary hover:underline">
-                  Privacy Policy
-                </Link>
-              </label>
+                {loading ? (
+                  <span className="flex items-center">
+                    <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full mr-2" />
+                    Creating account...
+                  </span>
+                ) : (
+                  "Create Account"
+                )}
+              </Button>
+            </form>
+
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              Already have an account?{" "}
+              <Link
+                href="/login"
+                data-testid="signup-login-link"
+                className="text-primary hover:underline font-medium"
+              >
+                Sign in
+              </Link>
+            </p>
+          </div>
+
+          {/* Benefits — kept on mobile since the brand column is hidden there. */}
+          <div className="lg:hidden mt-8 space-y-3">
+            <div className="flex items-center gap-3 text-sm">
+              <Check className="h-5 w-5 text-success flex-shrink-0" />
+              <span>Start with 2 free passages per month</span>
             </div>
-
-            <Button
-              type="submit"
-              data-testid="signup-submit"
-              fullWidth
-              disabled={loading || !agreedToTerms || passwordStrength < 4}
-              className="btn-brass h-12"
-            >
-              {loading ? (
-                <span className="flex items-center">
-                  <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full mr-2" />
-                  Creating account...
-                </span>
-              ) : (
-                "Create Account"
-              )}
-            </Button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <Link
-              href="/login"
-              data-testid="signup-login-link"
-              className="text-primary hover:underline font-medium"
-            >
-              Sign in
-            </Link>
-          </p>
-        </div>
-
-        {/* Benefits */}
-        <div className="mt-8 space-y-3">
-          <div className="flex items-center gap-3 text-sm">
-            <Check className="h-5 w-5 text-success flex-shrink-0" />
-            <span>Start with 2 free passages per month</span>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <Check className="h-5 w-5 text-success flex-shrink-0" />
-            <span>14-day free trial of Premium features</span>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <Check className="h-5 w-5 text-success flex-shrink-0" />
-            <span>No credit card required</span>
+            <div className="flex items-center gap-3 text-sm">
+              <Check className="h-5 w-5 text-success flex-shrink-0" />
+              <span>14-day free trial of Premium features</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              <Check className="h-5 w-5 text-success flex-shrink-0" />
+              <span>No credit card required</span>
+            </div>
           </div>
         </div>
       </div>

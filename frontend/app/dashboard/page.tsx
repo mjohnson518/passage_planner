@@ -12,6 +12,8 @@ import {
 } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
+import { EmptyState } from "../components/ui/empty-state";
+import { formatPassageDate } from "../lib/format";
 import dynamic from "next/dynamic";
 import { Skeleton } from "../components/ui/skeleton";
 
@@ -165,7 +167,9 @@ export default function DashboardPage() {
   return (
     <div className="relative min-h-screen">
       {/* Background pattern */}
-      <div className="absolute inset-0 chart-grid opacity-30" />
+      {/* Decorative grid — dimmer in dark mode so it reads as ambient
+          texture, not muddy noise. */}
+      <div className="absolute inset-0 chart-grid opacity-30 dark:opacity-[0.08]" />
 
       <div className="relative container mx-auto px-4 py-8 lg:py-12 max-w-7xl">
         {/* Demo Mode Banner */}
@@ -374,9 +378,7 @@ export default function DashboardPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground ml-10">
-                          <span>
-                            {new Date(passage.date).toLocaleDateString()}
-                          </span>
+                          <span>{formatPassageDate(passage.date)}</span>
                           <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
                           <span>{passage.distance} nm</span>
                         </div>
@@ -401,15 +403,16 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                    <Compass className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <p className="text-muted-foreground mb-4">No passages yet</p>
-                  <Button asChild>
-                    <Link href="/planner">Plan Your First Passage</Link>
-                  </Button>
-                </div>
+                <EmptyState
+                  icon={<Compass className="h-8 w-8" />}
+                  title="No passages yet"
+                  description="Plan your first passage to see it here — weather, tides, and a full safety analysis in under a minute."
+                  action={
+                    <Button asChild>
+                      <Link href="/planner">Plan Your First Passage</Link>
+                    </Button>
+                  }
+                />
               )}
             </CardContent>
           </Card>

@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { getSupabase, isSupabaseConfigured } from "../lib/supabase-client";
 import { logger } from "../lib/logger";
+import { AuthBrandColumn } from "../components/auth/AuthBrandColumn";
 
 // Email validation helper
 function validateEmail(email: string): string | null {
@@ -194,91 +195,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left Panel - Decorative */}
-      <div className="hidden lg:flex lg:w-1/2 section-ocean relative overflow-hidden">
-        <div className="absolute inset-0 chart-grid opacity-10" />
-
-        {/* Decorative compass */}
-        <svg
-          viewBox="0 0 200 200"
-          className="absolute right-0 top-1/2 -translate-y-1/2 w-[500px] h-[500px] text-white opacity-[0.08] -mr-32 animate-compass-needle"
-          fill="none"
-        >
-          <circle
-            cx="100"
-            cy="100"
-            r="95"
-            stroke="currentColor"
-            strokeWidth="1"
-          />
-          <circle
-            cx="100"
-            cy="100"
-            r="80"
-            stroke="currentColor"
-            strokeWidth="0.5"
-          />
-          <circle
-            cx="100"
-            cy="100"
-            r="60"
-            stroke="currentColor"
-            strokeWidth="0.5"
-          />
-          <path d="M100 5 L103 40 L100 35 L97 40 Z" fill="currentColor" />
-          <path
-            d="M100 195 L103 160 L100 165 L97 160 Z"
-            fill="currentColor"
-            opacity="0.5"
-          />
-          <path
-            d="M5 100 L40 103 L35 100 L40 97 Z"
-            fill="currentColor"
-            opacity="0.5"
-          />
-          <path
-            d="M195 100 L160 103 L165 100 L160 97 Z"
-            fill="currentColor"
-            opacity="0.5"
-          />
-          <circle cx="100" cy="100" r="5" fill="currentColor" />
-        </svg>
-
-        <div className="relative z-10 flex flex-col justify-center p-12 lg:p-16">
-          <Link href="/" className="inline-flex items-center gap-3 mb-12">
-            <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur">
-              <Anchor className="h-6 w-6 text-white" />
-            </div>
-            <span className="font-display text-2xl font-bold text-white">
-              Helmwise
-            </span>
-          </Link>
-
-          <h2 className="font-display text-4xl lg:text-5xl text-white leading-tight mb-6">
-            Navigate with
-            <br />
-            <span className="text-brass-300">Confidence</span>
-          </h2>
-
-          <p className="text-lg text-white/80 max-w-md">
-            AI-powered passage planning with real-time weather, tidal
-            predictions, and comprehensive safety analysis.
-          </p>
-
-          <div className="mt-12 space-y-4">
-            {[
-              "Real-time weather routing",
-              "Tidal predictions",
-              "6 specialized AI agents",
-            ].map((feature, i) => (
-              <div key={i} className="flex items-center gap-3 text-white/90">
-                <div className="w-2 h-2 rounded-full bg-brass-400" />
-                <span>{feature}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <AuthBrandColumn />
 
       {/* Right Panel - Login Form */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 bg-background">

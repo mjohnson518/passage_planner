@@ -29,7 +29,13 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
+  ShieldAlert,
 } from "lucide-react";
+import {
+  Banner,
+  BannerTitle,
+  BannerDescription,
+} from "../components/ui/banner";
 import { useAuth } from "../contexts/AuthContext";
 import { useSocket } from "../contexts/SocketContext";
 import { useRouter } from "next/navigation";
@@ -248,16 +254,25 @@ function PlannerPageInner() {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-4xl">
-      {/* Safety disclaimer — persistent, non-dismissible (CLAUDE.md requirement) */}
-      <div className="mb-4 rounded-md border border-border bg-muted px-4 py-3 text-sm text-foreground">
-        <strong>Navigation Aid Only:</strong> This tool is an aid to passage
-        planning only. It is not a substitute for professional seamanship,
-        official nautical charts, current NOTAMs, or sound judgment. Always
-        independently verify all data before departure.{" "}
-        <a href="/terms" className="underline hover:text-foreground/80">
-          See full Terms of Service.
-        </a>
-      </div>
+      {/* Safety disclaimer — persistent, non-dismissible (CLAUDE.md requirement).
+          Uses the `safety` Banner variant so the brand brass tint distinguishes
+          this from generic error messaging — life-safety copy must stand apart. */}
+      <Banner
+        variant="safety"
+        icon={<ShieldAlert className="h-5 w-5" />}
+        className="mb-6"
+      >
+        <BannerTitle>Navigation aid only</BannerTitle>
+        <BannerDescription>
+          This tool supports passage planning — it does not replace professional
+          seamanship, official nautical charts, current NOTAMs, or your own
+          judgment. Always independently verify every data point before
+          departure.{" "}
+          <a href="/terms" className="underline hover:no-underline">
+            See full Terms of Service.
+          </a>
+        </BannerDescription>
+      </Banner>
 
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight font-display">
@@ -1083,32 +1098,34 @@ function PlannerPageInner() {
         </div>
       )}
 
-      {/* Mobile-optimized tabs */}
+      {/* Section tabs — labels visible at all breakpoints (icon-only was
+          opaque on mobile). Each tab represents a step in the form, not
+          alternate views, so the active state needs to stand out. */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
+        <TabsList className="grid w-full grid-cols-3 mb-6 h-auto p-1">
           <TabsTrigger
             data-testid="planner-tab-route"
             value="route"
-            className="text-xs sm:text-sm"
+            className="text-xs sm:text-sm py-2 data-[state=active]:shadow-maritime"
           >
-            <MapPin className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Route</span>
+            <MapPin className="h-4 w-4 mr-1.5 sm:mr-2" />
+            Route
           </TabsTrigger>
           <TabsTrigger
             data-testid="planner-tab-details"
             value="details"
-            className="text-xs sm:text-sm"
+            className="text-xs sm:text-sm py-2 data-[state=active]:shadow-maritime"
           >
-            <Calendar className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Details</span>
+            <Calendar className="h-4 w-4 mr-1.5 sm:mr-2" />
+            Details
           </TabsTrigger>
           <TabsTrigger
             data-testid="planner-tab-preferences"
             value="preferences"
-            className="text-xs sm:text-sm"
+            className="text-xs sm:text-sm py-2 data-[state=active]:shadow-maritime"
           >
-            <Ship className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Preferences</span>
+            <Ship className="h-4 w-4 mr-1.5 sm:mr-2" />
+            Preferences
           </TabsTrigger>
         </TabsList>
 
