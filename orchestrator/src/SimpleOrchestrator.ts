@@ -17,6 +17,11 @@ import {
 } from "./services/weather-routing";
 import { CronService } from "./services/CronService";
 import {
+  PushService,
+  PUSH_TOPICS,
+  type PushTopic,
+} from "./services/PushService";
+import {
   BaseAgent,
   GeocodingService,
   CacheManager,
@@ -95,6 +100,12 @@ export class SimpleOrchestrator {
    * server can serve traffic even if Resend or NGA are unreachable.
    */
   private cronService: CronService | null = null;
+  /**
+   * Web Push fanout (S3). Initialised when both DATABASE_URL and VAPID keys
+   * are present. Null when either is missing — push endpoints then 503 so
+   * local dev without VAPID keys doesn't surface confusing 500s.
+   */
+  private pushService: PushService | null = null;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -149,6 +160,7 @@ export class SimpleOrchestrator {
       this.postgres.on("error", (err) => {
         logger.error({ err: err.message }, "Postgres pool error");
       });
+      this.pushService = new PushService(this.postgres, logger);
     } else {
       logger.warn("DATABASE_URL not set — profile/billing endpoints will 503");
     }
@@ -3859,6 +3871,137 @@ export class SimpleOrchestrator {
     // Reverse geocode — for when the user drops a pin on the map and the
     // planner wants to show "Cowes, UK" instead of bare coordinates.
     // Shares the `geocode` rate-limit bucket with forward geocode.
+    // ------------------------------------------------------------------
+    // Web Push (S3) — subscribe/unsubscribe + per-topic preferences.
+    // The Service Worker (`frontend/public/sw.js`) handles the `push`
+    // event and shows a notification; these endpoints are the missing
+    // backend half: register the (endpoint, p256dh, auth) tuple under
+    // the caller's account so future fanouts (R4 weather drift, S1
+    // float plan delivery, S2 off-route alerts) can target them.
+    // ------------------------------------------------------------------
+    const pushSubSchema = z.object({
+      endpoint: z.string().url(),
+      keys: z.object({ p256dh: z.string().min(1), auth: z.string().min(1) }),
+      topics: z.array(z.enum(PUSH_TOPICS)).optional(),
+    });
+
+    this.app.post("/api/push/subscribe", async (req, res) => {
+      if (!(await this.checkRateLimit(req, res, { bucket: "push", limit: 30 })))
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.pushService || !this.pushService.isEnabled()) {
+        return res
+          .status(503)
+          .json({ error: "Push notifications not configured" });
+      }
+      const parsed = pushSubSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: "Invalid push subscription",
+          details: parsed.error.issues,
+        });
+      }
+      const { endpoint, keys, topics } = parsed.data;
+      const requested = (topics ?? [
+        "safety_alerts",
+        "weather_updates",
+        "passage_reminders",
+      ]) as PushTopic[];
+      try {
+        // Zod has already enforced p256dh / auth as non-empty strings; narrow
+        // here so the PushService input type stays strict.
+        await this.pushService.upsertSubscription(
+          userId,
+          { endpoint, keys: { p256dh: keys.p256dh!, auth: keys.auth! } },
+          requested,
+          req.get("user-agent") ?? undefined,
+        );
+        res.status(201).json({ ok: true });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to save push subscription");
+        res.status(500).json({ error: "Failed to save subscription" });
+      }
+    });
+
+    this.app.delete("/api/push/subscribe", async (req, res) => {
+      if (!(await this.checkRateLimit(req, res, { bucket: "push", limit: 30 })))
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.pushService) {
+        return res
+          .status(503)
+          .json({ error: "Push notifications not configured" });
+      }
+      const schema = z.object({ endpoint: z.string().url() });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Endpoint required" });
+      }
+      try {
+        const removed = await this.pushService.deleteSubscription(
+          userId,
+          parsed.data.endpoint,
+        );
+        if (!removed) return res.status(404).json({ error: "Not found" });
+        res.json({ ok: true });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to delete push subscription");
+        res.status(500).json({ error: "Failed to delete subscription" });
+      }
+    });
+
+    this.app.get("/api/push/preferences", async (req, res) => {
+      if (!(await this.checkRateLimit(req, res, { bucket: "push", limit: 60 })))
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.pushService) {
+        return res.status(503).json({ error: "Push not configured" });
+      }
+      try {
+        const subscriptions = await this.pushService.listSubscriptions(userId);
+        res.json({
+          enabled: this.pushService.isEnabled(),
+          availableTopics: PUSH_TOPICS,
+          subscriptions,
+        });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to list push subscriptions");
+        res.status(500).json({ error: "Failed to load preferences" });
+      }
+    });
+
+    this.app.put("/api/push/preferences", async (req, res) => {
+      if (!(await this.checkRateLimit(req, res, { bucket: "push", limit: 30 })))
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.pushService) {
+        return res.status(503).json({ error: "Push not configured" });
+      }
+      const schema = z.object({
+        topics: z.array(z.enum(PUSH_TOPICS)).min(1),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid topics", details: parsed.error.issues });
+      }
+      try {
+        const updated = await this.pushService.updateUserTopics(
+          userId,
+          parsed.data.topics,
+        );
+        res.json({ ok: true, updated });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to update push preferences");
+        res.status(500).json({ error: "Failed to update preferences" });
+      }
+    });
+
     this.app.get("/api/geocode/reverse", async (req, res) => {
       if (
         !(await this.checkRateLimit(req, res, { bucket: "geocode", limit: 60 }))

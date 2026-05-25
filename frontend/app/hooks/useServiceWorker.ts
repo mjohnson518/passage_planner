@@ -208,45 +208,108 @@ export function useServiceWorker() {
     }
   }, [state.isSupported]);
 
-  // Subscribe to push notifications
-  const subscribeToPush = useCallback(async () => {
-    if (!state.registration || !("pushManager" in state.registration)) {
-      toast.error("Push notifications not supported");
-      return false;
-    }
-
-    try {
-      // Check permission
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        toast.error("Notification permission denied");
+  // Subscribe to push notifications. `topics` opts the subscription into the
+  // named fanout channels — safety_alerts is always-on server-side so callers
+  // can omit it. The server upserts on endpoint so re-calling this from the
+  // same browser updates the row (does not duplicate).
+  const subscribeToPush = useCallback(
+    async (
+      topics: Array<
+        "safety_alerts" | "weather_updates" | "passage_reminders" | "marketing"
+      > = ["safety_alerts", "weather_updates", "passage_reminders"],
+    ) => {
+      if (!state.registration || !("pushManager" in state.registration)) {
+        toast.error("Push notifications not supported");
+        return false;
+      }
+      if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+        toast.error("Push notifications not configured");
         return false;
       }
 
-      // Subscribe
-      const subscription = await state.registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-      });
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          toast.error("Notification permission denied");
+          return false;
+        }
 
-      // Send subscription to server
+        const subscription = await state.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        });
+
+        const json = subscription.toJSON();
+        const res = await fetch("/api/push/subscribe", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            endpoint: json.endpoint,
+            keys: json.keys,
+            topics,
+          }),
+        });
+        if (!res.ok) throw new Error(`Subscribe failed (${res.status})`);
+
+        toast.success("Push notifications enabled");
+        return true;
+      } catch (error) {
+        logger.error("Failed to subscribe to push", { error: String(error) });
+        toast.error("Failed to enable push notifications");
+        return false;
+      }
+    },
+    [state.registration],
+  );
+
+  // Unsubscribe the current browser from push. Removes the row on the server
+  // first (so any in-flight fanout immediately stops targeting this device),
+  // then revokes the browser-side PushSubscription.
+  const unsubscribeFromPush = useCallback(async () => {
+    if (!state.registration || !("pushManager" in state.registration)) {
+      return false;
+    }
+    try {
+      const sub = await state.registration.pushManager.getSubscription();
+      if (!sub) return true;
       await fetch("/api/push/subscribe", {
-        method: "POST",
+        method: "DELETE",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(subscription),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: sub.endpoint }),
       });
-
-      toast.success("Push notifications enabled");
+      await sub.unsubscribe();
+      toast.success("Push notifications disabled");
       return true;
     } catch (error) {
-      logger.error("Failed to subscribe to push", { error: String(error) });
-      toast.error("Failed to enable push notifications");
+      logger.error("Failed to unsubscribe from push", { error: String(error) });
       return false;
     }
   }, [state.registration]);
+
+  const updatePushTopics = useCallback(
+    async (
+      topics: Array<
+        "safety_alerts" | "weather_updates" | "passage_reminders" | "marketing"
+      >,
+    ) => {
+      try {
+        const res = await fetch("/api/push/preferences", {
+          method: "PUT",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topics }),
+        });
+        if (!res.ok) throw new Error(`Update failed (${res.status})`);
+        return true;
+      } catch (error) {
+        logger.error("Failed to update push topics", { error: String(error) });
+        return false;
+      }
+    },
+    [],
+  );
 
   return {
     isOffline: state.isOffline,
@@ -259,6 +322,8 @@ export function useServiceWorker() {
     getCachedData,
     clearCache,
     subscribeToPush,
+    unsubscribeFromPush,
+    updatePushTopics,
     syncRegistered,
   };
 }
