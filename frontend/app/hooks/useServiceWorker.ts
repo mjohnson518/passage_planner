@@ -215,7 +215,11 @@ export function useServiceWorker() {
   const subscribeToPush = useCallback(
     async (
       topics: Array<
-        "safety_alerts" | "weather_updates" | "passage_reminders" | "marketing"
+        | "safety_alerts"
+        | "weather_updates"
+        | "passage_reminders"
+        | "maintenance"
+        | "marketing"
       > = ["safety_alerts", "weather_updates", "passage_reminders"],
     ) => {
       if (!state.registration || !("pushManager" in state.registration)) {
@@ -291,7 +295,11 @@ export function useServiceWorker() {
   const updatePushTopics = useCallback(
     async (
       topics: Array<
-        "safety_alerts" | "weather_updates" | "passage_reminders" | "marketing"
+        | "safety_alerts"
+        | "weather_updates"
+        | "passage_reminders"
+        | "maintenance"
+        | "marketing"
       >,
     ) => {
       try {

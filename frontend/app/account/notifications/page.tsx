@@ -19,6 +19,7 @@ type Topic =
   | "safety_alerts"
   | "weather_updates"
   | "passage_reminders"
+  | "maintenance"
   | "marketing";
 
 interface TopicMeta {
@@ -48,6 +49,12 @@ const TOPIC_META: TopicMeta[] = [
     title: "Passage reminders",
     description:
       "Float plan delivery confirmations and pre-departure checklist nudges.",
+  },
+  {
+    id: "maintenance",
+    title: "Maintenance reminders",
+    description:
+      "Service-interval alerts for engine, rigging, safety gear, and other items you track per vessel.",
   },
   {
     id: "marketing",

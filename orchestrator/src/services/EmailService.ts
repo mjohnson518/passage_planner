@@ -660,6 +660,83 @@ export class EmailService {
       "Weather drift alert email sent",
     );
   }
+
+  // V2 — vessel maintenance overdue alert. Sent once per user per
+  // 7-day-dedup window with all overdue items batched. Items grouped by
+  // vessel in the HTML body.
+  async sendMaintenanceDueAlert(args: {
+    to: string;
+    recipientName: string;
+    items: Array<{
+      vesselName: string;
+      itemName: string;
+      reason: string;
+    }>;
+    manageUrl: string;
+  }): Promise<void> {
+    // Group items by vessel for cleaner HTML rendering.
+    const byVessel = new Map<string, typeof args.items>();
+    for (const it of args.items) {
+      const bucket = byVessel.get(it.vesselName) ?? [];
+      bucket.push(it);
+      byVessel.set(it.vesselName, bucket);
+    }
+    const vesselSections = Array.from(byVessel.entries())
+      .map(
+        ([vesselName, items]) => `
+        <p style="font-size: 14px; font-weight: 600; margin: 16px 0 4px 0;">
+          ${escapeHtml(vesselName)}
+        </p>
+        <ul style="font-size: 14px; line-height: 1.7; margin: 0; padding-left: 24px;">
+          ${items
+            .map(
+              (i) =>
+                `<li><strong>${escapeHtml(i.itemName)}</strong> — ${escapeHtml(i.reason)}</li>`,
+            )
+            .join("\n")}
+        </ul>`,
+      )
+      .join("\n");
+
+    const totalCount = args.items.length;
+    const subject =
+      totalCount === 1
+        ? `Maintenance overdue: ${args.items[0].itemName}`
+        : `${totalCount} maintenance items overdue`;
+
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+        <p>Hi ${escapeHtml(args.recipientName)},</p>
+        <p>The following maintenance items are past their service interval:</p>
+        ${vesselSections}
+        <p style="margin: 24px 0;">
+          <a href="${args.manageUrl}" style="display: inline-block; padding: 10px 20px; background: #0ea5e9; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Update maintenance log</a>
+        </p>
+        <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+          You're getting this because you've tracked these items in Helmwise. We send maintenance reminders at most once per week.
+          Manage notification preferences at <a href="${args.manageUrl.replace("/account/vessels", "/account/notifications")}" style="color: #64748b;">account/notifications</a>.
+        </p>
+      </div>
+    `;
+    await resend.emails.send({
+      from: this.from,
+      to: args.to,
+      subject,
+      html,
+    });
+    logger.info(
+      { to: args.to, itemCount: totalCount },
+      "Maintenance due alert email sent",
+    );
+  }
+}
+
+function escapeHtml(text: string): string {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 // Export singleton instance

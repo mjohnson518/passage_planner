@@ -37,6 +37,7 @@ import {
   type Vendor,
 } from "./services/satcomm/adapters";
 import { PassageDriftMonitor } from "./services/PassageDriftMonitor";
+import { MaintenanceMonitor } from "./services/MaintenanceMonitor";
 import {
   BaseAgent,
   GeocodingService,
@@ -153,6 +154,12 @@ export class SimpleOrchestrator {
    * when the forecast has worsened materially. Null when Redis is down.
    */
   private driftMonitor: PassageDriftMonitor | null = null;
+  /**
+   * Vessel maintenance monitor (V2). Daily scan of vessel_maintenance rows
+   * joined to user_vessels; dispatches overdue alerts via push + email with
+   * a 7-day per-item dedup window. Null when Postgres is unavailable.
+   */
+  private maintenanceMonitor: MaintenanceMonitor | null = null;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -5647,6 +5654,400 @@ export class SimpleOrchestrator {
       },
     );
 
+    // ------------------------------------------------------------------
+    // Vessel maintenance (V2) — Premium tier, hard-gated.
+    //
+    // Two-table CRUD:
+    //   /api/vessels                         (list + create)
+    //   /api/vessels/:id                     (update + delete)
+    //   /api/vessels/:id/hours               (PUT — captain updates meters)
+    //   /api/vessels/:id/maintenance         (list + create item)
+    //   /api/vessels/:id/maintenance/:itemId (update + delete + service)
+    //
+    // Overdue alerts are dispatched daily by the MaintenanceMonitor cron job.
+    // ------------------------------------------------------------------
+    const vesselSchema = z.object({
+      name: z.string().min(1).max(100),
+      current_engine_hours: z.number().nonnegative().optional(),
+      current_watermaker_hours: z.number().nonnegative().optional(),
+    });
+
+    const vesselHoursSchema = z.object({
+      current_engine_hours: z.number().nonnegative().optional(),
+      current_watermaker_hours: z.number().nonnegative().optional(),
+    });
+
+    const maintenanceSchema = z
+      .object({
+        item: z.string().min(1).max(200),
+        category: z
+          .enum([
+            "engine",
+            "watermaker",
+            "rigging",
+            "safety",
+            "sails",
+            "hull",
+            "electrical",
+            "other",
+          ])
+          .optional(),
+        interval_hours: z.number().positive().nullable().optional(),
+        interval_days: z.number().int().positive().nullable().optional(),
+        hours_meter_source: z
+          .enum(["engine", "watermaker"])
+          .nullable()
+          .optional(),
+        last_serviced_at: z.string().datetime().nullable().optional(),
+        last_serviced_at_hours: z.number().nonnegative().nullable().optional(),
+        notes: z.string().max(2000).optional(),
+      })
+      .refine(
+        (d) => d.interval_hours != null || d.interval_days != null,
+        "At least one of interval_hours or interval_days is required.",
+      )
+      .refine(
+        (d) => d.interval_hours == null || d.hours_meter_source != null,
+        "hours_meter_source is required when interval_hours is set.",
+      );
+
+    this.app.get("/api/vessels", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "vessels", limit: 60 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      try {
+        const result = await this.postgres.query(
+          `SELECT id, name, current_engine_hours, current_watermaker_hours,
+                  created_at, updated_at
+             FROM user_vessels
+             WHERE user_id = $1
+             ORDER BY created_at ASC`,
+          [userId],
+        );
+        res.json({ vessels: result.rows });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to list vessels");
+        res.status(500).json({ error: "Failed to list vessels" });
+      }
+    });
+
+    this.app.post("/api/vessels", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "vessels", limit: 10 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      if (!(await this.isPremiumOrAbove(userId))) {
+        return res
+          .status(403)
+          .json({
+            error: "Vessel maintenance requires Premium",
+            upgradeRequired: true,
+          });
+      }
+      const parsed = vesselSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid vessel", details: parsed.error.issues });
+      }
+      try {
+        const result = await this.postgres.query(
+          `INSERT INTO user_vessels (user_id, name, current_engine_hours, current_watermaker_hours)
+           VALUES ($1, $2, COALESCE($3, 0), COALESCE($4, 0))
+           RETURNING id, name, current_engine_hours, current_watermaker_hours, created_at, updated_at`,
+          [
+            userId,
+            parsed.data.name,
+            parsed.data.current_engine_hours ?? null,
+            parsed.data.current_watermaker_hours ?? null,
+          ],
+        );
+        res.status(201).json({ vessel: result.rows[0] });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to create vessel");
+        res.status(500).json({ error: "Failed to create vessel" });
+      }
+    });
+
+    this.app.put("/api/vessels/:id/hours", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "vessels", limit: 30 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      const parsed = vesselHoursSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid hours", details: parsed.error.issues });
+      }
+      try {
+        const result = await this.postgres.query(
+          `UPDATE user_vessels
+             SET current_engine_hours = COALESCE($3, current_engine_hours),
+                 current_watermaker_hours = COALESCE($4, current_watermaker_hours),
+                 updated_at = NOW()
+             WHERE id = $1 AND user_id = $2
+             RETURNING id, name, current_engine_hours, current_watermaker_hours, updated_at`,
+          [
+            req.params.id,
+            userId,
+            parsed.data.current_engine_hours ?? null,
+            parsed.data.current_watermaker_hours ?? null,
+          ],
+        );
+        if (!result.rows[0])
+          return res.status(404).json({ error: "Not found" });
+        res.json({ vessel: result.rows[0] });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to update vessel hours");
+        res.status(500).json({ error: "Failed to update hours" });
+      }
+    });
+
+    this.app.delete("/api/vessels/:id", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "vessels", limit: 30 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      try {
+        const result = await this.postgres.query(
+          `DELETE FROM user_vessels WHERE id = $1 AND user_id = $2`,
+          [req.params.id, userId],
+        );
+        if ((result.rowCount ?? 0) === 0)
+          return res.status(404).json({ error: "Not found" });
+        res.json({ ok: true });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to delete vessel");
+        res.status(500).json({ error: "Failed to delete vessel" });
+      }
+    });
+
+    this.app.get("/api/vessels/:id/maintenance", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "maintenance",
+          limit: 60,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      try {
+        const result = await this.postgres.query(
+          `SELECT m.id, m.item, m.category, m.interval_hours, m.interval_days,
+                  m.hours_meter_source, m.last_serviced_at,
+                  m.last_serviced_at_hours, m.notes, m.last_alerted_at,
+                  m.created_at, m.updated_at
+             FROM vessel_maintenance m
+             JOIN user_vessels v ON v.id = m.vessel_id
+             WHERE m.vessel_id = $1 AND v.user_id = $2
+             ORDER BY m.created_at ASC`,
+          [req.params.id, userId],
+        );
+        res.json({ items: result.rows });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to list maintenance");
+        res.status(500).json({ error: "Failed to list items" });
+      }
+    });
+
+    this.app.post("/api/vessels/:id/maintenance", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "maintenance",
+          limit: 20,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      if (!(await this.isPremiumOrAbove(userId))) {
+        return res
+          .status(403)
+          .json({
+            error: "Vessel maintenance requires Premium",
+            upgradeRequired: true,
+          });
+      }
+      // Verify vessel ownership before insert (FK + RLS would also block, but
+      // we want a clean 404 not a DB error).
+      const own = await this.postgres.query(
+        `SELECT id FROM user_vessels WHERE id = $1 AND user_id = $2`,
+        [req.params.id, userId],
+      );
+      if (!own.rows[0])
+        return res.status(404).json({ error: "Vessel not found" });
+
+      const parsed = maintenanceSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid item", details: parsed.error.issues });
+      }
+      try {
+        const result = await this.postgres.query(
+          `INSERT INTO vessel_maintenance
+             (user_id, vessel_id, item, category, interval_hours, interval_days,
+              hours_meter_source, last_serviced_at, last_serviced_at_hours, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING id, item, category, interval_hours, interval_days,
+                     hours_meter_source, last_serviced_at,
+                     last_serviced_at_hours, notes, created_at, updated_at`,
+          [
+            userId,
+            req.params.id,
+            parsed.data.item,
+            parsed.data.category ?? null,
+            parsed.data.interval_hours ?? null,
+            parsed.data.interval_days ?? null,
+            parsed.data.hours_meter_source ?? null,
+            parsed.data.last_serviced_at ?? null,
+            parsed.data.last_serviced_at_hours ?? null,
+            parsed.data.notes ?? null,
+          ],
+        );
+        res.status(201).json({ item: result.rows[0] });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to create maintenance item");
+        res.status(500).json({ error: "Failed to create item" });
+      }
+    });
+
+    this.app.put("/api/vessels/:id/maintenance/:itemId", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "maintenance",
+          limit: 30,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      // Partial update — strip the cross-field refine since update may set
+      // only one field at a time and the row already satisfies the
+      // CHECK constraints.
+      const partialSchema = z.object({
+        item: z.string().min(1).max(200).optional(),
+        category: z
+          .enum([
+            "engine",
+            "watermaker",
+            "rigging",
+            "safety",
+            "sails",
+            "hull",
+            "electrical",
+            "other",
+          ])
+          .optional(),
+        interval_hours: z.number().positive().nullable().optional(),
+        interval_days: z.number().int().positive().nullable().optional(),
+        hours_meter_source: z
+          .enum(["engine", "watermaker"])
+          .nullable()
+          .optional(),
+        last_serviced_at: z.string().datetime().nullable().optional(),
+        last_serviced_at_hours: z.number().nonnegative().nullable().optional(),
+        notes: z.string().max(2000).optional(),
+      });
+      const parsed = partialSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid update", details: parsed.error.issues });
+      }
+      try {
+        const result = await this.postgres.query(
+          `UPDATE vessel_maintenance
+               SET item = COALESCE($3, item),
+                   category = COALESCE($4, category),
+                   interval_hours = COALESCE($5, interval_hours),
+                   interval_days = COALESCE($6, interval_days),
+                   hours_meter_source = COALESCE($7, hours_meter_source),
+                   last_serviced_at = COALESCE($8, last_serviced_at),
+                   last_serviced_at_hours = COALESCE($9, last_serviced_at_hours),
+                   notes = COALESCE($10, notes),
+                   updated_at = NOW()
+               WHERE id = $1 AND user_id = $2
+               RETURNING id, item, category, interval_hours, interval_days,
+                         hours_meter_source, last_serviced_at,
+                         last_serviced_at_hours, notes, last_alerted_at,
+                         created_at, updated_at`,
+          [
+            req.params.itemId,
+            userId,
+            parsed.data.item ?? null,
+            parsed.data.category ?? null,
+            parsed.data.interval_hours ?? null,
+            parsed.data.interval_days ?? null,
+            parsed.data.hours_meter_source ?? null,
+            parsed.data.last_serviced_at ?? null,
+            parsed.data.last_serviced_at_hours ?? null,
+            parsed.data.notes ?? null,
+          ],
+        );
+        if (!result.rows[0])
+          return res.status(404).json({ error: "Not found" });
+        res.json({ item: result.rows[0] });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to update maintenance item");
+        res.status(500).json({ error: "Failed to update item" });
+      }
+    });
+
+    this.app.delete(
+      "/api/vessels/:id/maintenance/:itemId",
+      async (req, res) => {
+        if (
+          !(await this.checkRateLimit(req, res, {
+            bucket: "maintenance",
+            limit: 30,
+          }))
+        )
+          return;
+        const userId = await this.verifyAuthAndGetUserId(req, res);
+        if (!userId) return;
+        if (!this.postgres)
+          return res.status(503).json({ error: "DB unavailable" });
+        try {
+          const result = await this.postgres.query(
+            `DELETE FROM vessel_maintenance WHERE id = $1 AND user_id = $2`,
+            [req.params.itemId, userId],
+          );
+          if ((result.rowCount ?? 0) === 0)
+            return res.status(404).json({ error: "Not found" });
+          res.json({ ok: true });
+        } catch (error) {
+          logger.error({ error, userId }, "Failed to delete maintenance item");
+          res.status(500).json({ error: "Failed to delete item" });
+        }
+      },
+    );
+
     this.app.get("/api/geocode/reverse", async (req, res) => {
       if (
         !(await this.checkRateLimit(req, res, { bucket: "geocode", limit: 60 }))
@@ -5715,8 +6116,16 @@ export class SimpleOrchestrator {
             logger,
           });
         }
+        if (this.postgres) {
+          this.maintenanceMonitor = new MaintenanceMonitor({
+            pool: this.postgres,
+            push: this.pushService,
+            logger,
+          });
+        }
         this.cronService = new CronService(logger, {
           driftMonitor: this.driftMonitor,
+          maintenanceMonitor: this.maintenanceMonitor,
         });
         this.cronService.start();
         logger.info("Cron service started");

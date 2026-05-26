@@ -3,11 +3,13 @@ import { Logger } from "pino";
 import { emailService } from "./EmailService";
 import { AsamIngestService } from "./hazards/AsamIngestService";
 import type { PassageDriftMonitor } from "./PassageDriftMonitor";
+import type { MaintenanceMonitor } from "./MaintenanceMonitor";
 import https from "https";
 import http from "http";
 
 export interface CronDependencies {
   driftMonitor?: PassageDriftMonitor | null;
+  maintenanceMonitor?: MaintenanceMonitor | null;
 }
 
 export class CronService {
@@ -95,6 +97,26 @@ export class CronService {
     } else {
       this.logger.warn(
         "R4 drift monitor not wired — skipping drift scan schedule",
+      );
+    }
+
+    // V2 — vessel maintenance scan. Daily at 09:00 PT. Items with passed
+    // intervals (time OR hours) trigger push + email; 7-day per-item dedup
+    // prevents nag-spam. Best-effort: no-op when monitor not wired.
+    if (this.deps.maintenanceMonitor) {
+      const monitor = this.deps.maintenanceMonitor;
+      this.scheduleJob("v2-maintenance-scan", "0 9 * * *", async () => {
+        this.logger.info("Running V2 maintenance scan");
+        try {
+          const result = await monitor.scan();
+          this.logger.info({ result }, "V2 maintenance scan finished");
+        } catch (error) {
+          this.logger.error({ error }, "V2 maintenance scan failed");
+        }
+      });
+    } else {
+      this.logger.warn(
+        "V2 maintenance monitor not wired — skipping maintenance schedule",
       );
     }
 

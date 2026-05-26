@@ -6,6 +6,7 @@ export const PUSH_TOPICS = [
   "safety_alerts",
   "weather_updates",
   "passage_reminders",
+  "maintenance",
   "marketing",
 ] as const;
 export type PushTopic = (typeof PUSH_TOPICS)[number];
