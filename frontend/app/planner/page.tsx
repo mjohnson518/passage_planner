@@ -63,6 +63,7 @@ import { ModelAgreementCard } from "../components/planner/ModelAgreementCard";
 import { RiskScoreCard } from "../components/planner/RiskScoreCard";
 import { DepartureCandidatesInput } from "../components/planner/DepartureCandidatesInput";
 import { DepartureComparisonCards } from "../components/planner/DepartureComparisonCards";
+import { ChartplotterExportMenu } from "../components/planner/ChartplotterExportMenu";
 import {
   comparePassages,
   type CompareResponse,
@@ -1094,61 +1095,46 @@ function PlannerPageInner() {
                   <SharePlanButton passageId={savedPassageId} />
                   {features.exportPassage && (
                     <>
-                      <Button
-                        data-testid="planner-export-gpx"
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          if (passagePlan) {
-                            const { passageToGPX } = await import(
-                              "../lib/export/gpx"
-                            );
-                            const gpx = passageToGPX({
-                              name: `${formData.departure} to ${formData.destination}`,
-                              waypoints: passagePlan.route.waypoints.map(
-                                (w) => ({
-                                  name: w.name ?? "Waypoint",
-                                  latitude: w.latitude,
-                                  longitude: w.longitude,
-                                  coordinates: {
-                                    lat: w.latitude,
-                                    lng: w.longitude,
-                                  },
-                                }),
-                              ),
-                              departure: {
-                                name: formData.departure,
-                                latitude: formData.departureCoords.latitude,
-                                longitude: formData.departureCoords.longitude,
-                                coordinates: {
-                                  lat: formData.departureCoords.latitude,
-                                  lng: formData.departureCoords.longitude,
-                                },
+                      {/* V4 — chartplotter-native exports. Replaces the single
+                          GPX button; offers generic GPX (free) plus Premium
+                          formats (RTZ for Raymarine/B&G/Simrad/Furuno,
+                          Garmin-flavored GPX, OpenCPN GPX). */}
+                      <ChartplotterExportMenu
+                        filenameStem={`${formData.departure}-${formData.destination}`}
+                        vesselName={formData.boat || undefined}
+                        buildPassage={() => ({
+                          name: `${formData.departure} to ${formData.destination}`,
+                          waypoints: (passagePlan?.route?.waypoints ?? []).map(
+                            (w: any) => ({
+                              name: w.name ?? "Waypoint",
+                              latitude: w.latitude,
+                              longitude: w.longitude,
+                              coordinates: {
+                                lat: w.latitude,
+                                lng: w.longitude,
                               },
-                              destination: {
-                                name: formData.destination,
-                                latitude: formData.destinationCoords.latitude,
-                                longitude: formData.destinationCoords.longitude,
-                                coordinates: {
-                                  lat: formData.destinationCoords.latitude,
-                                  lng: formData.destinationCoords.longitude,
-                                },
-                              },
-                            });
-                            const blob = new Blob([gpx], {
-                              type: "application/gpx+xml",
-                            });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = `${formData.departure}-${formData.destination}.gpx`;
-                            a.click();
-                            toast.success("GPX file downloaded");
-                          }
-                        }}
-                      >
-                        📥 GPX
-                      </Button>
+                            }),
+                          ),
+                          departure: {
+                            name: formData.departure,
+                            latitude: formData.departureCoords.latitude,
+                            longitude: formData.departureCoords.longitude,
+                            coordinates: {
+                              lat: formData.departureCoords.latitude,
+                              lng: formData.departureCoords.longitude,
+                            },
+                          },
+                          destination: {
+                            name: formData.destination,
+                            latitude: formData.destinationCoords.latitude,
+                            longitude: formData.destinationCoords.longitude,
+                            coordinates: {
+                              lat: formData.destinationCoords.latitude,
+                              lng: formData.destinationCoords.longitude,
+                            },
+                          },
+                        })}
+                      />
                       <Button
                         data-testid="planner-export-pdf"
                         size="sm"
