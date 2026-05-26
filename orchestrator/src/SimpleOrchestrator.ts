@@ -40,6 +40,12 @@ import { PassageDriftMonitor } from "./services/PassageDriftMonitor";
 import { MaintenanceMonitor } from "./services/MaintenanceMonitor";
 import { LogbookPdfService } from "./services/LogbookPdfService";
 import {
+  ApiKeyService,
+  VALID_SCOPES,
+  DEFAULT_RATE_LIMIT_PER_DAY,
+  type ApiScope,
+} from "./services/ApiKeyService";
+import {
   BaseAgent,
   GeocodingService,
   CacheManager,
@@ -170,6 +176,11 @@ export class SimpleOrchestrator {
    * for every export. Backed by pdfkit; no native deps.
    */
   private logbookPdf: LogbookPdfService = new LogbookPdfService();
+  /**
+   * API key service (F2). Wired when Postgres is up. Owns key generation,
+   * HMAC hashing, listing, revocation, and per-key Redis rate-limit checks.
+   */
+  private apiKeyService: ApiKeyService | null = null;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -232,6 +243,7 @@ export class SimpleOrchestrator {
         this.pushService,
         logger,
       );
+      this.apiKeyService = new ApiKeyService(this.postgres, this.redis, logger);
     } else {
       logger.warn("DATABASE_URL not set — profile/billing endpoints will 503");
     }
@@ -2258,6 +2270,26 @@ export class SimpleOrchestrator {
   }
 
   /**
+   * Pro-or-above tier helper. Used by Pro-only features (sat-comm, API
+   * keys). Fail-closed on lookup failure since these are paid-tier features
+   * we shouldn't accidentally grant.
+   */
+  private async isProOrAbove(userId: string): Promise<boolean> {
+    if (!this.postgres) return false;
+    try {
+      const result = await this.postgres.query(
+        `SELECT subscription_tier FROM profiles WHERE id = $1`,
+        [userId],
+      );
+      const tier = (result.rows[0]?.subscription_tier ?? "free") as string;
+      return tier === "pro" || tier === "enterprise";
+    } catch (error) {
+      logger.warn({ error, userId }, "isProOrAbove lookup failed");
+      return false;
+    }
+  }
+
+  /**
    * Build the user-facing share URL for a token. Uses NEXT_PUBLIC_APP_URL
    * when set so the link points to the production domain (helmwise.co)
    * rather than the orchestrator's localhost host.
@@ -2558,11 +2590,60 @@ export class SimpleOrchestrator {
       return "dev-user";
     }
 
+    // F2 — API key auth via X-API-Key header. Falls through to JWT auth if
+    // header missing/invalid so existing flows are unaffected. API-key auth
+    // ALSO enforces a per-key daily rate limit (Redis-backed) here so even
+    // unauthenticated rejection paths don't allow rate-limit bypass.
+    const apiKeyHeader = req.headers["x-api-key"] as string | undefined;
+    if (apiKeyHeader && this.apiKeyService && this.postgres) {
+      const keyHash = this.apiKeyService.hashForStorage(apiKeyHeader);
+      try {
+        const result = await this.postgres.query(
+          `SELECT user_id, id AS key_id, rate_limit_per_day
+             FROM api_keys
+             WHERE key_hash = $1
+               AND revoked_at IS NULL
+               AND (expires_at IS NULL OR expires_at > NOW())`,
+          [keyHash],
+        );
+        const row = result.rows[0];
+        if (row) {
+          const within = await this.apiKeyService.checkPerKeyRateLimit(
+            row.key_id,
+            row.rate_limit_per_day,
+          );
+          if (!within) {
+            res.status(429).json({
+              success: false,
+              error: `API key daily rate limit (${row.rate_limit_per_day}) exceeded`,
+            });
+            return null;
+          }
+          // Best-effort last_used_at bump; never blocks the request.
+          this.postgres
+            .query(`UPDATE api_keys SET last_used_at = NOW() WHERE id = $1`, [
+              row.key_id,
+            ])
+            .catch(() => undefined);
+          return row.user_id;
+        }
+        // Header present but no matching key → 401 (don't fall through to
+        // JWT so a malformed key can't accidentally succeed via cookie).
+        res.status(401).json({
+          success: false,
+          error: "Invalid or revoked API key",
+        });
+        return null;
+      } catch (err) {
+        logger.warn({ err }, "API key lookup failed; falling through to JWT");
+      }
+    }
+
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       res.status(401).json({
         success: false,
-        error: "Authentication required. Provide a Bearer token.",
+        error: "Authentication required. Provide a Bearer token or X-API-Key.",
       });
       return null;
     }
@@ -6552,11 +6633,9 @@ export class SimpleOrchestrator {
       } catch (error) {
         const msg = (error as Error).message ?? String(error);
         if (msg.includes("vessel_polars_unique_name")) {
-          return res
-            .status(409)
-            .json({
-              error: "A polar with that name already exists for this vessel.",
-            });
+          return res.status(409).json({
+            error: "A polar with that name already exists for this vessel.",
+          });
         }
         logger.error({ error, userId }, "Failed to insert polar");
         res.status(500).json({ error: "Failed to save polar" });
@@ -6637,6 +6716,129 @@ export class SimpleOrchestrator {
       } catch (error) {
         logger.error({ error, userId }, "Failed to delete polar");
         res.status(500).json({ error: "Failed to delete polar" });
+      }
+    });
+
+    // ------------------------------------------------------------------
+    // API keys (F2) — Pro-tier key management with per-key rate limits
+    //
+    // The full raw key is returned ONCE at creation (in the POST response).
+    // After that, only the prefix + metadata is ever exposed. Revoked keys
+    // are kept on the row (revoked_at) so the audit trail of what each key
+    // did survives revocation. Rate limits are enforced in
+    // verifyAuthAndGetUserId before any handler runs.
+    // ------------------------------------------------------------------
+    const apiKeyCreateSchema = z.object({
+      name: z.string().min(1).max(100),
+      scopes: z
+        .array(z.enum(["read", "write"]))
+        .min(1)
+        .optional(),
+      rate_limit_per_day: z.number().int().min(1).max(1_000_000).optional(),
+      expires_at: z.string().datetime().nullable().optional(),
+    });
+
+    this.app.get("/api/account/api-keys", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "api-keys",
+          limit: 60,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.apiKeyService)
+        return res.status(503).json({ error: "API key service unavailable" });
+      try {
+        const keys = await this.apiKeyService.listKeys(userId);
+        res.json({ keys });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to list API keys");
+        res.status(500).json({ error: "Failed to list keys" });
+      }
+    });
+
+    this.app.post("/api/account/api-keys", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "api-keys",
+          limit: 10,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.apiKeyService)
+        return res.status(503).json({ error: "API key service unavailable" });
+      if (!(await this.isProOrAbove(userId))) {
+        return res.status(403).json({
+          error: "API keys require a Pro subscription",
+          upgradeRequired: true,
+        });
+      }
+      const parsed = apiKeyCreateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid payload", details: parsed.error.issues });
+      }
+      try {
+        const created = await this.apiKeyService.createKey({
+          userId,
+          name: parsed.data.name,
+          scopes: parsed.data.scopes as ApiScope[] | undefined,
+          rateLimitPerDay:
+            parsed.data.rate_limit_per_day ?? DEFAULT_RATE_LIMIT_PER_DAY,
+          expiresAt: parsed.data.expires_at
+            ? new Date(parsed.data.expires_at)
+            : null,
+        });
+        // 201 with the raw key — shown to the user ONCE. The metadata row
+        // also returns so the UI can immediately add it to the list view.
+        res.status(201).json({
+          key: created.row,
+          rawKey: created.rawKey,
+        });
+      } catch (error) {
+        const msg = (error as Error).message ?? String(error);
+        if (msg.includes("Maximum 10 active API keys")) {
+          return res.status(409).json({
+            error:
+              "Maximum 10 active API keys per user. Revoke unused keys first.",
+          });
+        }
+        logger.error({ error, userId }, "Failed to create API key");
+        res.status(500).json({ error: "Failed to create key" });
+      }
+    });
+
+    this.app.delete("/api/account/api-keys/:id", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "api-keys",
+          limit: 30,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.apiKeyService)
+        return res.status(503).json({ error: "API key service unavailable" });
+      try {
+        const revoked = await this.apiKeyService.revokeKey(
+          userId,
+          req.params.id,
+        );
+        if (!revoked) {
+          return res
+            .status(404)
+            .json({ error: "Key not found or already revoked" });
+        }
+        res.json({ ok: true });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to revoke API key");
+        res.status(500).json({ error: "Failed to revoke key" });
       }
     });
 

@@ -147,24 +147,39 @@ export class AuthMiddleware {
         .update(apiKey)
         .digest("hex");
 
+      // F2 — also filter out revoked keys and pull scopes+rate_limit so the
+      // caller can enforce per-key limits and check scope. Lookup against
+      // `profiles` (which is the auth.users-mirroring table actually used
+      // in the rest of the orchestrator) so the join doesn't 0-result when
+      // there's no separate `users` table.
       const result = await this.db.query(
-        `SELECT u.id, u.email, ak.id as key_id
-         FROM api_keys ak
-         JOIN users u ON u.id = ak.user_id
-         WHERE ak.key_hash = $1 AND (ak.expires_at IS NULL OR ak.expires_at > NOW())`,
+        `SELECT p.id, p.email, ak.id as key_id,
+                ak.scopes, ak.rate_limit_per_day
+           FROM api_keys ak
+           JOIN profiles p ON p.id = ak.user_id
+          WHERE ak.key_hash = $1
+            AND ak.revoked_at IS NULL
+            AND (ak.expires_at IS NULL OR ak.expires_at > NOW())`,
         [keyHash],
       );
 
       if (result.rows[0]) {
-        // Update last used timestamp
-        await this.db.query(
-          "UPDATE api_keys SET last_used_at = NOW() WHERE id = $1",
-          [result.rows[0].key_id],
-        );
+        // Update last used timestamp (fire-and-forget so we don't double
+        // the latency for every API call).
+        this.db
+          .query("UPDATE api_keys SET last_used_at = NOW() WHERE id = $1", [
+            result.rows[0].key_id,
+          ])
+          .catch((err) =>
+            this.logger.warn({ err }, "api_keys last_used_at update failed"),
+          );
 
         return {
           id: result.rows[0].id,
           email: result.rows[0].email,
+          keyId: result.rows[0].key_id,
+          scopes: result.rows[0].scopes,
+          rateLimit: result.rows[0].rate_limit_per_day,
         };
       }
 
