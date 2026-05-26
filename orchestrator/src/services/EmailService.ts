@@ -598,6 +598,68 @@ export class EmailService {
     );
     return { id };
   }
+
+  // R4 — weather drift alert. Concise, actionable email pointing the user
+  // back at the planner. Triggers only when the saved passage's risk score
+  // has dropped by >= 10 points since it was planned.
+  async sendWeatherDriftAlert(args: {
+    to: string;
+    recipientName: string;
+    vesselName: string;
+    from: string;
+    to_: string;
+    oldScore: number;
+    newScore: number;
+    newStatus: string;
+    scoreDrop: number;
+    topContributors: string[];
+    replanUrl: string;
+  }): Promise<void> {
+    const statusColor =
+      args.newStatus === "NO-GO"
+        ? "#dc2626"
+        : args.newStatus === "CAUTION"
+          ? "#f59e0b"
+          : "#16a34a";
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+        <p>Hi ${args.recipientName},</p>
+        <p>The forecast for your upcoming passage has changed materially since you planned it.</p>
+        <table style="border-collapse: collapse; margin: 16px 0; font-size: 14px;">
+          <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Vessel</td><td style="padding: 4px 0;"><strong>${args.vesselName}</strong></td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Route</td><td style="padding: 4px 0;">${args.from} → ${args.to_}</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Previous score</td><td style="padding: 4px 0;">${args.oldScore}/100</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Current score</td><td style="padding: 4px 0; color: ${statusColor}; font-weight: 600;">${args.newScore}/100 (${args.newStatus})</td></tr>
+          <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Drop</td><td style="padding: 4px 0;">${args.scoreDrop} points</td></tr>
+        </table>
+        ${
+          args.topContributors.length > 0
+            ? `<p style="font-size: 14px;"><strong>What changed:</strong></p>
+               <ul style="font-size: 14px; line-height: 1.6;">
+                 ${args.topContributors.map((c) => `<li>${c}</li>`).join("\n")}
+               </ul>`
+            : ""
+        }
+        <p style="margin: 24px 0;">
+          <a href="${args.replanUrl}" style="display: inline-block; padding: 10px 20px; background: #0ea5e9; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Re-plan now</a>
+        </p>
+        <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">
+          This alert was triggered because your saved passage departs in the next 72 hours and the forecast worsened by 10 or more risk points.
+          Manage notification preferences at <a href="${args.replanUrl.replace("/planner", "/account/notifications")}" style="color: #64748b;">account/notifications</a>.
+        </p>
+      </div>
+    `;
+    await resend.emails.send({
+      from: this.from,
+      to: args.to,
+      subject: `Weather changed for ${args.vesselName} passage`,
+      html,
+    });
+    logger.info(
+      { to: args.to, vesselName: args.vesselName, scoreDrop: args.scoreDrop },
+      "Weather drift alert email sent",
+    );
+  }
 }
 
 // Export singleton instance

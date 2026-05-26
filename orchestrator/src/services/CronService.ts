@@ -2,15 +2,22 @@ import { CronJob } from "cron";
 import { Logger } from "pino";
 import { emailService } from "./EmailService";
 import { AsamIngestService } from "./hazards/AsamIngestService";
+import type { PassageDriftMonitor } from "./PassageDriftMonitor";
 import https from "https";
 import http from "http";
+
+export interface CronDependencies {
+  driftMonitor?: PassageDriftMonitor | null;
+}
 
 export class CronService {
   private jobs: Map<string, CronJob> = new Map();
   private logger: Logger;
+  private deps: CronDependencies;
 
-  constructor(logger: Logger) {
+  constructor(logger: Logger, deps: CronDependencies = {}) {
     this.logger = logger.child({ service: "cron" });
+    this.deps = deps;
   }
 
   start() {
@@ -67,6 +74,29 @@ export class CronService {
         this.logger.error({ error }, "NGA ASAM ingest failed");
       }
     });
+
+    // R4 — weather drift monitor. Every 6h, scan saved passages departing
+    // within the next 72h; if the risk score has dropped by >= 10 points
+    // since the plan was saved, push + email an alert. The monitor's
+    // distributed lock (Redis SETNX) prevents double-execution when
+    // multiple orchestrator instances run this job. No-op if the
+    // PassageDriftMonitor wasn't wired (Redis / DB unavailable).
+    if (this.deps.driftMonitor) {
+      const monitor = this.deps.driftMonitor;
+      this.scheduleJob("r4-drift-scan", "0 2,8,14,20 * * *", async () => {
+        this.logger.info("Running R4 passage drift scan");
+        try {
+          const result = await monitor.scan();
+          this.logger.info({ result }, "R4 drift scan finished");
+        } catch (error) {
+          this.logger.error({ error }, "R4 drift scan failed");
+        }
+      });
+    } else {
+      this.logger.warn(
+        "R4 drift monitor not wired — skipping drift scan schedule",
+      );
+    }
 
     this.logger.info("Cron jobs scheduled");
   }

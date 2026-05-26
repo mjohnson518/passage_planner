@@ -36,6 +36,7 @@ import {
   KNOWN_VENDORS,
   type Vendor,
 } from "./services/satcomm/adapters";
+import { PassageDriftMonitor } from "./services/PassageDriftMonitor";
 import {
   BaseAgent,
   GeocodingService,
@@ -146,6 +147,12 @@ export class SimpleOrchestrator {
    * can surface where they agree and where they don't.
    */
   private multiModelWeather: OpenMeteoWeatherService;
+  /**
+   * Weather-drift monitor (R4). Wired when Redis is up so the cron service
+   * can periodically re-score saved passages and dispatch push+email alerts
+   * when the forecast has worsened materially. Null when Redis is down.
+   */
+  private driftMonitor: PassageDriftMonitor | null = null;
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -5694,7 +5701,23 @@ export class SimpleOrchestrator {
     const cronDisabled = process.env.DISABLE_CRON === "true";
     if (!cronDisabled) {
       try {
-        this.cronService = new CronService(logger);
+        // R4 — wire the drift monitor only if Redis is up. Without Redis
+        // there's no passage store to scan, so the cron job is a no-op
+        // anyway. Wiring it conditionally keeps the cron service from
+        // logging a "no-op job scheduled" line in dev.
+        if (this.redis) {
+          this.driftMonitor = new PassageDriftMonitor({
+            redis: this.redis,
+            pool: this.postgres,
+            openMeteo: this.multiModelWeather,
+            safetyAgent: this.agents["safety"] as SafetyAgent,
+            push: this.pushService,
+            logger,
+          });
+        }
+        this.cronService = new CronService(logger, {
+          driftMonitor: this.driftMonitor,
+        });
         this.cronService.start();
         logger.info("Cron service started");
       } catch (error) {
