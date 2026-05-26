@@ -1850,6 +1850,80 @@ export class SimpleOrchestrator {
   }
 
   /**
+   * Choose the "best window" among R3 candidates. Ranking:
+   *   1. Status priority: GO > CAUTION > NO-GO. A GO always beats a CAUTION.
+   *   2. Within the same status, higher aggregate risk score wins.
+   *   3. Tiebreak by earliest ETA so sailors aren't told to wait pointlessly.
+   *
+   * Returns null when every candidate errored so the UI can show a clear
+   * "no comparison possible" state.
+   */
+  private buildCompareSummary(
+    candidates: Array<
+      | {
+          departureTime: string;
+          status: "ok";
+          plan: {
+            riskScore?: { status: string; score: number };
+            summary?: { estimatedArrival?: unknown };
+          };
+        }
+      | { departureTime: string; status: "error"; error: string }
+    >,
+  ): { bestIndex: number | null; notes: string[] } {
+    const notes: string[] = [];
+    const ok = candidates
+      .map((c, i) => ({ c, i }))
+      .filter(
+        (
+          x,
+        ): x is {
+          c: Extract<(typeof candidates)[number], { status: "ok" }>;
+          i: number;
+        } => x.c.status === "ok",
+      );
+    if (ok.length === 0) {
+      notes.push("All candidate plans failed — try again or refine inputs.");
+      return { bestIndex: null, notes };
+    }
+    const statusRank: Record<string, number> = {
+      GO: 3,
+      CAUTION: 2,
+      "NO-GO": 1,
+    };
+    const scored = ok.map(({ c, i }) => {
+      const risk = c.plan.riskScore;
+      const eta = c.plan.summary?.estimatedArrival
+        ? new Date(c.plan.summary.estimatedArrival as string).getTime()
+        : Number.POSITIVE_INFINITY;
+      return {
+        i,
+        rank: risk ? (statusRank[risk.status] ?? 0) : 0,
+        score: risk?.score ?? 0,
+        eta,
+      };
+    });
+    scored.sort(
+      (a, b) => b.rank - a.rank || b.score - a.score || a.eta - b.eta,
+    );
+    const bestIndex = scored[0].i;
+    const best = candidates[bestIndex];
+    if (best.status === "ok" && best.plan.riskScore?.status === "NO-GO") {
+      notes.push(
+        "Every candidate is NO-GO. Reconsider the passage or wait for a better window.",
+      );
+    } else if (
+      best.status === "ok" &&
+      best.plan.riskScore?.status === "CAUTION"
+    ) {
+      notes.push(
+        "Best window is CAUTION — proceed only after reviewing the breakdown.",
+      );
+    }
+    return { bestIndex, notes };
+  }
+
+  /**
    * Build a RiskInput from an assembled passage plan + the original request.
    * Defensive throughout — the plan shape is loose `any`, so every read is
    * guarded and missing fields downgrade scoring rather than throw.
@@ -3193,6 +3267,138 @@ export class SimpleOrchestrator {
             "Passage planning failed. Please try again or contact support.",
         });
       }
+    });
+
+    // ------------------------------------------------------------------
+    // R3 — Multi-departure-time comparison (Premium, hard-gated).
+    //
+    // Runs the same passage plan for up to 3 candidate departure times in
+    // parallel and returns a comparison summary with a recommended "best
+    // window" selection. Promise.allSettled — one candidate's failure must
+    // not poison the others. Each candidate's full plan is returned so the
+    // frontend can switch the active view without re-querying.
+    //
+    // Cost note: each candidate is a full plan run (3× external API calls,
+    // 3× compute). Cache hits on the 1h weather TTL absorb much of this
+    // for clustered candidates. Hard tier gate prevents Free users from
+    // running comparisons.
+    // ------------------------------------------------------------------
+    const compareSchema = z.object({
+      candidateDepartures: z.array(z.string().datetime()).min(1).max(3),
+    });
+
+    this.app.post("/api/plan/compare", async (req, res) => {
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "plan-compare",
+          limit: 5,
+        }))
+      )
+        return;
+
+      const isPremium = await this.isPremiumOrAbove(userId);
+      if (!isPremium) {
+        return res.status(403).json({
+          error: "Multi-departure comparison requires a Premium subscription",
+          upgradeRequired: true,
+        });
+      }
+
+      const baseValidation = this.validatePassageRequest(req.body);
+      if (!baseValidation.success) {
+        const { error } = baseValidation as { success: false; error: string };
+        return res.status(400).json({ success: false, error });
+      }
+      const parsedExtra = compareSchema.safeParse(req.body);
+      if (!parsedExtra.success) {
+        return res.status(400).json({
+          success: false,
+          error: "candidateDepartures must be 1-3 ISO datetimes",
+          details: parsedExtra.error.issues,
+        });
+      }
+
+      // Reject past times, dedupe candidates within 1h of each other so the
+      // user doesn't accidentally pay 3× for what's effectively one run.
+      const now = Date.now();
+      const dedupedMs: number[] = [];
+      for (const iso of parsedExtra.data.candidateDepartures) {
+        const t = new Date(iso).getTime();
+        if (!Number.isFinite(t)) {
+          return res.status(400).json({ error: `Invalid datetime: ${iso}` });
+        }
+        if (t < now - 60 * 1000) {
+          return res
+            .status(400)
+            .json({ error: `Departure ${iso} is in the past` });
+        }
+        if (
+          dedupedMs.some((existing) => Math.abs(existing - t) < 60 * 60 * 1000)
+        ) {
+          continue;
+        }
+        dedupedMs.push(t);
+      }
+      if (dedupedMs.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "No usable candidate departures after deduping" });
+      }
+
+      const baseData = baseValidation.data;
+      logger.info(
+        {
+          candidateCount: dedupedMs.length,
+          departureName: baseData.departure?.name,
+        },
+        "R3 compare request",
+      );
+
+      // Run all candidates in parallel — allSettled so a single failure
+      // doesn't drag the whole comparison down.
+      const settled = await Promise.allSettled(
+        dedupedMs.map(async (timeMs) => {
+          const candidateRequest = {
+            ...baseData,
+            departure: {
+              ...baseData.departure,
+              time: new Date(timeMs).toISOString(),
+            },
+          };
+          const plan = await this.planPassage(candidateRequest);
+          return { departureTime: new Date(timeMs).toISOString(), plan };
+        }),
+      );
+
+      const candidates = settled.map((s, i) => {
+        if (s.status === "fulfilled") {
+          return {
+            departureTime: new Date(dedupedMs[i]).toISOString(),
+            status: "ok" as const,
+            plan: s.value.plan,
+          };
+        }
+        return {
+          departureTime: new Date(dedupedMs[i]).toISOString(),
+          status: "error" as const,
+          error:
+            (s.reason as Error)?.message ?? "Plan failed for this candidate",
+        };
+      });
+
+      // Pick the best window: highest GO/CAUTION risk score, ties broken by
+      // earliest ETA. NO-GO candidates can still be "best" only if all are
+      // NO-GO (degenerate case — the UI should make clear nothing is safe).
+      const summary = this.buildCompareSummary(candidates);
+
+      res.json({
+        success: true,
+        candidates,
+        bestIndex: summary.bestIndex,
+        summary: summary.notes,
+      });
     });
 
     // Frontend-compatible endpoint — returns PassagePlanningResponse shape

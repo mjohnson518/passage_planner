@@ -61,6 +61,12 @@ import { SendFloatPlanButton } from "../components/planner/SendFloatPlanButton";
 import { SharePlanButton } from "../components/planner/SharePlanButton";
 import { ModelAgreementCard } from "../components/planner/ModelAgreementCard";
 import { RiskScoreCard } from "../components/planner/RiskScoreCard";
+import { DepartureCandidatesInput } from "../components/planner/DepartureCandidatesInput";
+import { DepartureComparisonCards } from "../components/planner/DepartureComparisonCards";
+import {
+  comparePassages,
+  type CompareResponse,
+} from "../../lib/services/passagePlanningService";
 
 // Dynamic import for map component to avoid SSR issues
 const RouteMap = dynamic(() => import("../components/map/RouteMap"), {
@@ -95,6 +101,37 @@ function PlannerPageInner() {
   // so existing free-tier flows are unchanged. Backend soft-downgrades for
   // non-premium users; the UI surfaces the upsell teaser in that case.
   const [multiModel, setMultiModel] = useState(false);
+  // R3 — opt-in multi-departure-time comparison (Premium, hard-gated).
+  // `compareEnabled` reveals the time-picker section in the form;
+  // `compareCandidates` is the list of datetime-local strings; `comparison`
+  // holds the server response and selectedCompareIndex tracks which card the
+  // user has chosen to display below.
+  const [compareEnabled, setCompareEnabled] = useState(false);
+  const [compareCandidates, setCompareCandidates] = useState<string[]>([]);
+  const [comparison, setComparison] = useState<CompareResponse | null>(null);
+  const [selectedCompareIndex, setSelectedCompareIndex] = useState<
+    number | null
+  >(null);
+  // Tier check for the compare feature (hard gate). Fetched once on mount.
+  const [tierLocked, setTierLocked] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/profile", { credentials: "include" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { subscription_tier?: string };
+        if (cancelled) return;
+        const tier = data.subscription_tier ?? "free";
+        setTierLocked(tier === "free");
+      } catch {
+        // leave locked on error — fail closed
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [formData, setFormData] = useState({
     departure: "",
@@ -239,6 +276,47 @@ function PlannerPageInner() {
         multiModel,
       };
 
+      // R3 — if multi-window comparison is enabled with at least one
+      // candidate, fire the compare endpoint and select the "best" window's
+      // plan for the main results view.
+      if (compareEnabled && !tierLocked && compareCandidates.length > 0) {
+        const isoCandidates = compareCandidates
+          .map((d) => {
+            const t = new Date(d).getTime();
+            return Number.isFinite(t) ? new Date(t).toISOString() : null;
+          })
+          .filter((s): s is string => s !== null);
+        if (isoCandidates.length === 0) {
+          toast.error("Pick at least one valid departure time.");
+          setLoading(false);
+          return;
+        }
+        const cmp = await comparePassages(planRequest, isoCandidates);
+        if (cmp.upgradeRequired) {
+          toast.error(cmp.summary?.[0] ?? "Premium subscription required.");
+          setLoading(false);
+          return;
+        }
+        setComparison(cmp);
+        const initialIdx =
+          cmp.bestIndex ?? cmp.candidates.findIndex((c) => c.status === "ok");
+        setSelectedCompareIndex(initialIdx >= 0 ? initialIdx : null);
+        const selected = initialIdx >= 0 ? cmp.candidates[initialIdx] : null;
+        if (selected && selected.status === "ok") {
+          setPassagePlan(selected.plan);
+          toast.success(
+            `Compared ${cmp.candidates.length} windows. Showing ${cmp.bestIndex === initialIdx ? "best" : "first available"} candidate.`,
+          );
+        } else {
+          toast.error("All candidate plans failed. Check your inputs.");
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Standard single-plan flow.
+      setComparison(null);
+      setSelectedCompareIndex(null);
       const result = await planPassage(planRequest);
 
       setPassagePlan(result);
@@ -521,6 +599,23 @@ function PlannerPageInner() {
               </div>
             </CardContent>
           </Card>
+
+          {/* R3 — Multi-window comparison cards. Shown above the single-plan
+              detail so the sailor sees the trade-offs first, then dives into
+              whichever window they pick. */}
+          {comparison && (
+            <DepartureComparisonCards
+              comparison={comparison}
+              selectedIndex={selectedCompareIndex}
+              onSelect={(idx) => {
+                const candidate = comparison.candidates[idx];
+                if (candidate && candidate.status === "ok") {
+                  setSelectedCompareIndex(idx);
+                  setPassagePlan(candidate.plan);
+                }
+              }}
+            />
+          )}
 
           {/* R2 — Composite risk score hero card. Always rendered when the
               backend produced a score (i.e. for every authenticated plan).
@@ -1649,6 +1744,16 @@ function PlannerPageInner() {
           </TabsContent>
         </Card>
       </Tabs>
+
+      {/* R3 — Multi-departure-time comparison (Premium, hard-gated). Renders
+          a list of datetime pickers when enabled. */}
+      <DepartureCandidatesInput
+        enabled={compareEnabled}
+        onEnabledChange={setCompareEnabled}
+        candidates={compareCandidates}
+        onCandidatesChange={setCompareCandidates}
+        tierLocked={tierLocked}
+      />
 
       {/* Multi-model toggle (R1) — Premium feature, soft-degrades on the
           server so Free users still get a plan. */}

@@ -384,6 +384,80 @@ export async function planPassage(
   }
 }
 
+// ----------------------------------------------------------------------------
+// R3 — Multi-departure-time comparison (Premium)
+// ----------------------------------------------------------------------------
+
+export interface CandidateResultOk {
+  departureTime: string;
+  status: "ok";
+  plan: PassagePlanningResponse;
+}
+
+export interface CandidateResultError {
+  departureTime: string;
+  status: "error";
+  error: string;
+}
+
+export type CandidateResult = CandidateResultOk | CandidateResultError;
+
+export interface CompareResponse {
+  success: boolean;
+  candidates: CandidateResult[];
+  bestIndex: number | null;
+  summary: string[];
+  upgradeRequired?: boolean;
+}
+
+export async function comparePassages(
+  request: PassagePlanningRequest,
+  candidateDepartures: string[],
+): Promise<CompareResponse> {
+  // Server-side comparison can be long-running — give it 3× the single-plan
+  // budget since it fires N plans in parallel and waits for the slowest.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT * 3);
+
+  try {
+    const token = await getAuthToken();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const response = await fetch(`${API_URL}/api/plan/compare`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify({ ...request, candidateDepartures }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 403 && body?.upgradeRequired) {
+        return {
+          success: false,
+          candidates: [],
+          bestIndex: null,
+          summary: [body.error ?? "Premium subscription required."],
+          upgradeRequired: true,
+        };
+      }
+      throw new Error(body?.error ?? `Compare failed (${response.status})`);
+    }
+    return (await response.json()) as CompareResponse;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === "AbortError") {
+      throw new Error("Comparison timed out — try fewer candidates.");
+    }
+    throw new Error(error.message || "Failed to compare departure times");
+  }
+}
+
 /**
  * Check backend health
  */
