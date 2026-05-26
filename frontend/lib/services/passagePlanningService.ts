@@ -53,6 +53,12 @@ export interface PassagePlanningRequest {
    *  Free users still get a plan; the server soft-downgrades and surfaces
    *  `modelComparisonGated: true` in the response instead. */
   multiModel?: boolean;
+  /** Premium-only (V1) — route using the active polar for `vesselId`.
+   *  Without this flag, the isochrone uses a generic cruising polar. */
+  usePolars?: boolean;
+  /** The vessel whose active polar should be used. Required when
+   *  `usePolars: true`. */
+  vesselId?: string;
 }
 
 /**
@@ -93,6 +99,12 @@ export interface PassagePlanningResponse {
     averageSpeed?: number;
     comparison?: unknown;
     safetyWarnings?: string[];
+    /** V1 — set when the route was computed using the user's uploaded polar
+     *  rather than the engine's default cruising polar. */
+    usedPolar?: {
+      name: string;
+      source: "upload" | "starter" | "edited";
+    };
   } | null;
   route: {
     distance: number;

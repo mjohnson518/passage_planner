@@ -49,6 +49,10 @@ import {
   OpenMeteoWeatherService,
   summariseModelDisagreement,
   type ModelComparisonSummary,
+  parseExpeditionCsv,
+  normalizedToVesselPolar,
+  type NormalizedPolar,
+  type VesselPolarMap,
 } from "@passage-planner/shared";
 import { emailService } from "./services/EmailService";
 import * as crypto from "crypto";
@@ -821,11 +825,28 @@ export class SimpleOrchestrator {
 
       // Step 8: Weather routing (isochrone algorithm) if wind field data available
       let weatherRoute: WeatherRoute | null = null;
+      let usedPolarMeta: { name: string; source: string } | null = null;
       try {
         const windFieldData = windFieldResult?.content?.find(
           (c: any) => c.type === "data",
         )?.data;
         if (windFieldData && windFieldData.source !== "unavailable") {
+          // V1 — when `usePolars` is set on the request AND the user supplied
+          // a vessel_id whose active polar is loadable, pass that polar to
+          // the isochrone engine. Otherwise the engine falls back to its
+          // default cruising polar (existing behavior). The user-id is
+          // attached upstream to the request as `userId`.
+          let userPolar: VesselPolarMap | undefined;
+          if (request.usePolars && request.vesselId && request.userId) {
+            const loaded = await this.loadActivePolar(
+              request.userId,
+              request.vesselId,
+            );
+            if (loaded) {
+              userPolar = loaded.polar;
+              usedPolarMeta = { name: loaded.name, source: loaded.source };
+            }
+          }
           weatherRoute = this.weatherRouting.calculateOptimalRoute(
             {
               latitude: request.departure.latitude,
@@ -838,13 +859,18 @@ export class SimpleOrchestrator {
             new Date(request.departure.time || Date.now()),
             windFieldData,
             vesselSpeed,
+            userPolar,
           );
+          if (weatherRoute && usedPolarMeta) {
+            (weatherRoute as any).usedPolar = usedPolarMeta;
+          }
           logger.info(
             {
               planningId,
               directDistance: weatherRoute.comparison.directRouteDistance,
               routeDistance: weatherRoute.totalDistance,
               timeSaved: weatherRoute.comparison.timeSaved,
+              usedPolar: usedPolarMeta,
             },
             "Weather routing calculated",
           );
@@ -1867,6 +1893,60 @@ export class SimpleOrchestrator {
     }
 
     return warnings;
+  }
+
+  /**
+   * V1 — load the active polar for a user's vessel and convert to the
+   * Map-shaped VesselPolar the isochrone engine consumes. Returns null when
+   * no active polar exists (caller falls back to the engine's default).
+   */
+  private async loadActivePolar(
+    userId: string,
+    vesselId: string,
+  ): Promise<{ polar: VesselPolarMap; name: string; source: string } | null> {
+    if (!this.postgres) return null;
+    try {
+      const result = await this.postgres.query(
+        `SELECT p.name, p.source, p.polar_data, p.max_wind_kt, p.max_wave_m
+           FROM vessel_polars p
+           JOIN user_vessels v ON v.id = p.vessel_id
+           WHERE p.user_id = $1
+             AND p.vessel_id = $2
+             AND v.user_id = $1
+             AND p.is_active = TRUE
+           LIMIT 1`,
+        [userId, vesselId],
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      const normalized = row.polar_data as NormalizedPolar;
+      if (
+        !normalized ||
+        !Array.isArray(normalized.tws) ||
+        !Array.isArray(normalized.twa) ||
+        !Array.isArray(normalized.speeds)
+      ) {
+        logger.warn(
+          { userId, vesselId, polarName: row.name },
+          "Stored polar has invalid shape; skipping",
+        );
+        return null;
+      }
+      // Sensible defaults — if the polar didn't ship with safety limits,
+      // use the conservative defaults the engine would have used anyway.
+      const maxWind =
+        typeof row.max_wind_kt === "number" ? row.max_wind_kt : 30;
+      const maxWave = typeof row.max_wave_m === "number" ? row.max_wave_m : 3;
+      const polar = normalizedToVesselPolar(normalized, maxWind, maxWave);
+      return {
+        polar,
+        name: row.name,
+        source: row.source,
+      };
+    } catch (err) {
+      logger.warn({ err, userId, vesselId }, "loadActivePolar failed");
+      return null;
+    }
   }
 
   /**
@@ -3274,6 +3354,20 @@ export class SimpleOrchestrator {
       const eligibleForMultiModel =
         wantsMultiModel && (await this.isPremiumOrAbove(userId));
 
+      // V1 — polar-aware routing plumbing. Premium-gated; Free users keep
+      // the existing cruise-speed routing. The user-id is attached to the
+      // request so planPassage's polar loader can look up the active polar.
+      const wantsPolars = req.body?.usePolars === true;
+      const eligibleForPolars =
+        wantsPolars && eligibleForMultiModel
+          ? true
+          : wantsPolars && (await this.isPremiumOrAbove(userId));
+      (validation.data as any).userId = userId;
+      (validation.data as any).usePolars = !!eligibleForPolars;
+      if (typeof req.body?.vesselId === "string") {
+        (validation.data as any).vesselId = req.body.vesselId;
+      }
+
       try {
         logger.info(
           {
@@ -3496,6 +3590,20 @@ export class SimpleOrchestrator {
       const wantsMultiModel = req.body?.multiModel === true;
       const eligibleForMultiModel =
         wantsMultiModel && (await this.isPremiumOrAbove(userId));
+
+      // V1 — polar-aware routing plumbing. Premium-gated; Free users keep
+      // the existing cruise-speed routing. The user-id is attached to the
+      // request so planPassage's polar loader can look up the active polar.
+      const wantsPolars = req.body?.usePolars === true;
+      const eligibleForPolars =
+        wantsPolars && eligibleForMultiModel
+          ? true
+          : wantsPolars && (await this.isPremiumOrAbove(userId));
+      (validation.data as any).userId = userId;
+      (validation.data as any).usePolars = !!eligibleForPolars;
+      if (typeof req.body?.vesselId === "string") {
+        (validation.data as any).vesselId = req.body.vesselId;
+      }
 
       try {
         logger.info(
@@ -6330,6 +6438,207 @@ export class SimpleOrchestrator {
         }
       },
     );
+
+    // ------------------------------------------------------------------
+    // Vessel polars (V1) — Premium-gated upload + per-vessel polar library
+    //
+    // Insert validates the CSV against the Expedition parser before storing
+    // the canonical JSONB shape. Activation sets is_active=TRUE on the
+    // chosen polar AND clears all siblings in a single transaction — the
+    // partial unique index `vessel_polars_one_active_per_vessel` enforces
+    // the invariant DB-side too.
+    // ------------------------------------------------------------------
+    const polarUploadSchema = z.object({
+      name: z.string().min(1).max(100),
+      csv: z.string().min(1).max(2_000_000), // 2 MB cap
+      source: z.enum(["upload", "starter", "edited"]).optional(),
+      max_wind_kt: z.number().positive().max(100).optional(),
+      max_wave_m: z.number().positive().max(30).optional(),
+    });
+
+    this.app.get("/api/vessels/:id/polars", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "polars", limit: 60 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      try {
+        // Confirm vessel ownership for a clean 404.
+        const own = await this.postgres.query(
+          `SELECT id FROM user_vessels WHERE id = $1 AND user_id = $2`,
+          [req.params.id, userId],
+        );
+        if (!own.rows[0])
+          return res.status(404).json({ error: "Vessel not found" });
+        const result = await this.postgres.query(
+          `SELECT id, name, source, polar_data, is_active, max_wind_kt, max_wave_m,
+                  uploaded_at, updated_at
+             FROM vessel_polars
+             WHERE vessel_id = $1
+             ORDER BY uploaded_at DESC`,
+          [req.params.id],
+        );
+        res.json({ polars: result.rows });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to list polars");
+        res.status(500).json({ error: "Failed to list polars" });
+      }
+    });
+
+    this.app.post("/api/vessels/:id/polars", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "polars", limit: 10 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      if (!(await this.isPremiumOrAbove(userId))) {
+        return res.status(403).json({
+          error: "Polar upload requires Premium",
+          upgradeRequired: true,
+        });
+      }
+      const parsed = polarUploadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid payload", details: parsed.error.issues });
+      }
+      const parsedPolar = parseExpeditionCsv(parsed.data.csv);
+      if (parsedPolar.ok === false) {
+        return res
+          .status(400)
+          .json({ error: `Polar parse failed: ${parsedPolar.error}` });
+      }
+      // Confirm vessel ownership before insert.
+      const own = await this.postgres.query(
+        `SELECT id FROM user_vessels WHERE id = $1 AND user_id = $2`,
+        [req.params.id, userId],
+      );
+      if (!own.rows[0])
+        return res.status(404).json({ error: "Vessel not found" });
+
+      try {
+        // Insert; if it's the user's first polar for this vessel, activate it.
+        const existingCount = await this.postgres.query(
+          `SELECT COUNT(*)::int AS n FROM vessel_polars WHERE vessel_id = $1`,
+          [req.params.id],
+        );
+        const isFirst = existingCount.rows[0].n === 0;
+        const result = await this.postgres.query(
+          `INSERT INTO vessel_polars
+             (user_id, vessel_id, name, source, polar_data,
+              is_active, max_wind_kt, max_wave_m)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
+           RETURNING id, name, source, polar_data, is_active,
+                     max_wind_kt, max_wave_m, uploaded_at, updated_at`,
+          [
+            userId,
+            req.params.id,
+            parsed.data.name,
+            parsed.data.source ?? "upload",
+            JSON.stringify(parsedPolar.polar),
+            isFirst,
+            parsed.data.max_wind_kt ?? null,
+            parsed.data.max_wave_m ?? null,
+          ],
+        );
+        res.status(201).json({ polar: result.rows[0] });
+      } catch (error) {
+        const msg = (error as Error).message ?? String(error);
+        if (msg.includes("vessel_polars_unique_name")) {
+          return res
+            .status(409)
+            .json({
+              error: "A polar with that name already exists for this vessel.",
+            });
+        }
+        logger.error({ error, userId }, "Failed to insert polar");
+        res.status(500).json({ error: "Failed to save polar" });
+      }
+    });
+
+    this.app.put(
+      "/api/vessels/:id/polars/:polarId/activate",
+      async (req, res) => {
+        if (
+          !(await this.checkRateLimit(req, res, {
+            bucket: "polars",
+            limit: 30,
+          }))
+        )
+          return;
+        const userId = await this.verifyAuthAndGetUserId(req, res);
+        if (!userId) return;
+        if (!this.postgres)
+          return res.status(503).json({ error: "DB unavailable" });
+        try {
+          // Two-step transaction: clear current active, set new active. The
+          // partial unique index enforces "at most one active per vessel"
+          // so the order matters — clear before set.
+          const client = await this.postgres.connect();
+          try {
+            await client.query("BEGIN");
+            await client.query(
+              `UPDATE vessel_polars
+                 SET is_active = FALSE, updated_at = NOW()
+                 WHERE vessel_id = $1 AND user_id = $2 AND is_active = TRUE`,
+              [req.params.id, userId],
+            );
+            const result = await client.query(
+              `UPDATE vessel_polars
+                 SET is_active = TRUE, updated_at = NOW()
+                 WHERE id = $1 AND vessel_id = $2 AND user_id = $3
+                 RETURNING id, name, source, is_active, updated_at`,
+              [req.params.polarId, req.params.id, userId],
+            );
+            if (!result.rows[0]) {
+              await client.query("ROLLBACK");
+              return res.status(404).json({ error: "Polar not found" });
+            }
+            await client.query("COMMIT");
+            res.json({ polar: result.rows[0] });
+          } catch (err) {
+            await client.query("ROLLBACK");
+            throw err;
+          } finally {
+            client.release();
+          }
+        } catch (error) {
+          logger.error({ error, userId }, "Failed to activate polar");
+          res.status(500).json({ error: "Failed to activate polar" });
+        }
+      },
+    );
+
+    this.app.delete("/api/vessels/:id/polars/:polarId", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, { bucket: "polars", limit: 30 }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      try {
+        const result = await this.postgres.query(
+          `DELETE FROM vessel_polars
+             WHERE id = $1 AND vessel_id = $2 AND user_id = $3`,
+          [req.params.polarId, req.params.id, userId],
+        );
+        if ((result.rowCount ?? 0) === 0)
+          return res.status(404).json({ error: "Not found" });
+        res.json({ ok: true });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to delete polar");
+        res.status(500).json({ error: "Failed to delete polar" });
+      }
+    });
 
     this.app.get("/api/geocode/reverse", async (req, res) => {
       if (

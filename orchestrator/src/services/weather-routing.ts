@@ -20,7 +20,7 @@
  * - 20% weather delay buffer per CLAUDE.md
  */
 
-import { Logger } from 'pino';
+import { Logger } from "pino";
 
 export interface VesselPolar {
   /** Boat speed (knots) indexed by [true wind angle][true wind speed] */
@@ -54,10 +54,10 @@ export interface IschronePoint {
   latitude: number;
   longitude: number;
   time: Date;
-  bearing: number;      // bearing from previous point
-  speed: number;        // achieved speed at this point
-  twa: number;          // true wind angle
-  tws: number;          // true wind speed
+  bearing: number; // bearing from previous point
+  speed: number; // achieved speed at this point
+  twa: number; // true wind angle
+  tws: number; // true wind speed
   waveHeight?: number;
   parent?: IschronePoint; // for backtracing optimal route
 }
@@ -77,7 +77,7 @@ export interface WeatherRoute {
   estimatedDuration: number; // hours
   averageSpeed: number;
   weatherDelayBuffer: number; // 20% buffer per CLAUDE.md
-  adjustedDuration: number;   // with buffer
+  adjustedDuration: number; // with buffer
   safetyWarnings: string[];
   comparison: {
     directRouteDistance: number;
@@ -107,18 +107,20 @@ export class WeatherRoutingService {
     departureTime: Date,
     windField: WindField,
     vesselSpeed: number,
-    polar?: VesselPolar
+    polar?: VesselPolar,
   ): WeatherRoute {
     const timeStepHours = 3; // 3-hour isochrone steps
-    const bearingStep = 15;  // 15° bearing increments
+    const bearingStep = 15; // 15° bearing increments
     const maxIterations = 40; // Max 40 steps (120 hours = 5 days)
 
     // Use simplified polar if none provided (typical cruising sailboat)
     const effectivePolar = polar || this.getDefaultCruisingPolar(vesselSpeed);
 
     const directDistance = this.haversineDistance(
-      start.latitude, start.longitude,
-      destination.latitude, destination.longitude
+      start.latitude,
+      start.longitude,
+      destination.latitude,
+      destination.longitude,
     );
     const directDuration = directDistance / vesselSpeed;
 
@@ -150,15 +152,21 @@ export class WeatherRoutingService {
           windField,
           point.latitude,
           point.longitude,
-          forecastHour
+          forecastHour,
         );
 
         if (!wind) continue;
 
         // Check safety thresholds
         if (wind.windSpeed > effectivePolar.maxWindSpeed) {
-          if (!safetyWarnings.includes(`Wind exceeds safe limit (${effectivePolar.maxWindSpeed}kt) during routing`)) {
-            safetyWarnings.push(`Wind exceeds safe limit (${effectivePolar.maxWindSpeed}kt) during routing`);
+          if (
+            !safetyWarnings.includes(
+              `Wind exceeds safe limit (${effectivePolar.maxWindSpeed}kt) during routing`,
+            )
+          ) {
+            safetyWarnings.push(
+              `Wind exceeds safe limit (${effectivePolar.maxWindSpeed}kt) during routing`,
+            );
           }
           continue; // Skip this point - unsafe
         }
@@ -173,21 +181,29 @@ export class WeatherRoutingService {
           const twa = this.trueWindAngle(bearing, wind.windDirection);
 
           // Get boat speed from polar diagram
-          const boatSpeed = this.getBoatSpeed(effectivePolar, twa, wind.windSpeed);
+          const boatSpeed = this.getBoatSpeed(
+            effectivePolar,
+            twa,
+            wind.windSpeed,
+          );
 
           if (boatSpeed <= 0) continue;
 
           // Calculate new position
           const distance = boatSpeed * timeStepHours;
           const newPos = this.projectPosition(
-            point.latitude, point.longitude,
-            bearing, distance
+            point.latitude,
+            point.longitude,
+            bearing,
+            distance,
           );
 
           // Check if this is closer to destination than we've been
           const distToGoal = this.haversineDistance(
-            newPos.latitude, newPos.longitude,
-            destination.latitude, destination.longitude
+            newPos.latitude,
+            newPos.longitude,
+            destination.latitude,
+            destination.longitude,
           );
 
           const newPoint: IschronePoint = {
@@ -218,12 +234,18 @@ export class WeatherRoutingService {
       if (reachedDestination) break;
 
       // Prune isochrone: keep only the most advanced points per bearing sector
-      const pruned = this.pruneIsochrone(nextIsochrone, destination, bearingStep);
+      const pruned = this.pruneIsochrone(
+        nextIsochrone,
+        destination,
+        bearingStep,
+      );
       isochrones.push(pruned);
       currentIsochrone = pruned;
 
       if (currentIsochrone.length === 0) {
-        safetyWarnings.push('No safe route found within time limit - all paths blocked by weather');
+        safetyWarnings.push(
+          "No safe route found within time limit - all paths blocked by weather",
+        );
         break;
       }
     }
@@ -236,8 +258,10 @@ export class WeatherRoutingService {
     let totalTime = 0;
     for (let i = 1; i < routeWaypoints.length; i++) {
       const segmentDist = this.haversineDistance(
-        routeWaypoints[i - 1].latitude, routeWaypoints[i - 1].longitude,
-        routeWaypoints[i].latitude, routeWaypoints[i].longitude
+        routeWaypoints[i - 1].latitude,
+        routeWaypoints[i - 1].longitude,
+        routeWaypoints[i].latitude,
+        routeWaypoints[i].longitude,
       );
       totalDistance += segmentDist;
     }
@@ -250,7 +274,8 @@ export class WeatherRoutingService {
       totalTime = directDuration;
     }
 
-    const averageSpeed = totalTime > 0 ? totalDistance / totalTime : vesselSpeed;
+    const averageSpeed =
+      totalTime > 0 ? totalDistance / totalTime : vesselSpeed;
 
     // SAFETY: 20% weather delay buffer per CLAUDE.md
     const weatherDelayBuffer = totalTime * 0.2;
@@ -283,14 +308,86 @@ export class WeatherRoutingService {
     // TWA → TWS → Boat Speed (knots)
     // Simplified polar: percentage of max speed at each TWA/TWS combo
     const polarData: Array<[number, Array<[number, number]>]> = [
-      [0, [[5, 0], [10, 0], [15, 0], [20, 0], [25, 0]]],       // Dead upwind - no sail
-      [30, [[5, 0.3], [10, 0.5], [15, 0.55], [20, 0.5], [25, 0.4]]], // Close hauled
-      [45, [[5, 0.4], [10, 0.6], [15, 0.7], [20, 0.65], [25, 0.5]]], // Close reach
-      [60, [[5, 0.5], [10, 0.7], [15, 0.8], [20, 0.75], [25, 0.6]]], // Beam reach
-      [90, [[5, 0.55], [10, 0.75], [15, 0.85], [20, 0.8], [25, 0.65]]], // Beam reach
-      [120, [[5, 0.5], [10, 0.7], [15, 0.8], [20, 0.75], [25, 0.6]]], // Broad reach
-      [150, [[5, 0.45], [10, 0.65], [15, 0.75], [20, 0.7], [25, 0.55]]], // Broad reach
-      [180, [[5, 0.35], [10, 0.55], [15, 0.65], [20, 0.6], [25, 0.45]]], // Running
+      [
+        0,
+        [
+          [5, 0],
+          [10, 0],
+          [15, 0],
+          [20, 0],
+          [25, 0],
+        ],
+      ], // Dead upwind - no sail
+      [
+        30,
+        [
+          [5, 0.3],
+          [10, 0.5],
+          [15, 0.55],
+          [20, 0.5],
+          [25, 0.4],
+        ],
+      ], // Close hauled
+      [
+        45,
+        [
+          [5, 0.4],
+          [10, 0.6],
+          [15, 0.7],
+          [20, 0.65],
+          [25, 0.5],
+        ],
+      ], // Close reach
+      [
+        60,
+        [
+          [5, 0.5],
+          [10, 0.7],
+          [15, 0.8],
+          [20, 0.75],
+          [25, 0.6],
+        ],
+      ], // Beam reach
+      [
+        90,
+        [
+          [5, 0.55],
+          [10, 0.75],
+          [15, 0.85],
+          [20, 0.8],
+          [25, 0.65],
+        ],
+      ], // Beam reach
+      [
+        120,
+        [
+          [5, 0.5],
+          [10, 0.7],
+          [15, 0.8],
+          [20, 0.75],
+          [25, 0.6],
+        ],
+      ], // Broad reach
+      [
+        150,
+        [
+          [5, 0.45],
+          [10, 0.65],
+          [15, 0.75],
+          [20, 0.7],
+          [25, 0.55],
+        ],
+      ], // Broad reach
+      [
+        180,
+        [
+          [5, 0.35],
+          [10, 0.55],
+          [15, 0.65],
+          [20, 0.6],
+          [25, 0.45],
+        ],
+      ], // Running
     ];
 
     for (const [twa, twsSpeeds] of polarData) {
@@ -303,8 +400,8 @@ export class WeatherRoutingService {
 
     return {
       speeds,
-      maxWindSpeed: 30,  // Conservative 30kt limit
-      maxWaveHeight: 3,  // 3m wave limit
+      maxWindSpeed: 30, // Conservative 30kt limit
+      maxWaveHeight: 3, // 3m wave limit
     };
   }
 
@@ -315,8 +412,13 @@ export class WeatherRoutingService {
     windField: WindField,
     lat: number,
     lon: number,
-    forecastHour: number
-  ): { windSpeed: number; windDirection: number; waveHeight?: number; pressure: number } | null {
+    forecastHour: number,
+  ): {
+    windSpeed: number;
+    windDirection: number;
+    waveHeight?: number;
+    pressure: number;
+  } | null {
     if (!windField.waypoints || windField.waypoints.length === 0) return null;
 
     // Find nearest waypoint in wind field
@@ -324,7 +426,8 @@ export class WeatherRoutingService {
     let minDist = Infinity;
 
     for (const wp of windField.waypoints) {
-      const dist = Math.pow(wp.latitude - lat, 2) + Math.pow(wp.longitude - lon, 2);
+      const dist =
+        Math.pow(wp.latitude - lat, 2) + Math.pow(wp.longitude - lon, 2);
       if (dist < minDist) {
         minDist = dist;
         nearest = wp;
@@ -363,54 +466,86 @@ export class WeatherRoutingService {
   }
 
   /**
-   * Get boat speed from polar diagram for given TWA and TWS
+   * Get boat speed from polar diagram for given TWA and TWS.
+   *
+   * V1 — upgraded to bilinear (linear-on-TWA, linear-on-TWS) so custom
+   * uploaded polars don't suffer the speed-step artifacts produced by the
+   * previous nearest-TWA implementation. Real-world polars have 5° TWA
+   * resolution; nearest-neighbor on a 5° grid gives noticeable +/- 2.5° of
+   * error in the chosen heading, which compounds across hundreds of
+   * isochrone steps.
+   *
+   * Symmetry: TWA values >180° are folded back into [0, 180] (boats are
+   * port/starboard-symmetric so polars only define one half).
    */
   private getBoatSpeed(polar: VesselPolar, twa: number, tws: number): number {
-    // Find nearest TWA entry
+    // Fold TWA into [0, 180].
+    let foldedTwa = ((twa % 360) + 360) % 360;
+    if (foldedTwa > 180) foldedTwa = 360 - foldedTwa;
+
     const twaKeys = Array.from(polar.speeds.keys()).sort((a, b) => a - b);
-    let closestTwa = twaKeys[0];
-    let minDiff = Infinity;
+    if (twaKeys.length === 0) return 0;
 
-    for (const key of twaKeys) {
-      const diff = Math.abs(key - twa);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestTwa = key;
+    // Bracket TWA — find the two adjacent entries that contain foldedTwa.
+    let twaLowerKey = twaKeys[0];
+    let twaUpperKey = twaKeys[twaKeys.length - 1];
+    let twaFrac = 0;
+    if (foldedTwa <= twaLowerKey) {
+      twaUpperKey = twaLowerKey;
+    } else if (foldedTwa >= twaUpperKey) {
+      twaLowerKey = twaUpperKey;
+    } else {
+      for (let i = 0; i < twaKeys.length - 1; i++) {
+        if (foldedTwa >= twaKeys[i] && foldedTwa <= twaKeys[i + 1]) {
+          twaLowerKey = twaKeys[i];
+          twaUpperKey = twaKeys[i + 1];
+          const span = twaUpperKey - twaLowerKey;
+          twaFrac = span > 0 ? (foldedTwa - twaLowerKey) / span : 0;
+          break;
+        }
       }
     }
 
-    const twsMap = polar.speeds.get(closestTwa);
-    if (!twsMap) return 0;
-
-    // Find nearest TWS entry and interpolate
-    const twsKeys = Array.from(twsMap.keys()).sort((a, b) => a - b);
-    let lower = twsKeys[0];
-    let upper = twsKeys[twsKeys.length - 1];
-
-    for (let i = 0; i < twsKeys.length - 1; i++) {
-      if (tws >= twsKeys[i] && tws <= twsKeys[i + 1]) {
-        lower = twsKeys[i];
-        upper = twsKeys[i + 1];
-        break;
+    const speedAtTwa = (twaKey: number): number => {
+      const twsMap = polar.speeds.get(twaKey);
+      if (!twsMap) return 0;
+      const twsKeys = Array.from(twsMap.keys()).sort((a, b) => a - b);
+      if (twsKeys.length === 0) return 0;
+      // Clamp TWS — extrapolating speeds beyond the polar's defined range
+      // invents data we don't have, which is unsafe.
+      const clamped = Math.max(
+        twsKeys[0],
+        Math.min(twsKeys[twsKeys.length - 1], tws),
+      );
+      let lo = twsKeys[0];
+      let hi = twsKeys[twsKeys.length - 1];
+      for (let i = 0; i < twsKeys.length - 1; i++) {
+        if (clamped >= twsKeys[i] && clamped <= twsKeys[i + 1]) {
+          lo = twsKeys[i];
+          hi = twsKeys[i + 1];
+          break;
+        }
       }
-    }
+      const loSpeed = twsMap.get(lo) ?? 0;
+      const hiSpeed = twsMap.get(hi) ?? 0;
+      if (lo === hi) return loSpeed;
+      const frac = (clamped - lo) / (hi - lo);
+      return loSpeed + frac * (hiSpeed - loSpeed);
+    };
 
-    const lowerSpeed = twsMap.get(lower) || 0;
-    const upperSpeed = twsMap.get(upper) || 0;
-
-    if (lower === upper) return lowerSpeed;
-
-    // Linear interpolation
-    const fraction = (tws - lower) / (upper - lower);
-    return lowerSpeed + fraction * (upperSpeed - lowerSpeed);
+    const lower = speedAtTwa(twaLowerKey);
+    const upper = speedAtTwa(twaUpperKey);
+    return lower + twaFrac * (upper - lower);
   }
 
   /**
    * Project a position given bearing and distance
    */
   private projectPosition(
-    lat: number, lon: number,
-    bearing: number, distanceNm: number
+    lat: number,
+    lon: number,
+    bearing: number,
+    distanceNm: number,
   ): { latitude: number; longitude: number } {
     const lat1 = lat * DEG_TO_RAD;
     const lon1 = lon * DEG_TO_RAD;
@@ -419,13 +554,15 @@ export class WeatherRoutingService {
 
     const lat2 = Math.asin(
       Math.sin(lat1) * Math.cos(d) +
-      Math.cos(lat1) * Math.sin(d) * Math.cos(brng)
+        Math.cos(lat1) * Math.sin(d) * Math.cos(brng),
     );
 
-    const lon2 = lon1 + Math.atan2(
-      Math.sin(brng) * Math.sin(d) * Math.cos(lat1),
-      Math.cos(d) - Math.sin(lat1) * Math.sin(lat2)
-    );
+    const lon2 =
+      lon1 +
+      Math.atan2(
+        Math.sin(brng) * Math.sin(d) * Math.cos(lat1),
+        Math.cos(d) - Math.sin(lat1) * Math.sin(lat2),
+      );
 
     return {
       latitude: lat2 * RAD_TO_DEG,
@@ -439,7 +576,7 @@ export class WeatherRoutingService {
   private pruneIsochrone(
     points: IschronePoint[],
     destination: { latitude: number; longitude: number },
-    bearingStep: number
+    bearingStep: number,
   ): IschronePoint[] {
     if (points.length === 0) return [];
 
@@ -449,14 +586,18 @@ export class WeatherRoutingService {
     for (const point of points) {
       // Calculate bearing from point to destination
       const bearingToDest = this.bearing(
-        point.latitude, point.longitude,
-        destination.latitude, destination.longitude
+        point.latitude,
+        point.longitude,
+        destination.latitude,
+        destination.longitude,
       );
 
       const sector = Math.round(bearingToDest / bearingStep) * bearingStep;
       const distToDest = this.haversineDistance(
-        point.latitude, point.longitude,
-        destination.latitude, destination.longitude
+        point.latitude,
+        point.longitude,
+        destination.latitude,
+        destination.longitude,
       );
 
       const existing = sectors.get(sector);
@@ -464,8 +605,10 @@ export class WeatherRoutingService {
         sectors.set(sector, point);
       } else {
         const existingDist = this.haversineDistance(
-          existing.latitude, existing.longitude,
-          destination.latitude, destination.longitude
+          existing.latitude,
+          existing.longitude,
+          destination.latitude,
+          destination.longitude,
         );
         if (distToDest < existingDist) {
           sectors.set(sector, point);
@@ -481,22 +624,24 @@ export class WeatherRoutingService {
    */
   private backtraceRoute(
     finalPoint: IschronePoint | null,
-    start: { latitude: number; longitude: number }
-  ): WeatherRoute['waypoints'] {
+    start: { latitude: number; longitude: number },
+  ): WeatherRoute["waypoints"] {
     if (!finalPoint) {
       // No optimal route found - return direct route
-      return [{
-        latitude: start.latitude,
-        longitude: start.longitude,
-        time: new Date(),
-        speed: 0,
-        twa: 0,
-        tws: 0,
-        bearing: 0,
-      }];
+      return [
+        {
+          latitude: start.latitude,
+          longitude: start.longitude,
+          time: new Date(),
+          speed: 0,
+          twa: 0,
+          tws: 0,
+          bearing: 0,
+        },
+      ];
     }
 
-    const waypoints: WeatherRoute['waypoints'] = [];
+    const waypoints: WeatherRoute["waypoints"] = [];
     let current: IschronePoint | undefined = finalPoint;
 
     while (current) {
@@ -519,13 +664,20 @@ export class WeatherRoutingService {
   /**
    * Haversine distance in nautical miles
    */
-  private haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  private haversineDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
     const dLat = (lat2 - lat1) * DEG_TO_RAD;
     const dLon = (lon2 - lon1) * DEG_TO_RAD;
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * DEG_TO_RAD) * Math.cos(lat2 * DEG_TO_RAD) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      Math.cos(lat1 * DEG_TO_RAD) *
+        Math.cos(lat2 * DEG_TO_RAD) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return EARTH_RADIUS_NM * c;
   }
@@ -533,11 +685,19 @@ export class WeatherRoutingService {
   /**
    * Calculate bearing between two points
    */
-  private bearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  private bearing(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
     const dLon = (lon2 - lon1) * DEG_TO_RAD;
     const y = Math.sin(dLon) * Math.cos(lat2 * DEG_TO_RAD);
-    const x = Math.cos(lat1 * DEG_TO_RAD) * Math.sin(lat2 * DEG_TO_RAD) -
-              Math.sin(lat1 * DEG_TO_RAD) * Math.cos(lat2 * DEG_TO_RAD) * Math.cos(dLon);
+    const x =
+      Math.cos(lat1 * DEG_TO_RAD) * Math.sin(lat2 * DEG_TO_RAD) -
+      Math.sin(lat1 * DEG_TO_RAD) *
+        Math.cos(lat2 * DEG_TO_RAD) *
+        Math.cos(dLon);
     return (Math.atan2(y, x) * RAD_TO_DEG + 360) % 360;
   }
 }

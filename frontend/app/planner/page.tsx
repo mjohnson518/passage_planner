@@ -103,6 +103,15 @@ function PlannerPageInner() {
   // so existing free-tier flows are unchanged. Backend soft-downgrades for
   // non-premium users; the UI surfaces the upsell teaser in that case.
   const [multiModel, setMultiModel] = useState(false);
+  // V1 — opt-in polar-aware routing (Premium hard-gated). Requires picking a
+  // vessel from the user's `user_vessels` list since polars are keyed to a
+  // vessel. Vessel fetch happens in a useEffect declared after `tierLocked`
+  // (see below) because that effect depends on the tier state.
+  const [usePolars, setUsePolars] = useState(false);
+  const [polarVesselId, setPolarVesselId] = useState<string>("");
+  const [polarVessels, setPolarVessels] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   // R3 — opt-in multi-departure-time comparison (Premium, hard-gated).
   // `compareEnabled` reveals the time-picker section in the form;
   // `compareCandidates` is the list of datetime-local strings; `comparison`
@@ -134,6 +143,32 @@ function PlannerPageInner() {
       cancelled = true;
     };
   }, []);
+  // V1 — fetch the user's vessel list once we know they're Premium. Polar
+  // routing requires picking a vessel; the checkbox UI gates on a non-empty
+  // vessel list.
+  useEffect(() => {
+    if (tierLocked) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/vessels", { credentials: "include" });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          vessels: Array<{ id: string; name: string }>;
+        };
+        if (cancelled) return;
+        setPolarVessels(data.vessels ?? []);
+        if (data.vessels?.[0]?.id) {
+          setPolarVesselId((existing) => existing || data.vessels[0].id);
+        }
+      } catch {
+        // Best-effort — polar checkbox just won't render if vessels fail to load.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tierLocked]);
 
   const [formData, setFormData] = useState({
     departure: "",
@@ -276,6 +311,8 @@ function PlannerPageInner() {
           crewSize: formData.crewSize || 2,
         },
         multiModel,
+        usePolars,
+        vesselId: usePolars && polarVesselId ? polarVesselId : undefined,
       };
 
       // R3 — if multi-window comparison is enabled with at least one
@@ -599,6 +636,15 @@ function PlannerPageInner() {
                   </p>
                 </div>
               </div>
+              {passagePlan.weatherRoute?.usedPolar && (
+                <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary border border-primary/30 px-2.5 py-1 text-xs font-medium">
+                  <span>⛵</span>
+                  Polar-tuned route ·{" "}
+                  <span className="font-mono">
+                    {passagePlan.weatherRoute.usedPolar.name}
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -1752,6 +1798,49 @@ function PlannerPageInner() {
         onCandidatesChange={setCompareCandidates}
         tierLocked={tierLocked}
       />
+
+      {/* V1 — polar-aware routing toggle (Premium hard-gated). Only renders
+          when the user has at least one vessel in their library. */}
+      {polarVessels.length > 0 && !tierLocked && (
+        <div className="max-w-4xl mx-auto mt-4 mb-2">
+          <label className="flex items-start gap-3 cursor-pointer rounded-md border border-border bg-card p-3 hover:bg-muted/40 transition-colors">
+            <input
+              type="checkbox"
+              checked={usePolars}
+              onChange={(e) => setUsePolars(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium">Polar-tuned route</span>
+                <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
+                  Premium
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Use your vessel&apos;s actual speed-vs-wind curves instead of a
+                generic cruising estimate. No automatic land avoidance — verify
+                the generated route on the chart.
+              </p>
+              {usePolars && (
+                <div className="mt-2">
+                  <select
+                    value={polarVesselId}
+                    onChange={(e) => setPolarVesselId(e.target.value)}
+                    className="rounded-md border border-border bg-background px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    {polarVessels.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </label>
+        </div>
+      )}
 
       {/* Multi-model toggle (R1) — Premium feature, soft-degrades on the
           server so Free users still get a plan. */}
