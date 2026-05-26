@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
   Card,
@@ -1093,6 +1094,17 @@ function PlannerPageInner() {
                     destinationLabel={formData.destination}
                   />
                   <SharePlanButton passageId={savedPassageId} />
+                  {savedPassageId && (
+                    <Link href={`/passages/${savedPassageId}/logbook`}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Open passage logbook"
+                      >
+                        📖 Logbook
+                      </Button>
+                    </Link>
+                  )}
                   {features.exportPassage && (
                     <>
                       {/* V4 — chartplotter-native exports. Replaces the single

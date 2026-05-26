@@ -38,6 +38,7 @@ import {
 } from "./services/satcomm/adapters";
 import { PassageDriftMonitor } from "./services/PassageDriftMonitor";
 import { MaintenanceMonitor } from "./services/MaintenanceMonitor";
+import { LogbookPdfService } from "./services/LogbookPdfService";
 import {
   BaseAgent,
   GeocodingService,
@@ -160,6 +161,11 @@ export class SimpleOrchestrator {
    * a 7-day per-item dedup window. Null when Postgres is unavailable.
    */
   private maintenanceMonitor: MaintenanceMonitor | null = null;
+  /**
+   * Logbook PDF generator (V3). Stateless — instantiated once and reused
+   * for every export. Backed by pdfkit; no native deps.
+   */
+  private logbookPdf: LogbookPdfService = new LogbookPdfService();
 
   constructor() {
     const redisUrl = process.env.REDIS_URL;
@@ -1861,6 +1867,64 @@ export class SimpleOrchestrator {
     }
 
     return warnings;
+  }
+
+  /**
+   * V3 — auto-seed a `departure` logbook entry on passage save.
+   *
+   * Best-effort: caller awaits the redis write before responding to the
+   * user, but the logbook write is fire-and-forget so a logbook DB issue
+   * cannot prevent the passage itself from saving.
+   */
+  private async autoSeedLogbookDeparture(
+    userId: string,
+    passageId: string,
+    plan: unknown,
+  ): Promise<void> {
+    if (!this.postgres) return;
+    const p = (plan ?? {}) as Record<string, any>;
+    const summary = (p.summary ?? {}) as Record<string, any>;
+    const request = (p.request ?? {}) as Record<string, any>;
+    const departure = (request.departure ?? {}) as Record<string, any>;
+    const destination = (request.destination ?? {}) as Record<string, any>;
+    const vessel = (request.vessel ?? {}) as Record<string, any>;
+    const route = (p.route ?? {}) as Record<string, any>;
+
+    const occurredAt =
+      summary.departureTime ?? departure.time ?? new Date().toISOString();
+
+    const lat =
+      typeof departure.latitude === "number" ? departure.latitude : null;
+    const lon =
+      typeof departure.longitude === "number" ? departure.longitude : null;
+
+    const conditions: Record<string, unknown> = {};
+    if (vessel.name) conditions.vessel = vessel.name;
+    if (destination.name) {
+      conditions.destination = destination.name;
+    }
+    if (summary.estimatedArrival) conditions.eta = summary.estimatedArrival;
+    if (typeof route.totalDistance === "number") {
+      conditions.distance_nm = route.totalDistance;
+    }
+
+    await this.postgres.query(
+      `INSERT INTO logbook_entries
+         (user_id, passage_id, entry_type, occurred_at,
+          position_lat, position_lon, conditions, notes)
+       VALUES ($1, $2, 'departure', $3, $4, $5, $6::jsonb, $7)`,
+      [
+        userId,
+        passageId,
+        occurredAt,
+        lat,
+        lon,
+        JSON.stringify(conditions),
+        departure.name
+          ? `Departure from ${departure.name}.`
+          : "Departure (passage saved).",
+      ],
+    );
   }
 
   /**
@@ -4543,6 +4607,23 @@ export class SimpleOrchestrator {
         await this.redis.zadd(passagesKey(userId), Date.now(), passageId);
         // Cap the per-user list at 100 to bound storage growth.
         await this.redis.zremrangebyrank(passagesKey(userId), 0, -101);
+
+        // V3 — auto-seed a `departure` logbook entry so the passage's
+        // logbook page is never empty. Fire-and-forget so a logbook write
+        // failure cannot prevent the passage from saving.
+        if (this.postgres) {
+          this.autoSeedLogbookDeparture(
+            userId,
+            passageId,
+            parsed.data.plan,
+          ).catch((err) =>
+            logger.warn(
+              { err, userId, passageId },
+              "Logbook departure auto-seed failed (passage still saved)",
+            ),
+          );
+        }
+
         res.json({ success: true, passage: record });
       } catch (err) {
         logger.error({ err, userId }, "Failed to persist passage");
@@ -5208,6 +5289,212 @@ export class SimpleOrchestrator {
     });
 
     // ------------------------------------------------------------------
+    // Logbook entries (V3) — append-only per-passage log
+    //
+    // Insert is Premium-gated. Read + delete are open to all tiers so a
+    // downgraded user can still access (and PDF-export) their history.
+    // DELETE is only allowed within 5 minutes of recorded_at (typo undo) —
+    // maritime tradition is no-edit; corrections are made by appending new
+    // entries. UPDATE has no endpoint at all.
+    // ------------------------------------------------------------------
+    const LOGBOOK_TYPES = [
+      "departure",
+      "arrival",
+      "position",
+      "watch_handover",
+      "weather",
+      "engine",
+      "fuel",
+      "event",
+      "note",
+    ] as const;
+    const logbookEntrySchema = z.object({
+      entry_type: z.enum(LOGBOOK_TYPES),
+      occurred_at: z.string().datetime(),
+      recorded_by: z.string().max(100).optional(),
+      position_lat: z.number().min(-90).max(90).nullable().optional(),
+      position_lon: z.number().min(-180).max(180).nullable().optional(),
+      conditions: z.record(z.string(), z.unknown()).optional(),
+      notes: z.string().max(4000).optional(),
+      vessel_id: z.string().uuid().optional(),
+    });
+
+    this.app.get("/api/passages/:id/logbook", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "logbook",
+          limit: 60,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      try {
+        const result = await this.postgres.query(
+          `SELECT id, passage_id, vessel_id, entry_type, occurred_at,
+                  recorded_at, recorded_by, position_lat, position_lon,
+                  conditions, notes
+             FROM logbook_entries
+             WHERE user_id = $1 AND passage_id = $2
+             ORDER BY occurred_at ASC, recorded_at ASC`,
+          [userId, req.params.id],
+        );
+        res.json({ entries: result.rows });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to list logbook entries");
+        res.status(500).json({ error: "Failed to list entries" });
+      }
+    });
+
+    this.app.post("/api/passages/:id/logbook", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "logbook",
+          limit: 60,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      if (!(await this.isPremiumOrAbove(userId))) {
+        return res.status(403).json({
+          error: "Logbook entries require Premium",
+          upgradeRequired: true,
+        });
+      }
+      const parsed = logbookEntrySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid entry", details: parsed.error.issues });
+      }
+      try {
+        const result = await this.postgres.query(
+          `INSERT INTO logbook_entries
+             (user_id, passage_id, vessel_id, entry_type, occurred_at,
+              recorded_by, position_lat, position_lon, conditions, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+           RETURNING id, passage_id, vessel_id, entry_type, occurred_at,
+                     recorded_at, recorded_by, position_lat, position_lon,
+                     conditions, notes`,
+          [
+            userId,
+            req.params.id,
+            parsed.data.vessel_id ?? null,
+            parsed.data.entry_type,
+            parsed.data.occurred_at,
+            parsed.data.recorded_by ?? null,
+            parsed.data.position_lat ?? null,
+            parsed.data.position_lon ?? null,
+            JSON.stringify(parsed.data.conditions ?? {}),
+            parsed.data.notes ?? null,
+          ],
+        );
+        res.status(201).json({ entry: result.rows[0] });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to insert logbook entry");
+        res.status(500).json({ error: "Failed to insert entry" });
+      }
+    });
+
+    this.app.delete("/api/passages/:id/logbook/:entryId", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "logbook",
+          limit: 30,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      try {
+        // Typo-undo window: 5 minutes from recorded_at. Past that, deletes
+        // are denied — the logbook is append-only by maritime tradition.
+        const result = await this.postgres.query(
+          `DELETE FROM logbook_entries
+               WHERE id = $1
+                 AND user_id = $2
+                 AND passage_id = $3
+                 AND recorded_at > NOW() - INTERVAL '5 minutes'`,
+          [req.params.entryId, userId, req.params.id],
+        );
+        if ((result.rowCount ?? 0) === 0) {
+          return res.status(403).json({
+            error:
+              "Entry not found or older than 5 minutes (logbook is append-only after that).",
+          });
+        }
+        res.json({ ok: true });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to delete logbook entry");
+        res.status(500).json({ error: "Failed to delete entry" });
+      }
+    });
+
+    this.app.get("/api/passages/:id/logbook/pdf", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "logbook-pdf",
+          limit: 20,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres || !this.redis) {
+        return res
+          .status(503)
+          .json({ error: "Storage unavailable — cannot render logbook PDF" });
+      }
+      try {
+        const entriesQuery = await this.postgres.query(
+          `SELECT id, passage_id, entry_type, occurred_at, recorded_at,
+                  recorded_by, position_lat, position_lon, conditions, notes
+             FROM logbook_entries
+             WHERE user_id = $1 AND passage_id = $2
+             ORDER BY occurred_at ASC, recorded_at ASC`,
+          [userId, req.params.id],
+        );
+        const passageBlob = await this.redis.get(
+          `passages:user:${userId}:${req.params.id}`,
+        );
+        const passage = passageBlob
+          ? (JSON.parse(passageBlob) as {
+              name?: string;
+              plan?: { request?: any; route?: any };
+            })
+          : null;
+        const buffer = await this.logbookPdf.render({
+          vesselName: passage?.plan?.request?.vessel?.name ?? "Vessel",
+          passageName: passage?.name ?? "Passage",
+          departurePort: passage?.plan?.request?.departure?.name ?? "—",
+          destinationPort: passage?.plan?.request?.destination?.name ?? "—",
+          distanceNm:
+            typeof passage?.plan?.route?.totalDistance === "number"
+              ? passage.plan.route.totalDistance
+              : null,
+          entries: entriesQuery.rows,
+          generatedAt: new Date(),
+        });
+        res.set("Content-Type", "application/pdf");
+        res.set(
+          "Content-Disposition",
+          `attachment; filename="logbook-${req.params.id}.pdf"`,
+        );
+        res.send(buffer);
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to render logbook PDF");
+        res.status(500).json({ error: "Failed to render PDF" });
+      }
+    });
+
+    // ------------------------------------------------------------------
     // Public share links (S4)
     //
     // Premium-only. Three owner-facing endpoints (status/create/revoke) +
@@ -5746,12 +6033,10 @@ export class SimpleOrchestrator {
       if (!this.postgres)
         return res.status(503).json({ error: "DB unavailable" });
       if (!(await this.isPremiumOrAbove(userId))) {
-        return res
-          .status(403)
-          .json({
-            error: "Vessel maintenance requires Premium",
-            upgradeRequired: true,
-          });
+        return res.status(403).json({
+          error: "Vessel maintenance requires Premium",
+          upgradeRequired: true,
+        });
       }
       const parsed = vesselSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -5884,12 +6169,10 @@ export class SimpleOrchestrator {
       if (!this.postgres)
         return res.status(503).json({ error: "DB unavailable" });
       if (!(await this.isPremiumOrAbove(userId))) {
-        return res
-          .status(403)
-          .json({
-            error: "Vessel maintenance requires Premium",
-            upgradeRequired: true,
-          });
+        return res.status(403).json({
+          error: "Vessel maintenance requires Premium",
+          upgradeRequired: true,
+        });
       }
       // Verify vessel ownership before insert (FK + RLS would also block, but
       // we want a clean 404 not a DB error).
