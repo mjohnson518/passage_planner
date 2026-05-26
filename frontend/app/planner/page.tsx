@@ -60,6 +60,7 @@ import { isInCoverage } from "../../lib/coverage";
 import { SendFloatPlanButton } from "../components/planner/SendFloatPlanButton";
 import { SharePlanButton } from "../components/planner/SharePlanButton";
 import { ModelAgreementCard } from "../components/planner/ModelAgreementCard";
+import { RiskScoreCard } from "../components/planner/RiskScoreCard";
 
 // Dynamic import for map component to avoid SSR issues
 const RouteMap = dynamic(() => import("../components/map/RouteMap"), {
@@ -520,6 +521,14 @@ function PlannerPageInner() {
               </div>
             </CardContent>
           </Card>
+
+          {/* R2 — Composite risk score hero card. Always rendered when the
+              backend produced a score (i.e. for every authenticated plan).
+              Decision support, not a decision — the disclaimers inside the
+              card make that contract explicit. */}
+          {passagePlan.riskScore && (
+            <RiskScoreCard riskScore={passagePlan.riskScore} />
+          )}
 
           {/* R1 — Multi-model agreement (Premium). Shown when the user
               requested multi-model AND the server returned data; otherwise the

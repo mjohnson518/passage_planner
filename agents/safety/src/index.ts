@@ -7,6 +7,11 @@ import { v4 as uuidv4 } from "uuid";
 import { DepthCalculator } from "./utils/depth-calculator";
 import { AreaChecker } from "./utils/area-checker";
 import { SafetyAuditLogger } from "./utils/audit-logger";
+import {
+  computeRiskScore as computeRiskScorePure,
+  type RiskInput,
+  type RiskScore,
+} from "./risk-score";
 import { WeatherPatternAnalyzer } from "./utils/weather-pattern-analyzer";
 import { SafetyOverrideManager } from "./utils/override-manager";
 import { HazardQueryService } from "./services/HazardQueryService";
@@ -1682,6 +1687,47 @@ export class SafetyAgent {
    */
   public async callTool(toolName: string, args: any): Promise<any> {
     return this.handleToolCall(toolName, args);
+  }
+
+  /**
+   * Composite risk score (R2) — reduces an assembled passage plan + safety
+   * inputs to a single GO/CAUTION/NO-GO verdict plus per-category breakdown.
+   *
+   * This is decision support, not a decision — captain retains final
+   * authority. Every score is also logged at INFO level with full inputs so
+   * the audit trail can answer "why did the system say GO when conditions
+   * were marginal?" after the fact.
+   *
+   * Failure mode: returns null (never throws) so a scoring bug cannot block
+   * the rest of the plan response from reaching the user.
+   */
+  public computeRiskScore(input: RiskInput): RiskScore | null {
+    try {
+      const result = computeRiskScorePure(input);
+      this.logger.info(
+        {
+          action: "risk_score_computed",
+          status: result.status,
+          score: result.score,
+          hardFails: result.hardFails,
+          dataMissing: result.dataMissing,
+          multiModelApplied: result.multiModelApplied,
+          breakdown: result.breakdown.map((b) => ({
+            category: b.category,
+            score: b.score,
+            status: b.status,
+          })),
+        },
+        "Risk score computed",
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(
+        { error: (error as Error).message },
+        "Risk score computation threw — returning null",
+      );
+      return null;
+    }
   }
 }
 

@@ -282,6 +282,25 @@ export interface PassagePlanningResponse {
     /** Average speed for the weather-optimized route (knots), when available */
     averageSpeed?: number | string;
   };
+  /** R2 — composite GO/CAUTION/NO-GO risk score. Always present for
+   *  authenticated requests; falls back to undefined only if scoring threw. */
+  riskScore?: {
+    score: number;
+    status: "GO" | "CAUTION" | "NO-GO";
+    breakdown: Array<{
+      category: "weather" | "depth" | "hazards" | "reserves" | "crew";
+      weight: number;
+      score: number;
+      status: "good" | "marginal" | "poor" | "unknown";
+      contributors: string[];
+    }>;
+    hardFails: string[];
+    disclaimers: string[];
+    dataMissing: string[];
+    generatedAt: string;
+    weatherDataAgeMin: number | null;
+    multiModelApplied: boolean;
+  };
   /** R1 multi-model comparison — present when the caller requested it and
    *  the user's tier permits it. `null` + `modelComparisonGated: true` means
    *  the request was made but the user is on Free. */

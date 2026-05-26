@@ -1067,6 +1067,22 @@ export class SimpleOrchestrator {
         },
       };
 
+      // R2 — composite risk score. Computed after the plan is assembled so
+      // the score has access to every other safety signal. The safety agent
+      // never throws here (it returns null on internal failure) so a scoring
+      // bug cannot block the plan response from reaching the user.
+      try {
+        const riskInput = this.buildRiskInput(passagePlan, request);
+        const riskScore = (
+          this.agents["safety"] as SafetyAgent
+        ).computeRiskScore(riskInput);
+        if (riskScore) {
+          (passagePlan as any).riskScore = riskScore;
+        }
+      } catch (err) {
+        logger.warn({ err }, "Risk score wiring failed; omitting from plan");
+      }
+
       logger.info(
         {
           planningId,
@@ -1831,6 +1847,132 @@ export class SimpleOrchestrator {
     }
 
     return warnings;
+  }
+
+  /**
+   * Build a RiskInput from an assembled passage plan + the original request.
+   * Defensive throughout — the plan shape is loose `any`, so every read is
+   * guarded and missing fields downgrade scoring rather than throw.
+   *
+   * `modelDisagreement` is the R1 → R2 link: when multi-model is on and
+   * forecasts diverge, the score widens its safety bounds. Pass undefined
+   * (or omit) when multi-model data isn't available.
+   */
+  private buildRiskInput(
+    plan: any,
+    request: any,
+    modelDisagreement?: {
+      windStatus?: "agree" | "mild" | "divergent";
+      waveStatus?: "agree" | "mild" | "divergent";
+    },
+  ): import("../../agents/safety/src/risk-score").RiskInput {
+    const vesselReq = (request?.vessel ?? {}) as Record<string, any>;
+    const crewReq = (request?.vessel ?? request ?? {}) as Record<string, any>;
+    const summary = (plan?.summary ?? {}) as Record<string, any>;
+    const weatherDep = (plan?.weather?.departure ?? {}) as Record<string, any>;
+    const weatherArr = (plan?.weather?.destination ?? {}) as Record<
+      string,
+      any
+    >;
+    const tidalDep = (plan?.tidal?.departure ?? {}) as Record<string, any>;
+
+    // Worst-case across departure + arrival per safety doctrine.
+    const maxWind = Math.max(
+      numOr(weatherDep.windSpeed, 0),
+      numOr(weatherDep.windDescription, 0),
+      numOr(weatherArr.windSpeed, 0),
+      numOr(weatherArr.windDescription, 0),
+    );
+    const maxGust = Math.max(
+      numOr(weatherDep.windGust, 0),
+      numOr(weatherArr.windGust, 0),
+      maxWind * 1.3, // estimated if unavailable
+    );
+    const maxWave = Math.max(
+      numOr(weatherDep.waveHeight, 0),
+      numOr(weatherArr.waveHeight, 0),
+    );
+    const minVis = Math.min(
+      numOr(weatherDep.visibility, 99),
+      numOr(weatherArr.visibility, 99),
+    );
+
+    const duration =
+      numOr(summary.estimatedDuration, 0) ||
+      numOr(summary.baseDuration, 0) ||
+      numOr(plan?.route?.estimatedDuration, 0);
+
+    // Hazard detection — peer into the safety route block.
+    const hazards = (plan?.safety?.routeAnalysis?.hazards ?? []) as any[];
+    const piracyOnRoute = hazards.some(
+      (h: any) =>
+        /piracy|anti-?shipping/i.test(h.type ?? "") ||
+        /piracy/i.test(h.description ?? ""),
+    );
+    const restrictedCount = hazards.filter((h: any) =>
+      /restricted|prohibited/i.test(h.type ?? ""),
+    ).length;
+    const iceCount = hazards.filter((h: any) =>
+      /ice/i.test(h.type ?? ""),
+    ).length;
+    const navCount = (plan?.safety?.warnings ?? []).length;
+
+    return {
+      vessel: {
+        name: vesselReq.name,
+        lengthOverallFt: numOr(vesselReq.lengthFt ?? vesselReq.length_ft, NaN),
+        cruiseSpeedKt: numOr(vesselReq.cruiseSpeed, NaN),
+        draftFt: numOr(vesselReq.draft, 5),
+        maxWindKt: numOr(vesselReq.maxWindKt ?? vesselReq.max_wind_kt, NaN),
+        maxWaveFt: numOr(vesselReq.maxWaveFt ?? vesselReq.max_wave_ft, NaN),
+      },
+      crew: {
+        size: numOr(crewReq.crewSize ?? crewReq.crew_size, NaN),
+        experience: (crewReq.crewExperience ?? "intermediate") as
+          | "novice"
+          | "intermediate"
+          | "advanced"
+          | "professional",
+      },
+      passage: {
+        distanceNm:
+          numOr(summary.totalDistance, NaN) ||
+          numOr(plan?.route?.totalDistance, NaN),
+        durationHr: duration,
+      },
+      weather: {
+        maxWindKt:
+          Number.isFinite(maxWind) && maxWind > 0 ? maxWind : undefined,
+        maxGustKt:
+          Number.isFinite(maxGust) && maxGust > 0 ? maxGust : undefined,
+        maxWaveFt:
+          Number.isFinite(maxWave) && maxWave > 0 ? maxWave : undefined,
+        minVisibilityNm:
+          Number.isFinite(minVis) && minVis < 99 ? minVis : undefined,
+        issuedAt: weatherDep.issuedAt,
+        available: !!weatherDep.issuedAt || !!weatherArr.issuedAt,
+      },
+      depth: {
+        minClearanceFt: numOr(tidalDep.clearanceFt, NaN) || undefined,
+        available: !!tidalDep,
+      },
+      hazards: {
+        activePiracyOnRoute: piracyOnRoute,
+        restrictedAreasOnRoute: restrictedCount,
+        iceHazardsOnRoute: iceCount,
+        navWarningsCount: navCount,
+        available: !!plan?.safety,
+      },
+      reserves: {
+        // The fuel/water calculator output (when present) lands at plan.fuelWater
+        fuelHoursPlanned: numOr(plan?.fuelWater?.fuelHoursNeeded, NaN),
+        fuelHoursAvailable: numOr(plan?.fuelWater?.fuelHoursAvailable, NaN),
+        waterDaysPlanned: numOr(plan?.fuelWater?.waterDaysNeeded, NaN),
+        waterDaysAvailable: numOr(plan?.fuelWater?.waterDaysAvailable, NaN),
+        available: !!plan?.fuelWater,
+      },
+      modelDisagreement,
+    };
   }
 
   /**
@@ -3011,16 +3153,37 @@ export class SimpleOrchestrator {
           planPromise,
           comparisonPromise,
         ]);
+        // R1 → R2 link: when multi-model came back, re-score with the
+        // disagreement input so divergent forecasts widen the safety bounds.
+        let refreshedPlan: any = plan;
+        if (modelComparison) {
+          try {
+            const updated = (
+              this.agents["safety"] as SafetyAgent
+            ).computeRiskScore(
+              this.buildRiskInput(plan, validation.data, {
+                windStatus: modelComparison.windSpeed?.status,
+                waveStatus: modelComparison.waveHeight?.status,
+              }),
+            );
+            if (updated) refreshedPlan = { ...plan, riskScore: updated };
+          } catch (err) {
+            logger.warn(
+              { err },
+              "Risk score refresh with model data failed; keeping baseline",
+            );
+          }
+        }
         const enrichedPlan =
           modelComparison !== null
-            ? { ...plan, modelComparison }
+            ? { ...refreshedPlan, modelComparison }
             : wantsMultiModel && !eligibleForMultiModel
               ? {
-                  ...plan,
+                  ...refreshedPlan,
                   modelComparison: null,
                   modelComparisonGated: true,
                 }
-              : plan;
+              : refreshedPlan;
         res.json({ success: true, plan: enrichedPlan });
       } catch (error: any) {
         logger.error({ error }, "Planning failed");
@@ -3078,17 +3241,44 @@ export class SimpleOrchestrator {
           planPromise,
           comparisonPromise,
         ]);
-        const response = this.mapPlanToAnalyzeResponse(plan);
+        // R1 → R2 link: refresh risk score with multi-model disagreement so
+        // divergent forecasts widen the safety bounds in the score.
+        let refreshedPlan: any = plan;
+        if (modelComparison) {
+          try {
+            const updated = (
+              this.agents["safety"] as SafetyAgent
+            ).computeRiskScore(
+              this.buildRiskInput(plan, validation.data, {
+                windStatus: modelComparison.windSpeed?.status,
+                waveStatus: modelComparison.waveHeight?.status,
+              }),
+            );
+            if (updated) refreshedPlan = { ...plan, riskScore: updated };
+          } catch (err) {
+            logger.warn(
+              { err },
+              "Risk score refresh with model data failed; keeping baseline",
+            );
+          }
+        }
+        const response = this.mapPlanToAnalyzeResponse(refreshedPlan);
+        const riskScore = (refreshedPlan as any).riskScore ?? undefined;
         const enriched =
           modelComparison !== null
-            ? { ...response, modelComparison }
+            ? {
+                ...response,
+                ...(riskScore ? { riskScore } : {}),
+                modelComparison,
+              }
             : wantsMultiModel && !eligibleForMultiModel
               ? {
                   ...response,
+                  ...(riskScore ? { riskScore } : {}),
                   modelComparison: null,
                   modelComparisonGated: true,
                 }
-              : response;
+              : { ...response, ...(riskScore ? { riskScore } : {}) };
         res.json(enriched);
       } catch (error: any) {
         logger.error({ error }, "Planning failed");
@@ -5386,4 +5576,19 @@ export class SimpleOrchestrator {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
+}
+
+// Defensive numeric extractor used by buildRiskInput — Open-Meteo and the
+// various agents return mixed string/number shapes, so we coerce gently and
+// fall back to a caller-provided default for non-numeric / missing inputs.
+function numOr(v: unknown, fallback: number): number {
+  if (v === undefined || v === null || v === "") return fallback;
+  if (typeof v === "number") return Number.isFinite(v) ? v : fallback;
+  if (typeof v === "string") {
+    const m = v.match(/-?\d+(\.\d+)?/);
+    if (!m) return fallback;
+    const n = Number(m[0]);
+    return Number.isFinite(n) ? n : fallback;
+  }
+  return fallback;
 }
