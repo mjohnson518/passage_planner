@@ -59,6 +59,10 @@ export interface PassagePlanningRequest {
   /** The vessel whose active polar should be used. Required when
    *  `usePolars: true`. */
   vesselId?: string;
+  /** Pro-only (F1) — IDs of crew_certifications records representing crew
+   *  on board. Server appends expiry warnings to safety.warnings. Advisory
+   *  only; never blocks the plan. */
+  crewIds?: string[];
 }
 
 /**

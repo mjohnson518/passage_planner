@@ -1141,6 +1141,68 @@ export class SimpleOrchestrator {
         logger.warn({ err }, "Risk score wiring failed; omitting from plan");
       }
 
+      // F1 — crew certification check. When the caller passed a list of
+      // cert IDs (request.crewIds) representing the crew on board, look
+      // them up and append expired-cert warnings to safety.warnings AND
+      // summary.warnings so they surface in the existing safety output.
+      // ADVISORY ONLY — never blocks the plan from returning.
+      if (
+        Array.isArray(request.crewIds) &&
+        request.crewIds.length > 0 &&
+        request.userId &&
+        this.postgres
+      ) {
+        try {
+          const certs = await this.postgres.query(
+            `SELECT crew_name, crew_user_id, cert_type, cert_label, expiry_date
+               FROM crew_certifications
+               WHERE user_id = $1 AND id = ANY($2::uuid[])`,
+            [request.userId, request.crewIds],
+          );
+          const depDate = request.departure?.time
+            ? new Date(request.departure.time)
+            : new Date();
+          const certWarnings: string[] = [];
+          for (const c of certs.rows) {
+            const subject = c.crew_name || "Crew member";
+            const label = c.cert_label || c.cert_type;
+            const expiry = new Date(c.expiry_date);
+            if (!Number.isFinite(expiry.getTime())) continue;
+            if (expiry < depDate) {
+              certWarnings.push(
+                `⚠️ CREW CERT EXPIRED: ${subject}'s ${label} expired ${expiry.toISOString().slice(0, 10)}.`,
+              );
+            } else {
+              const daysLeft = Math.floor(
+                (expiry.getTime() - depDate.getTime()) / (24 * 60 * 60 * 1000),
+              );
+              if (daysLeft <= 30) {
+                certWarnings.push(
+                  `Crew cert expires soon: ${subject}'s ${label} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}.`,
+                );
+              }
+            }
+          }
+          if (certWarnings.length > 0) {
+            const safety = ((passagePlan as any).safety ?? {}) as Record<
+              string,
+              any
+            >;
+            safety.warnings = [...(safety.warnings ?? []), ...certWarnings];
+            (passagePlan as any).safety = safety;
+            passagePlan.summary.warnings = [
+              ...passagePlan.summary.warnings,
+              ...certWarnings,
+            ];
+          }
+        } catch (err) {
+          logger.warn(
+            { err, userId: request.userId },
+            "Crew-cert check failed; omitting from plan",
+          );
+        }
+      }
+
       logger.info(
         {
           planningId,
@@ -3448,6 +3510,14 @@ export class SimpleOrchestrator {
       if (typeof req.body?.vesselId === "string") {
         (validation.data as any).vesselId = req.body.vesselId;
       }
+      // F1 — crew certification check. Caller passes a list of cert IDs
+      // representing crew on board; planPassage looks them up and surfaces
+      // expiry warnings in safety output.
+      if (Array.isArray(req.body?.crewIds)) {
+        (validation.data as any).crewIds = (
+          req.body.crewIds as unknown[]
+        ).filter((s): s is string => typeof s === "string");
+      }
 
       try {
         logger.info(
@@ -3684,6 +3754,14 @@ export class SimpleOrchestrator {
       (validation.data as any).usePolars = !!eligibleForPolars;
       if (typeof req.body?.vesselId === "string") {
         (validation.data as any).vesselId = req.body.vesselId;
+      }
+      // F1 — crew certification check. Caller passes a list of cert IDs
+      // representing crew on board; planPassage looks them up and surfaces
+      // expiry warnings in safety output.
+      if (Array.isArray(req.body?.crewIds)) {
+        (validation.data as any).crewIds = (
+          req.body.crewIds as unknown[]
+        ).filter((s): s is string => typeof s === "string");
       }
 
       try {
@@ -6841,6 +6919,232 @@ export class SimpleOrchestrator {
         res.status(500).json({ error: "Failed to revoke key" });
       }
     });
+
+    // ------------------------------------------------------------------
+    // Crew certifications (F1) — Pro tier on writes; free on reads
+    //
+    // Subject can be either an invited fleet user OR a free-text name.
+    // Pre-departure cert warnings are appended to plan.safety.warnings by
+    // the planner integration (request.crewIds picks which subjects to
+    // check). All cert expiries surface as ADVISORY warnings — never gate
+    // the plan from running.
+    // ------------------------------------------------------------------
+    const CERT_TYPES = [
+      "stcw_bst",
+      "stcw_advanced",
+      "uscg_oupv",
+      "uscg_master",
+      "medical_eng1",
+      "medical_cg719k",
+      "first_aid",
+      "gmdss_rro",
+      "gmdss_goc",
+      "passport",
+      "visa",
+      "yachtmaster",
+      "icc",
+      "powerboat_l2",
+      "other",
+    ] as const;
+
+    // Base object schema — share between create (with subject-required refine)
+    // and update (.partial(), no refine since update allows blank fields).
+    // `.refine()` produces a ZodEffects which doesn't expose .partial(),
+    // hence the two-step definition.
+    const certBaseSchema = z.object({
+      crew_user_id: z.string().uuid().optional(),
+      crew_name: z.string().min(1).max(100).optional(),
+      cert_type: z.enum(CERT_TYPES),
+      cert_label: z.string().max(200).optional(),
+      issued_date: z.string().optional(),
+      expiry_date: z.string(),
+      issuing_authority: z.string().max(200).optional(),
+      document_url: z.string().url().max(2000).optional(),
+      notes: z.string().max(2000).optional(),
+    });
+    const certCreateSchema = certBaseSchema.refine(
+      (d) => d.crew_user_id != null || d.crew_name != null,
+      "Either crew_user_id or crew_name is required.",
+    );
+    const certUpdateSchema = certBaseSchema.partial();
+
+    this.app.get("/api/account/crew-certifications", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "crew-certs",
+          limit: 60,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      try {
+        const result = await this.postgres.query(
+          `SELECT id, crew_user_id, crew_name, cert_type, cert_label,
+                  issued_date, expiry_date, issuing_authority, document_url,
+                  notes, created_at, updated_at
+             FROM crew_certifications
+             WHERE user_id = $1
+             ORDER BY expiry_date ASC`,
+          [userId],
+        );
+        res.json({ certifications: result.rows });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to list crew certifications");
+        res.status(500).json({ error: "Failed to list certifications" });
+      }
+    });
+
+    this.app.post("/api/account/crew-certifications", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "crew-certs",
+          limit: 30,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      if (!(await this.isProOrAbove(userId))) {
+        return res.status(403).json({
+          error: "Crew certifications require a Pro subscription",
+          upgradeRequired: true,
+        });
+      }
+      const parsed = certCreateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid payload", details: parsed.error.issues });
+      }
+      try {
+        const result = await this.postgres.query(
+          `INSERT INTO crew_certifications
+             (user_id, crew_user_id, crew_name, cert_type, cert_label,
+              issued_date, expiry_date, issuing_authority, document_url, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING id, crew_user_id, crew_name, cert_type, cert_label,
+                     issued_date, expiry_date, issuing_authority, document_url,
+                     notes, created_at, updated_at`,
+          [
+            userId,
+            parsed.data.crew_user_id ?? null,
+            parsed.data.crew_name ?? null,
+            parsed.data.cert_type,
+            parsed.data.cert_label ?? null,
+            parsed.data.issued_date ?? null,
+            parsed.data.expiry_date,
+            parsed.data.issuing_authority ?? null,
+            parsed.data.document_url ?? null,
+            parsed.data.notes ?? null,
+          ],
+        );
+        res.status(201).json({ certification: result.rows[0] });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to create crew certification");
+        res.status(500).json({ error: "Failed to create certification" });
+      }
+    });
+
+    this.app.put("/api/account/crew-certifications/:id", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "crew-certs",
+          limit: 30,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      if (!(await this.isProOrAbove(userId))) {
+        return res.status(403).json({
+          error: "Crew certifications require a Pro subscription",
+          upgradeRequired: true,
+        });
+      }
+      const parsed = certUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid payload", details: parsed.error.issues });
+      }
+      try {
+        const result = await this.postgres.query(
+          `UPDATE crew_certifications
+             SET crew_user_id = COALESCE($3, crew_user_id),
+                 crew_name = COALESCE($4, crew_name),
+                 cert_type = COALESCE($5, cert_type),
+                 cert_label = COALESCE($6, cert_label),
+                 issued_date = COALESCE($7, issued_date),
+                 expiry_date = COALESCE($8, expiry_date),
+                 issuing_authority = COALESCE($9, issuing_authority),
+                 document_url = COALESCE($10, document_url),
+                 notes = COALESCE($11, notes),
+                 updated_at = NOW()
+             WHERE id = $1 AND user_id = $2
+             RETURNING id, crew_user_id, crew_name, cert_type, cert_label,
+                       issued_date, expiry_date, issuing_authority,
+                       document_url, notes, updated_at`,
+          [
+            req.params.id,
+            userId,
+            parsed.data.crew_user_id ?? null,
+            parsed.data.crew_name ?? null,
+            parsed.data.cert_type ?? null,
+            parsed.data.cert_label ?? null,
+            parsed.data.issued_date ?? null,
+            parsed.data.expiry_date ?? null,
+            parsed.data.issuing_authority ?? null,
+            parsed.data.document_url ?? null,
+            parsed.data.notes ?? null,
+          ],
+        );
+        if (!result.rows[0])
+          return res.status(404).json({ error: "Not found" });
+        res.json({ certification: result.rows[0] });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to update crew certification");
+        res.status(500).json({ error: "Failed to update certification" });
+      }
+    });
+
+    this.app.delete(
+      "/api/account/crew-certifications/:id",
+      async (req, res) => {
+        if (
+          !(await this.checkRateLimit(req, res, {
+            bucket: "crew-certs",
+            limit: 30,
+          }))
+        )
+          return;
+        const userId = await this.verifyAuthAndGetUserId(req, res);
+        if (!userId) return;
+        if (!this.postgres)
+          return res.status(503).json({ error: "DB unavailable" });
+        try {
+          const result = await this.postgres.query(
+            `DELETE FROM crew_certifications WHERE id = $1 AND user_id = $2`,
+            [req.params.id, userId],
+          );
+          if ((result.rowCount ?? 0) === 0)
+            return res.status(404).json({ error: "Not found" });
+          res.json({ ok: true });
+        } catch (error) {
+          logger.error(
+            { error, userId },
+            "Failed to delete crew certification",
+          );
+          res.status(500).json({ error: "Failed to delete certification" });
+        }
+      },
+    );
 
     this.app.get("/api/geocode/reverse", async (req, res) => {
       if (

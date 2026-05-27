@@ -112,6 +112,21 @@ function PlannerPageInner() {
   const [polarVessels, setPolarVessels] = useState<
     Array<{ id: string; name: string }>
   >([]);
+  // F1 — opt-in crew cert check (Pro). User picks which of their tracked
+  // certs apply to this passage; server warns on expiries.
+  const [crewCheckEnabled, setCrewCheckEnabled] = useState(false);
+  const [selectedCrewIds, setSelectedCrewIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [crewCerts, setCrewCerts] = useState<
+    Array<{
+      id: string;
+      crew_name: string | null;
+      cert_type: string;
+      cert_label: string | null;
+      expiry_date: string;
+    }>
+  >([]);
   // R3 — opt-in multi-departure-time comparison (Premium, hard-gated).
   // `compareEnabled` reveals the time-picker section in the form;
   // `compareCandidates` is the list of datetime-local strings; `comparison`
@@ -163,6 +178,36 @@ function PlannerPageInner() {
         }
       } catch {
         // Best-effort — polar checkbox just won't render if vessels fail to load.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tierLocked]);
+  // F1 — fetch crew certs (Pro only); returns 403 on Premium/Free, which
+  // we treat as "no certs tracked" so the checkbox simply won't render.
+  useEffect(() => {
+    if (tierLocked) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/account/crew-certifications", {
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          certifications: Array<{
+            id: string;
+            crew_name: string | null;
+            cert_type: string;
+            cert_label: string | null;
+            expiry_date: string;
+          }>;
+        };
+        if (cancelled) return;
+        setCrewCerts(data.certifications ?? []);
+      } catch {
+        // Best-effort — UI hides if fetch fails
       }
     })();
     return () => {
@@ -313,6 +358,10 @@ function PlannerPageInner() {
         multiModel,
         usePolars,
         vesselId: usePolars && polarVesselId ? polarVesselId : undefined,
+        crewIds:
+          crewCheckEnabled && selectedCrewIds.size > 0
+            ? Array.from(selectedCrewIds)
+            : undefined,
       };
 
       // R3 — if multi-window comparison is enabled with at least one
@@ -1798,6 +1847,66 @@ function PlannerPageInner() {
         onCandidatesChange={setCompareCandidates}
         tierLocked={tierLocked}
       />
+
+      {/* F1 — Crew certification check (Pro hard-gated). Only renders when
+          the user has any tracked certs. Surfaces expiry warnings in
+          safety.warnings; advisory only, never blocks the plan. */}
+      {crewCerts.length > 0 && !tierLocked && (
+        <div className="max-w-4xl mx-auto mt-4 mb-2">
+          <label className="flex items-start gap-3 cursor-pointer rounded-md border border-border bg-card p-3 hover:bg-muted/40 transition-colors">
+            <input
+              type="checkbox"
+              checked={crewCheckEnabled}
+              onChange={(e) => setCrewCheckEnabled(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium">
+                  Check crew certifications
+                </span>
+                <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs font-medium">
+                  Pro
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Warn if any selected crew cert is expired or expires within 30
+                days of departure. Advisory only.
+              </p>
+              {crewCheckEnabled && (
+                <ul className="mt-3 space-y-1 max-h-48 overflow-y-auto rounded-md border border-border bg-muted/40 p-2">
+                  {crewCerts.map((c) => (
+                    <li key={c.id} className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={selectedCrewIds.has(c.id)}
+                        onChange={(e) => {
+                          setSelectedCrewIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(c.id);
+                            else next.delete(c.id);
+                            return next;
+                          });
+                        }}
+                        className="h-3.5 w-3.5 rounded border-border accent-primary"
+                      />
+                      <span className="font-medium">
+                        {c.crew_name ?? "Crew"}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {c.cert_label ?? c.cert_type}
+                      </span>
+                      <span className="text-muted-foreground ml-auto">
+                        exp {c.expiry_date}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </label>
+        </div>
+      )}
 
       {/* V1 — polar-aware routing toggle (Premium hard-gated). Only renders
           when the user has at least one vessel in their library. */}
