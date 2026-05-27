@@ -7146,6 +7146,382 @@ export class SimpleOrchestrator {
       },
     );
 
+    // ------------------------------------------------------------------
+    // Anchorages + cruiser notes (D1) — public read, authenticated write
+    //
+    // Public read by design (network-effect community knowledge layer).
+    // Author-only edits on the anchorage aggregate fields prevent edit
+    // wars; notes are append-mostly with each author editing only their
+    // own. Spatial queries use the PostGIS geom column.
+    // ------------------------------------------------------------------
+    const SHELTER_DIRECTIONS = [
+      "N",
+      "NE",
+      "E",
+      "SE",
+      "S",
+      "SW",
+      "W",
+      "NW",
+    ] as const;
+    const HOLDING_VALUES = ["good", "fair", "poor", "unknown"] as const;
+    const SWING_ROOM_VALUES = ["tight", "moderate", "spacious"] as const;
+    const CONDITIONS_VALUES = [
+      "calm",
+      "breezy",
+      "gusty",
+      "rough",
+      "stormy",
+    ] as const;
+
+    const anchorageCreateSchema = z.object({
+      name: z.string().min(1).max(200),
+      lat: z.number().min(-90).max(90),
+      lon: z.number().min(-180).max(180),
+      country: z.string().max(100).optional(),
+      region: z.string().max(100).optional(),
+      description: z.string().max(4000).optional(),
+      approx_depth_m: z.number().positive().max(1000).optional(),
+      holding: z.enum(HOLDING_VALUES).optional(),
+      shelter_from: z.array(z.enum(SHELTER_DIRECTIONS)).optional(),
+      swing_room: z.enum(SWING_ROOM_VALUES).optional(),
+    });
+
+    const anchorageUpdateSchema = anchorageCreateSchema.partial();
+
+    const noteCreateSchema = z.object({
+      visited_on: z.string().optional(),
+      body: z.string().min(10).max(4000),
+      rating_overall: z.number().int().min(1).max(5).optional(),
+      rating_holding: z.number().int().min(1).max(5).optional(),
+      rating_shelter: z.number().int().min(1).max(5).optional(),
+      conditions: z.enum(CONDITIONS_VALUES).optional(),
+    });
+
+    // GET — search by name (trigram), filter by country, or "near me" via
+    // PostGIS spatial radius. Defaults to most recent additions.
+    this.app.get("/api/anchorages", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "anchorages",
+          limit: 60,
+        }))
+      )
+        return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      const querySchema = z.object({
+        q: z.string().max(200).optional(),
+        country: z.string().max(100).optional(),
+        near: z
+          .string()
+          .regex(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/)
+          .optional(),
+        radius_km: z.coerce.number().min(1).max(500).optional(),
+        limit: z.coerce.number().int().min(1).max(100).optional(),
+      });
+      const parsed = querySchema.safeParse(req.query);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid query", details: parsed.error.issues });
+      }
+      try {
+        const limit = parsed.data.limit ?? 50;
+        if (parsed.data.near) {
+          const [lat, lon] = parsed.data.near.split(",").map(Number);
+          const radiusMeters = (parsed.data.radius_km ?? 50) * 1000;
+          const result = await this.postgres.query(
+            `SELECT id, name, lat, lon, country, region, description,
+                    approx_depth_m, holding, shelter_from, swing_room,
+                    notes_count, last_note_at,
+                    ST_Distance(geom, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) / 1000 AS distance_km
+               FROM anchorages
+               WHERE ST_DWithin(geom, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3)
+               ORDER BY distance_km ASC
+               LIMIT $4`,
+            [lat, lon, radiusMeters, limit],
+          );
+          return res.json({ anchorages: result.rows });
+        }
+        // Non-spatial search path: name LIKE, country filter, recent-first
+        const params: unknown[] = [];
+        const wheres: string[] = [];
+        if (parsed.data.q) {
+          params.push(`%${parsed.data.q}%`);
+          wheres.push(`name ILIKE $${params.length}`);
+        }
+        if (parsed.data.country) {
+          params.push(parsed.data.country);
+          wheres.push(`country = $${params.length}`);
+        }
+        const whereClause =
+          wheres.length > 0 ? `WHERE ${wheres.join(" AND ")}` : "";
+        params.push(limit);
+        const result = await this.postgres.query(
+          `SELECT id, name, lat, lon, country, region, description,
+                  approx_depth_m, holding, shelter_from, swing_room,
+                  notes_count, last_note_at, created_at
+             FROM anchorages
+             ${whereClause}
+             ORDER BY last_note_at DESC NULLS LAST, created_at DESC
+             LIMIT $${params.length}`,
+          params,
+        );
+        res.json({ anchorages: result.rows });
+      } catch (error) {
+        logger.error({ error }, "Failed to list anchorages");
+        res.status(500).json({ error: "Failed to list anchorages" });
+      }
+    });
+
+    this.app.get("/api/anchorages/:id", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "anchorages",
+          limit: 60,
+        }))
+      )
+        return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      try {
+        const result = await this.postgres.query(
+          `SELECT id, name, lat, lon, country, region, description,
+                  approx_depth_m, holding, shelter_from, swing_room,
+                  notes_count, last_note_at, created_by, created_at, updated_at
+             FROM anchorages WHERE id = $1`,
+          [req.params.id],
+        );
+        if (!result.rows[0])
+          return res.status(404).json({ error: "Anchorage not found" });
+        res.json({ anchorage: result.rows[0] });
+      } catch (error) {
+        logger.error({ error }, "Failed to load anchorage");
+        res.status(500).json({ error: "Failed to load anchorage" });
+      }
+    });
+
+    this.app.post("/api/anchorages", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "anchorages",
+          limit: 10,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      const parsed = anchorageCreateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid payload", details: parsed.error.issues });
+      }
+      try {
+        const result = await this.postgres.query(
+          `INSERT INTO anchorages
+             (name, lat, lon, country, region, description, approx_depth_m,
+              holding, shelter_from, swing_room, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           RETURNING id, name, lat, lon, country, region, description,
+                     approx_depth_m, holding, shelter_from, swing_room,
+                     notes_count, last_note_at, created_by, created_at, updated_at`,
+          [
+            parsed.data.name,
+            parsed.data.lat,
+            parsed.data.lon,
+            parsed.data.country ?? null,
+            parsed.data.region ?? null,
+            parsed.data.description ?? null,
+            parsed.data.approx_depth_m ?? null,
+            parsed.data.holding ?? null,
+            parsed.data.shelter_from ?? null,
+            parsed.data.swing_room ?? null,
+            userId,
+          ],
+        );
+        res.status(201).json({ anchorage: result.rows[0] });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to create anchorage");
+        res.status(500).json({ error: "Failed to create anchorage" });
+      }
+    });
+
+    this.app.put("/api/anchorages/:id", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "anchorages",
+          limit: 30,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      const parsed = anchorageUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid payload", details: parsed.error.issues });
+      }
+      try {
+        const result = await this.postgres.query(
+          `UPDATE anchorages
+             SET name = COALESCE($3, name),
+                 lat = COALESCE($4, lat),
+                 lon = COALESCE($5, lon),
+                 country = COALESCE($6, country),
+                 region = COALESCE($7, region),
+                 description = COALESCE($8, description),
+                 approx_depth_m = COALESCE($9, approx_depth_m),
+                 holding = COALESCE($10, holding),
+                 shelter_from = COALESCE($11, shelter_from),
+                 swing_room = COALESCE($12, swing_room),
+                 updated_at = NOW()
+             WHERE id = $1 AND created_by = $2
+             RETURNING id, name, lat, lon, country, region, description,
+                       approx_depth_m, holding, shelter_from, swing_room,
+                       notes_count, last_note_at, updated_at`,
+          [
+            req.params.id,
+            userId,
+            parsed.data.name ?? null,
+            parsed.data.lat ?? null,
+            parsed.data.lon ?? null,
+            parsed.data.country ?? null,
+            parsed.data.region ?? null,
+            parsed.data.description ?? null,
+            parsed.data.approx_depth_m ?? null,
+            parsed.data.holding ?? null,
+            parsed.data.shelter_from ?? null,
+            parsed.data.swing_room ?? null,
+          ],
+        );
+        if (!result.rows[0])
+          return res
+            .status(403)
+            .json({ error: "Not found or not your anchorage" });
+        res.json({ anchorage: result.rows[0] });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to update anchorage");
+        res.status(500).json({ error: "Failed to update anchorage" });
+      }
+    });
+
+    this.app.get("/api/anchorages/:id/notes", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "anchorages",
+          limit: 60,
+        }))
+      )
+        return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      try {
+        // Join profiles for author display name (PII-safe — full_name only,
+        // no email). LEFT JOIN so a deleted author doesn't drop the note.
+        const result = await this.postgres.query(
+          `SELECT n.id, n.author_id, n.visited_on, n.body,
+                  n.rating_overall, n.rating_holding, n.rating_shelter,
+                  n.conditions, n.created_at, n.updated_at,
+                  p.full_name AS author_name
+             FROM anchorage_notes n
+             LEFT JOIN profiles p ON p.id = n.author_id
+             WHERE n.anchorage_id = $1
+             ORDER BY n.created_at DESC`,
+          [req.params.id],
+        );
+        res.json({ notes: result.rows });
+      } catch (error) {
+        logger.error({ error }, "Failed to list anchorage notes");
+        res.status(500).json({ error: "Failed to list notes" });
+      }
+    });
+
+    this.app.post("/api/anchorages/:id/notes", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "anchorages",
+          limit: 10,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      // Confirm anchorage exists so we 404 cleanly instead of FK-erroring.
+      const owns = await this.postgres.query(
+        `SELECT id FROM anchorages WHERE id = $1`,
+        [req.params.id],
+      );
+      if (!owns.rows[0])
+        return res.status(404).json({ error: "Anchorage not found" });
+      const parsed = noteCreateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Invalid note", details: parsed.error.issues });
+      }
+      try {
+        const result = await this.postgres.query(
+          `INSERT INTO anchorage_notes
+             (anchorage_id, author_id, visited_on, body, rating_overall,
+              rating_holding, rating_shelter, conditions)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING id, author_id, visited_on, body, rating_overall,
+                     rating_holding, rating_shelter, conditions,
+                     created_at, updated_at`,
+          [
+            req.params.id,
+            userId,
+            parsed.data.visited_on ?? null,
+            parsed.data.body,
+            parsed.data.rating_overall ?? null,
+            parsed.data.rating_holding ?? null,
+            parsed.data.rating_shelter ?? null,
+            parsed.data.conditions ?? null,
+          ],
+        );
+        res.status(201).json({ note: result.rows[0] });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to create anchorage note");
+        res.status(500).json({ error: "Failed to create note" });
+      }
+    });
+
+    this.app.delete("/api/anchorages/:id/notes/:noteId", async (req, res) => {
+      if (
+        !(await this.checkRateLimit(req, res, {
+          bucket: "anchorages",
+          limit: 30,
+        }))
+      )
+        return;
+      const userId = await this.verifyAuthAndGetUserId(req, res);
+      if (!userId) return;
+      if (!this.postgres)
+        return res.status(503).json({ error: "DB unavailable" });
+      try {
+        const result = await this.postgres.query(
+          `DELETE FROM anchorage_notes
+               WHERE id = $1 AND anchorage_id = $2 AND author_id = $3`,
+          [req.params.noteId, req.params.id, userId],
+        );
+        if ((result.rowCount ?? 0) === 0)
+          return res.status(403).json({ error: "Not found or not your note" });
+        res.json({ ok: true });
+      } catch (error) {
+        logger.error({ error, userId }, "Failed to delete anchorage note");
+        res.status(500).json({ error: "Failed to delete note" });
+      }
+    });
+
     this.app.get("/api/geocode/reverse", async (req, res) => {
       if (
         !(await this.checkRateLimit(req, res, { bucket: "geocode", limit: 60 }))
