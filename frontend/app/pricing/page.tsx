@@ -48,7 +48,8 @@ const TIER_FEATURE_LABELS: Record<string, string[]> = {
     "Everything in Premium",
     `API access (${PLANS.pro.limits.apiCallsPerDay} calls/day)`,
     "Fleet management",
-    "Custom AI agents",
+    "Crew certification tracking",
+    "Sat-comm position reporting (InReach / Iridium / YB)",
     `${PLANS.pro.limits.forecastDays}-day weather forecast`,
     `${PLANS.pro.features.support} support`,
     "Advanced analytics",
@@ -63,7 +64,12 @@ const TIER_NOT_INCLUDED: Record<string, string[]> = {
     "API access",
     "Priority support",
   ],
-  premium: ["API access", "Fleet management", "Custom agents"],
+  premium: [
+    "API access",
+    "Fleet management",
+    "Crew certification tracking",
+    "Sat-comm position reporting",
+  ],
   pro: [],
 };
 

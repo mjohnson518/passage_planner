@@ -61,6 +61,11 @@ export function Header() {
     { name: "Dashboard", href: "/dashboard", requireAuth: true },
     { name: "Plan Passage", href: "/planner", requireAuth: true },
     { name: "My Passages", href: "/passages", requireAuth: true },
+    // Public community + tools — keep visible to logged-out visitors so they
+    // discover the platform value before signup.
+    { name: "Anchorages", href: "/anchorages", requireAuth: false },
+    { name: "Anchor Watch", href: "/anchor", requireAuth: false },
+    { name: "Provisioning", href: "/provisioning", requireAuth: false },
     { name: "Pricing", href: "/pricing", requireAuth: false },
   ];
 
@@ -251,11 +256,11 @@ export function Header() {
                   {!isDemoMode && (
                     <>
                       <Link
-                        href="/profile"
+                        href="/account"
                         className="flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-muted/50 transition-colors"
                       >
                         <Settings className="h-4 w-4 text-muted-foreground" />
-                        <span>Profile Settings</span>
+                        <span>Account</span>
                       </Link>
                       <Link
                         href="/billing"
@@ -263,13 +268,6 @@ export function Header() {
                       >
                         <CreditCard className="h-4 w-4 text-muted-foreground" />
                         <span>Billing</span>
-                      </Link>
-                      <Link
-                        href="/account/privacy"
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-muted/50 transition-colors"
-                      >
-                        <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                        <span>Privacy &amp; Data</span>
                       </Link>
                       <hr className="my-1 border-border" />
                     </>
@@ -390,18 +388,11 @@ export function Header() {
               {!isDemoMode && (
                 <>
                   <Link
-                    href="/profile"
+                    href="/account"
                     className="block px-4 py-3 rounded-lg text-base font-medium hover:bg-muted/50 transition-colors"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Profile
-                  </Link>
-                  <Link
-                    href="/account/privacy"
-                    className="block px-4 py-3 rounded-lg text-base font-medium hover:bg-muted/50 transition-colors"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Privacy &amp; Data
+                    Account
                   </Link>
                 </>
               )}
