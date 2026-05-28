@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import {
   Card,
@@ -29,49 +30,15 @@ const ExportDialog = dynamic(
 import {
   MapPin,
   Navigation,
-  Clock,
   Download,
   Share2,
-  Wind,
-  Waves,
-  Calendar,
   AlertTriangle,
-  Anchor,
 } from "lucide-react";
 import type { Passage } from "@/types/shared";
 import { logger } from "../../lib/logger";
-
-// Helper function to convert degrees to compass direction
-function degreesToCompass(degrees: number): string {
-  const directions = [
-    "N",
-    "NNE",
-    "NE",
-    "ENE",
-    "E",
-    "ESE",
-    "SE",
-    "SSE",
-    "S",
-    "SSW",
-    "SW",
-    "WSW",
-    "W",
-    "WNW",
-    "NW",
-    "NNW",
-  ];
-  const index = Math.round(degrees / 22.5) % 16;
-  return directions[index];
-}
-
-// Helper to format time for display
-function formatTime(date: Date): string {
-  return new Date(date).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import { RouteTab } from "./_components/RouteTab";
+import { WeatherTab } from "./_components/WeatherTab";
+import { TidesTab } from "./_components/TidesTab";
 
 // Mock data for demonstration
 const mockPassage: Passage = {
@@ -241,12 +208,11 @@ const mockPassage: Passage = {
 export default function PassageDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [passage, setPassage] = useState<Passage | null>(null);
-  const [loading, setLoading] = useState(true);
   const [showExportDialog, setShowExportDialog] = useState(false);
 
-  useEffect(() => {
-    const fetchPassage = async () => {
+  const { data: passage = null, isLoading: loading } = useQuery<Passage>({
+    queryKey: ["passage-detail", params.id],
+    queryFn: async () => {
       try {
         const apiUrl =
           process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -256,29 +222,24 @@ export default function PassageDetailPage() {
           throw new Error("Failed to fetch passage");
         }
 
-        const data = await response.json();
-        setPassage(data);
+        return (await response.json()) as Passage;
       } catch (error) {
         logger.error("Failed to fetch passage detail", {
           error: String(error),
           passageId: String(params.id),
         });
         // Fallback to mock data for now
-        setPassage(mockPassage);
-      } finally {
-        setLoading(false);
+        return mockPassage;
       }
-    };
-
-    fetchPassage();
-  }, [params.id]);
+    },
+  });
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <Navigation className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
-          <p className="text-muted-foreground">Loading passage...</p>
+          <p className="text-muted-foreground">Loading passage…</p>
         </div>
       </div>
     );
@@ -393,316 +354,15 @@ export default function PassageDetailPage() {
         </TabsList>
 
         <TabsContent value="route" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Route Details</CardTitle>
-              <CardDescription>
-                Waypoints and navigation information
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Departure */}
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-success/10">
-                  <div className="w-8 h-8 rounded-full bg-success flex items-center justify-center text-white font-bold text-sm">
-                    D
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium">{passage.departure.name}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {passage.departure.coordinates.lat.toFixed(4)}°N,
-                      {Math.abs(passage.departure.coordinates.lng).toFixed(4)}°W
-                    </p>
-                    <p className="text-sm mt-1">
-                      Departure:{" "}
-                      {new Date(passage.departureTime).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Waypoints */}
-                {passage.waypoints.map((waypoint: any, index: number) => (
-                  <div
-                    key={waypoint.id}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-muted/30"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-sm">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium">{waypoint.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {waypoint.coordinates.lat.toFixed(4)}°N,
-                        {Math.abs(waypoint.coordinates.lng).toFixed(4)}°W
-                      </p>
-                      {waypoint.type && (
-                        <Badge variant="outline" className="mt-1">
-                          {waypoint.type}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">
-                        {passage.route[index]?.distance.toFixed(1)} nm
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {passage.route[index]?.bearing.toFixed(0)}° True
-                      </p>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Destination */}
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/5">
-                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
-                    A
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium">{passage.destination.name}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {passage.destination.coordinates.lat.toFixed(4)}°N,
-                      {Math.abs(passage.destination.coordinates.lng).toFixed(4)}
-                      °W
-                    </p>
-                    <p className="text-sm mt-1">
-                      ETA:{" "}
-                      {new Date(passage.estimatedArrivalTime).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <RouteTab passage={passage} />
         </TabsContent>
 
         <TabsContent value="weather">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Wind className="h-5 w-5" />
-                Weather Forecast
-              </CardTitle>
-              <CardDescription>
-                Weather conditions along the route
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {passage.weather && passage.weather.length > 0 ? (
-                <div className="space-y-4">
-                  {passage.weather.map((segment: any, index: number) => (
-                    <div key={index} className="p-4 rounded-lg border bg-card">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h4 className="font-semibold">
-                            {formatTime(segment.startTime)} -{" "}
-                            {formatTime(segment.endTime)}
-                          </h4>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(segment.startTime).toLocaleDateString()}
-                          </p>
-                        </div>
-                        {segment.temperature && (
-                          <Badge variant="secondary">
-                            {segment.temperature}°C
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="flex items-center gap-2">
-                          <Wind className="h-4 w-4 text-primary" />
-                          <div>
-                            <p className="text-sm font-medium">Wind</p>
-                            <p className="text-sm text-muted-foreground">
-                              {segment.wind.speed} kts{" "}
-                              {degreesToCompass(segment.wind.direction)}
-                              {segment.wind.gusts &&
-                                ` (G${segment.wind.gusts})`}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Waves className="h-4 w-4 text-secondary-foreground" />
-                          <div>
-                            <p className="text-sm font-medium">Waves</p>
-                            <p className="text-sm text-muted-foreground">
-                              {segment.waves.height}m @ {segment.waves.period}s
-                            </p>
-                          </div>
-                        </div>
-
-                        {segment.visibility && (
-                          <div>
-                            <p className="text-sm font-medium">Visibility</p>
-                            <p className="text-sm text-muted-foreground">
-                              {segment.visibility} nm
-                            </p>
-                          </div>
-                        )}
-
-                        {segment.pressure && (
-                          <div>
-                            <p className="text-sm font-medium">Pressure</p>
-                            <p className="text-sm text-muted-foreground">
-                              {segment.pressure} hPa
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Wind warning for safety */}
-                      {segment.wind.speed > 20 && (
-                        <div className="mt-3 p-2 bg-warning/5 border border-warning/20 rounded flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-warning" />
-                          <span className="text-sm text-warning">
-                            Strong winds expected - consider timing or alternate
-                            route
-                          </span>
-                        </div>
-                      )}
-                      {segment.waves.height > 2 && (
-                        <div className="mt-3 p-2 bg-destructive/5 border border-destructive/20 rounded flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-destructive" />
-                          <span className="text-sm text-destructive">
-                            Significant wave height - may affect comfort and
-                            safety
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Wind className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">
-                    No weather data available
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Weather forecast will be fetched when the passage is planned
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <WeatherTab passage={passage} />
         </TabsContent>
 
         <TabsContent value="tides">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Anchor className="h-5 w-5" />
-                Tidal Information
-              </CardTitle>
-              <CardDescription>
-                Tide times and current predictions along the route
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {passage.tides && passage.tides.length > 0 ? (
-                <div className="space-y-6">
-                  {/* Group tides by location */}
-                  {(
-                    Array.from(
-                      new Set(passage.tides.map((t: any) => t.location)),
-                    ) as string[]
-                  ).map((location) => (
-                    <div key={location} className="space-y-3">
-                      <h4 className="font-semibold flex items-center gap-2">
-                        <MapPin className="h-4 w-4" />
-                        {location}
-                      </h4>
-                      <div className="grid gap-3">
-                        {passage.tides
-                          .filter((t: any) => t.location === location)
-                          .sort(
-                            (a: any, b: any) =>
-                              new Date(a.time).getTime() -
-                              new Date(b.time).getTime(),
-                          )
-                          .map((tide: any, index: number) => (
-                            <div
-                              key={index}
-                              className={`p-3 rounded-lg border flex items-center justify-between ${
-                                tide.type === "high"
-                                  ? "bg-primary/5 border-primary/20"
-                                  : "bg-muted/50 border-border"
-                              }`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div
-                                  className={`p-2 rounded-full ${
-                                    tide.type === "high"
-                                      ? "bg-primary/10"
-                                      : "bg-muted"
-                                  }`}
-                                >
-                                  {tide.type === "high" ? (
-                                    <Waves className="h-4 w-4 text-primary" />
-                                  ) : (
-                                    <Anchor className="h-4 w-4 text-muted-foreground" />
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="font-medium capitalize">
-                                    {tide.type} Tide
-                                  </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    {formatTime(tide.time)} -{" "}
-                                    {new Date(tide.time).toLocaleDateString()}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-semibold">
-                                  {tide.height.toFixed(1)}m
-                                </p>
-                                {tide.current && (
-                                  <p className="text-sm text-muted-foreground">
-                                    Current: {tide.current.speed.toFixed(1)} kts{" "}
-                                    {degreesToCompass(tide.current.direction)}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Tidal current warning */}
-                  {passage.tides.some(
-                    (t: any) => t.current && t.current.speed > 1.5,
-                  ) && (
-                    <div className="p-3 bg-warning/5 border border-warning/20 rounded-lg flex items-start gap-2">
-                      <AlertTriangle className="h-5 w-5 text-warning mt-0.5" />
-                      <div>
-                        <p className="font-medium text-warning">
-                          Strong Tidal Currents
-                        </p>
-                        <p className="text-sm text-warning/80">
-                          Some locations have currents exceeding 1.5 knots. Plan
-                          your departure time to use favorable currents and
-                          avoid opposing strong flows.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Anchor className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">
-                    No tidal data available
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Tide predictions will be fetched when the passage is planned
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <TidesTab passage={passage} />
         </TabsContent>
 
         <TabsContent value="safety">
@@ -730,14 +390,12 @@ export default function PassageDetailPage() {
                   <div>
                     <h4 className="font-medium mb-2">Navigation Warnings</h4>
                     <div className="space-y-2">
-                      {passage.safety.navigationWarnings.map(
-                        (warning: any, index: number) => (
-                          <div key={index} className="flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
-                            <p className="text-sm">{warning}</p>
-                          </div>
-                        ),
-                      )}
+                      {passage.safety.navigationWarnings.map((warning: any) => (
+                        <div key={warning} className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
+                          <p className="text-sm">{warning}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
