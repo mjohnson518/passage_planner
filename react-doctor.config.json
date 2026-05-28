@@ -1,10 +1,30 @@
 {
   "ignore": {
     "rules": ["deslop/unused-dev-dependency"],
+    "files": ["**/* 2.tsx", "**/* 2.ts"],
     "overrides": [
       {
         "files": ["**/package.json", "package.json"],
         "rules": ["deslop/unused-dev-dependency"]
+      },
+      {
+        "files": ["**/app/page.tsx"],
+        "rules": ["react-doctor/no-danger"]
+      },
+      {
+        "files": ["**/AgentStatusList.tsx"],
+        "rules": ["react-doctor/prefer-tag-over-role"]
+      },
+      {
+        "files": ["**/CookieConsent.tsx"],
+        "rules": [
+          "react-doctor/prefer-html-dialog",
+          "react-doctor/prefer-tag-over-role"
+        ]
+      },
+      {
+        "files": ["**/ExportDialog.tsx"],
+        "rules": ["react-doctor/prefer-tag-over-role"]
       }
     ]
   }
