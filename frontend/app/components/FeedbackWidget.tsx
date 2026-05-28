@@ -83,6 +83,7 @@ export function FeedbackWidget() {
       {/* Floating feedback button */}
       {!isOpen && (
         <button
+          type="button"
           onClick={() => setIsOpen(true)}
           className="fixed bottom-6 right-6 z-50 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full p-4 shadow-maritime transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           aria-label="Send feedback"
@@ -101,6 +102,7 @@ export function FeedbackWidget() {
                 {isSubmitted ? "Thank You!" : "Send Feedback"}
               </h2>
               <button
+                type="button"
                 onClick={() => setIsOpen(false)}
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Close"
@@ -128,9 +130,9 @@ export function FeedbackWidget() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* Feedback type */}
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-2">
+                    <p className="block text-sm font-medium text-foreground mb-2">
                       What would you like to share?
-                    </label>
+                    </p>
                     <div className="grid grid-cols-3 gap-2">
                       {[
                         { value: "bug", label: "Bug Report" },
@@ -237,7 +239,7 @@ export function FeedbackWidget() {
                     className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {isSubmitting ? (
-                      <>Sending...</>
+                      <>Sending…</>
                     ) : (
                       <>
                         <Send className="w-4 h-4 mr-2" />

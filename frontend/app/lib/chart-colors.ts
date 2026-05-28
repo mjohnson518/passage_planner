@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from "react";
 
 /**
  * Centralized chart color constants for Recharts components.
@@ -9,48 +9,93 @@ import { useEffect, useState } from 'react'
  */
 
 export interface ChartColors {
-  primary: string
-  secondary: string
-  tertiary: string
-  quaternary: string
-  danger: string
-  success: string
-  warning: string
-  muted: string
+  primary: string;
+  secondary: string;
+  tertiary: string;
+  quaternary: string;
+  danger: string;
+  success: string;
+  warning: string;
+  muted: string;
 }
 
 /** Fallback colors (light mode) — used server-side or before mount */
 export const CHART_COLORS_FALLBACK: ChartColors = {
-  primary: 'hsl(205, 85%, 28%)',    // ocean blue
-  secondary: 'hsl(164, 100%, 38%)', // seafoam
-  tertiary: 'hsl(38, 70%, 50%)',    // brass/amber
-  quaternary: 'hsl(270, 50%, 45%)', // purple
-  danger: 'hsl(0, 72%, 51%)',       // red
-  success: 'hsl(142, 71%, 35%)',    // green
-  warning: 'hsl(38, 92%, 42%)',     // amber
-  muted: 'hsl(205, 30%, 70%)',      // muted ocean
-}
+  primary: "hsl(205, 85%, 28%)", // ocean blue
+  secondary: "hsl(164, 100%, 38%)", // seafoam
+  tertiary: "hsl(38, 70%, 50%)", // brass/amber
+  quaternary: "hsl(270, 50%, 45%)", // purple
+  danger: "hsl(0, 72%, 51%)", // red
+  success: "hsl(142, 71%, 35%)", // green
+  warning: "hsl(38, 92%, 42%)", // amber
+  muted: "hsl(205, 30%, 70%)", // muted ocean
+};
 
 function hslVarToString(raw: string): string {
-  const trimmed = raw.trim()
-  if (!trimmed) return ''
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
   // CSS custom property value is "H S% L%" — wrap in hsl()
-  return `hsl(${trimmed})`
+  return `hsl(${trimmed})`;
 }
 
 function readChartColors(): ChartColors {
-  if (typeof window === 'undefined') return CHART_COLORS_FALLBACK
-  const style = getComputedStyle(document.documentElement)
+  if (typeof window === "undefined") return CHART_COLORS_FALLBACK;
+  const style = getComputedStyle(document.documentElement);
   return {
-    primary: hslVarToString(style.getPropertyValue('--chart-1')) || CHART_COLORS_FALLBACK.primary,
-    secondary: hslVarToString(style.getPropertyValue('--chart-2')) || CHART_COLORS_FALLBACK.secondary,
-    tertiary: hslVarToString(style.getPropertyValue('--chart-3')) || CHART_COLORS_FALLBACK.tertiary,
-    quaternary: hslVarToString(style.getPropertyValue('--chart-4')) || CHART_COLORS_FALLBACK.quaternary,
-    danger: hslVarToString(style.getPropertyValue('--chart-5')) || CHART_COLORS_FALLBACK.danger,
-    success: hslVarToString(style.getPropertyValue('--status-go')) || CHART_COLORS_FALLBACK.success,
-    warning: hslVarToString(style.getPropertyValue('--status-caution')) || CHART_COLORS_FALLBACK.warning,
+    primary:
+      hslVarToString(style.getPropertyValue("--chart-1")) ||
+      CHART_COLORS_FALLBACK.primary,
+    secondary:
+      hslVarToString(style.getPropertyValue("--chart-2")) ||
+      CHART_COLORS_FALLBACK.secondary,
+    tertiary:
+      hslVarToString(style.getPropertyValue("--chart-3")) ||
+      CHART_COLORS_FALLBACK.tertiary,
+    quaternary:
+      hslVarToString(style.getPropertyValue("--chart-4")) ||
+      CHART_COLORS_FALLBACK.quaternary,
+    danger:
+      hslVarToString(style.getPropertyValue("--chart-5")) ||
+      CHART_COLORS_FALLBACK.danger,
+    success:
+      hslVarToString(style.getPropertyValue("--status-go")) ||
+      CHART_COLORS_FALLBACK.success,
+    warning:
+      hslVarToString(style.getPropertyValue("--status-caution")) ||
+      CHART_COLORS_FALLBACK.warning,
     muted: CHART_COLORS_FALLBACK.muted,
+  };
+}
+
+// The theme is external mutable state (the `class` on <html>), so chart colors
+// are read via useSyncExternalStore. The snapshot is cached by value so the
+// store returns a stable reference between renders (useSyncExternalStore
+// compares snapshots with Object.is and would otherwise loop).
+let cachedColors: ChartColors = CHART_COLORS_FALLBACK;
+let cachedKey = "";
+
+function getColorsSnapshot(): ChartColors {
+  const next = readChartColors();
+  const key = `${next.primary}|${next.secondary}|${next.tertiary}|${next.quaternary}|${next.danger}|${next.success}|${next.warning}|${next.muted}`;
+  if (key !== cachedKey) {
+    cachedKey = key;
+    cachedColors = next;
   }
+  return cachedColors;
+}
+
+function getServerColorsSnapshot(): ChartColors {
+  return CHART_COLORS_FALLBACK;
+}
+
+function subscribeToTheme(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const observer = new MutationObserver(onStoreChange);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+  return () => observer.disconnect();
 }
 
 /**
@@ -58,18 +103,9 @@ function readChartColors(): ChartColors {
  * Safe to use in 'use client' components that render Recharts charts.
  */
 export function useChartColors(): ChartColors {
-  const [colors, setColors] = useState<ChartColors>(CHART_COLORS_FALLBACK)
-
-  useEffect(() => {
-    setColors(readChartColors())
-
-    // Watch for dark mode changes via the class attribute on <html>
-    const observer = new MutationObserver(() => {
-      setColors(readChartColors())
-    })
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-    return () => observer.disconnect()
-  }, [])
-
-  return colors
+  return useSyncExternalStore(
+    subscribeToTheme,
+    getColorsSnapshot,
+    getServerColorsSnapshot,
+  );
 }

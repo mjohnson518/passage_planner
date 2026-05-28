@@ -1,26 +1,26 @@
-'use client'
+"use client";
 
-import { ReactNode, useEffect } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
-import { useAuth } from '../../contexts/AuthContext'
+import { ReactNode, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface RequireAuthProps {
-  children: ReactNode
-  fallback?: ReactNode
+  children: ReactNode;
+  fallback?: ReactNode;
 }
 
 export default function RequireAuth({ children, fallback }: RequireAuthProps) {
-  const { user, loading } = useAuth()
-  const router = useRouter()
-  const pathname = usePathname()
+  const { user, loading } = useAuth();
+  const { replace } = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && !user) {
-      const redirect = encodeURIComponent(pathname || '/')
-      router.replace(`/login?redirect=${redirect}`)
+      const redirect = encodeURIComponent(pathname || "/");
+      replace(`/login?redirect=${redirect}`);
     }
-  }, [loading, user, pathname, router])
+  }, [loading, user, pathname, replace]);
 
   if (loading) {
     return (
@@ -29,12 +29,12 @@ export default function RequireAuth({ children, fallback }: RequireAuthProps) {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       )
-    )
+    );
   }
 
   if (!user) {
-    return null
+    return null;
   }
 
-  return <>{children}</>
+  return <>{children}</>;
 }

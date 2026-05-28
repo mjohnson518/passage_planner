@@ -3,56 +3,47 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import {
-  Menu,
-  X,
-  Anchor,
-  LogOut,
-  Settings,
-  CreditCard,
-  Moon,
-  Sun,
-  ChevronDown,
-  ShieldCheck,
-} from "lucide-react";
+import { Menu, X, Anchor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "../../contexts/AuthContext";
 import { useSocket } from "../../contexts/SocketContext";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
+import { HeaderUserMenu } from "./_components/HeaderUserMenu";
+import { HeaderMobileMenu } from "./_components/HeaderMobileMenu";
+
+function readDemoMode(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    localStorage.getItem("helmwise_demo_mode") === "true"
+  );
+}
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [isDemoMode, setIsDemoMode] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { user, signOut } = useAuth();
   const { connected, agentStatuses } = useSocket();
   const pathname = usePathname();
+  // Demo mode lives in localStorage; read it during render so it always
+  // reflects the latest value (usePathname re-renders this on navigation).
+  const isDemoMode = readDemoMode();
 
   useEffect(() => {
+    // `mounted` must start false to match the server render and only flip true
+    // after hydration — this gates theme-dependent UI to avoid a hydration
+    // mismatch, so it cannot be initialized to true.
+    // oxlint-disable-next-line react-doctor/no-initialize-state
     setMounted(true);
-    // Check demo mode
-    const demoMode =
-      typeof window !== "undefined" &&
-      localStorage.getItem("helmwise_demo_mode") === "true";
-    setIsDemoMode(demoMode);
 
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
-  // Re-check demo mode when pathname changes
-  useEffect(() => {
-    const demoMode =
-      typeof window !== "undefined" &&
-      localStorage.getItem("helmwise_demo_mode") === "true";
-    setIsDemoMode(demoMode);
-  }, [pathname]);
 
   const isAuthenticated = user || isDemoMode;
   const isLandingPage = pathname === "/";
@@ -222,66 +213,12 @@ export function Header() {
           )}
 
           {isAuthenticated ? (
-            <div
-              data-testid="header-user-menu"
-              className="relative group hidden lg:block"
-            >
-              <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors">
-                <div
-                  className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center text-xs text-white font-semibold",
-                    isDemoMode
-                      ? "bg-gradient-to-br from-brass-400 to-brass-600"
-                      : "bg-gradient-to-br from-ocean-300 to-ocean-600",
-                  )}
-                >
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-sm font-medium max-w-[100px] truncate">
-                  {displayName}
-                </span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </button>
-
-              {/* Dropdown */}
-              <div className="absolute right-0 mt-2 w-56 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-right translate-y-1 group-hover:translate-y-0">
-                <div className="card p-2 shadow-maritime-lg">
-                  <div className="px-3 py-2 mb-1">
-                    <p className="text-sm font-medium">{displayName}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {isDemoMode ? "Demo Account" : user?.email}
-                    </p>
-                  </div>
-                  <hr className="my-1 border-border" />
-                  {!isDemoMode && (
-                    <>
-                      <Link
-                        href="/account"
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-muted/50 transition-colors"
-                      >
-                        <Settings className="h-4 w-4 text-muted-foreground" />
-                        <span>Account</span>
-                      </Link>
-                      <Link
-                        href="/billing"
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-muted/50 transition-colors"
-                      >
-                        <CreditCard className="h-4 w-4 text-muted-foreground" />
-                        <span>Billing</span>
-                      </Link>
-                      <hr className="my-1 border-border" />
-                    </>
-                  )}
-                  <button
-                    onClick={handleSignOut}
-                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm hover:bg-destructive/10 text-destructive w-full text-left transition-colors"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>{isDemoMode ? "Exit Demo" : "Sign Out"}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
+            <HeaderUserMenu
+              displayName={displayName}
+              isDemoMode={isDemoMode}
+              userEmail={user?.email}
+              onSignOut={handleSignOut}
+            />
           ) : (
             <div className="hidden lg:flex items-center gap-2">
               <Link href="/login">
@@ -330,98 +267,18 @@ export function Header() {
       </nav>
 
       {/* Mobile menu */}
-      <div
-        id="mobile-menu"
-        className={cn(
-          "lg:hidden overflow-hidden transition-all duration-300",
-          mobileMenuOpen ? "max-h-screen" : "max-h-0",
-        )}
-      >
-        <div className="glass-heavy border-t border-border px-4 py-6 space-y-4">
-          {/* Demo Mode Banner Mobile */}
-          {isDemoMode && (
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brass-100 dark:bg-brass-900/30 text-brass-700 dark:text-brass-400 text-sm">
-              <span className="w-2 h-2 rounded-full bg-brass-500" />
-              <span>Demo Mode Active</span>
-            </div>
-          )}
-
-          {navigation
-            .filter((item) => !item.requireAuth || isAuthenticated)
-            .map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "block px-4 py-3 rounded-lg text-base font-medium transition-colors",
-                  pathname === item.href
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-                )}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {item.name}
-              </Link>
-            ))}
-
-          <hr className="border-border" />
-
-          {/* Theme toggle mobile */}
-          {mounted && (
-            <button
-              onClick={toggleTheme}
-              className="flex items-center justify-between w-full px-4 py-3 rounded-lg text-base font-medium hover:bg-muted/50 transition-colors"
-            >
-              <span>
-                {resolvedTheme === "dark" ? "Light Mode" : "Dark Mode"}
-              </span>
-              {resolvedTheme === "dark" ? (
-                <Sun className="h-5 w-5" />
-              ) : (
-                <Moon className="h-5 w-5" />
-              )}
-            </button>
-          )}
-
-          {isAuthenticated ? (
-            <>
-              {!isDemoMode && (
-                <>
-                  <Link
-                    href="/account"
-                    className="block px-4 py-3 rounded-lg text-base font-medium hover:bg-muted/50 transition-colors"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Account
-                  </Link>
-                </>
-              )}
-              <button
-                onClick={() => {
-                  handleSignOut();
-                  setMobileMenuOpen(false);
-                }}
-                className="block w-full text-left px-4 py-3 rounded-lg text-base font-medium text-destructive hover:bg-destructive/10 transition-colors"
-              >
-                {isDemoMode ? "Exit Demo" : "Sign Out"}
-              </button>
-            </>
-          ) : (
-            <div className="space-y-3 pt-2">
-              <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="outline" className="w-full h-12">
-                  Log In
-                </Button>
-              </Link>
-              <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>
-                <Button className="btn-primary w-full h-12">
-                  Start Free Trial
-                </Button>
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
+      <HeaderMobileMenu
+        open={mobileMenuOpen}
+        navigation={navigation}
+        isAuthenticated={!!isAuthenticated}
+        isDemoMode={isDemoMode}
+        pathname={pathname}
+        mounted={mounted}
+        resolvedTheme={resolvedTheme}
+        onToggleTheme={toggleTheme}
+        onSignOut={handleSignOut}
+        onClose={() => setMobileMenuOpen(false)}
+      />
     </header>
   );
 }

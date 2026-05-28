@@ -168,10 +168,22 @@ export function ExportDialog({
               onValueChange={(value) => setFormat(value as ExportFormat)}
             >
               {exportFormats.map((fmt) => (
+                // A native <button> can't legally wrap the nested RadioGroupItem
+                // (itself a button) and its <label htmlFor>; converting would
+                // produce invalid interactive nesting and alter click bubbling.
+                // oxlint-disable-next-line react-doctor/prefer-tag-over-role
                 <div
+                  role="button"
                   key={fmt.value}
-                  className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-accent cursor-pointer"
+                  tabIndex={0}
+                  className="flex items-start gap-x-3 p-3 rounded-lg border hover:bg-accent cursor-pointer"
                   onClick={() => setFormat(fmt.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setFormat(fmt.value);
+                    }
+                  }}
                 >
                   <RadioGroupItem
                     value={fmt.value}
@@ -202,7 +214,7 @@ export function ExportDialog({
             <div className="space-y-3">
               <Label>Include in Export</Label>
               <div className="space-y-2">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-x-2">
                   <Checkbox
                     id="weather"
                     checked={options.includeWeather}
@@ -221,7 +233,7 @@ export function ExportDialog({
                   </Label>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-x-2">
                   <Checkbox
                     id="tides"
                     checked={options.includeTides}
@@ -237,7 +249,7 @@ export function ExportDialog({
                   </Label>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-x-2">
                   <Checkbox
                     id="notes"
                     checked={options.includeNotes}
@@ -282,7 +294,7 @@ export function ExportDialog({
             {exporting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Exporting...
+                Exporting…
               </>
             ) : (
               <>

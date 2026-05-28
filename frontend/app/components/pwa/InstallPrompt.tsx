@@ -1,22 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Download, X } from "lucide-react";
 
 export function InstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const deferredPrompt = useRef<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
+  const [isIOS] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+      !window.MSStream,
+  );
 
+  // The setShowPrompt calls below live in mutually-exclusive deferred timers
+  // (beforeinstallprompt path vs. iOS path), not a synchronous state cascade.
+  // oxlint-disable-next-line react-doctor/no-cascading-set-state
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Check if iOS
-    const isIOSDevice =
-      /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    setIsIOS(isIOSDevice);
+    const isIOSDevice = isIOS;
 
     // Check if already installed
     if (window.matchMedia("(display-mode: standalone)").matches) {
@@ -26,7 +31,7 @@ export function InstallPrompt() {
     // Listen for the beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      deferredPrompt.current = e;
 
       // Show prompt after a delay
       setTimeout(() => {
@@ -51,15 +56,15 @@ export function InstallPrompt() {
         handleBeforeInstallPrompt,
       );
     };
-  }, []);
+  }, [isIOS]);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
+    if (!deferredPrompt.current) return;
 
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt.current.prompt();
+    const { outcome } = await deferredPrompt.current.userChoice;
 
-    setDeferredPrompt(null);
+    deferredPrompt.current = null;
     setShowPrompt(false);
   };
 

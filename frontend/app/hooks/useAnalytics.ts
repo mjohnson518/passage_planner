@@ -45,43 +45,6 @@ const getDeviceInfo = () => {
 export function useAnalytics() {
   const { user } = useAuth();
 
-  // Track page views
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const trackPageView = () => {
-      track("page_view", {
-        path: window.location.pathname,
-        search: window.location.search,
-        referrer: document.referrer,
-      });
-    };
-
-    // Track initial page view
-    trackPageView();
-
-    // Track route changes for SPAs
-    const handleRouteChange = () => trackPageView();
-    window.addEventListener("popstate", handleRouteChange);
-
-    return () => {
-      window.removeEventListener("popstate", handleRouteChange);
-    };
-  }, []);
-
-  // Track user identification
-  useEffect(() => {
-    if (user) {
-      identify(user.id, {
-        email: user.email,
-        subscription_tier:
-          (user as any)?.subscription_tier ||
-          (user as any)?.user_metadata?.subscription_tier,
-        created_at: user.created_at,
-      });
-    }
-  }, [user]);
-
   // Track event
   const track = useCallback(
     async (
@@ -209,6 +172,43 @@ export function useAnalytics() {
     [track],
   );
 
+  // Track page views
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const trackPageView = () => {
+      track("page_view", {
+        path: window.location.pathname,
+        search: window.location.search,
+        referrer: document.referrer,
+      });
+    };
+
+    // Track initial page view
+    trackPageView();
+
+    // Track route changes for SPAs
+    const handleRouteChange = () => trackPageView();
+    window.addEventListener("popstate", handleRouteChange);
+
+    return () => {
+      window.removeEventListener("popstate", handleRouteChange);
+    };
+  }, [track]);
+
+  // Track user identification
+  useEffect(() => {
+    if (user) {
+      identify(user.id, {
+        email: user.email,
+        subscription_tier:
+          (user as any)?.subscription_tier ||
+          (user as any)?.user_metadata?.subscription_tier,
+        created_at: user.created_at,
+      });
+    }
+  }, [user, identify]);
+
   return {
     track,
     identify,
@@ -218,41 +218,3 @@ export function useAnalytics() {
     trackConversion,
   };
 }
-
-// Common event names
-export const ANALYTICS_EVENTS = {
-  // Authentication
-  SIGNUP_STARTED: "signup_started",
-  SIGNUP_COMPLETED: "signup_completed",
-  LOGIN: "login",
-  LOGOUT: "logout",
-  PASSWORD_RESET: "password_reset",
-
-  // Subscription
-  TRIAL_STARTED: "trial_started",
-  SUBSCRIPTION_STARTED: "subscription_started",
-  SUBSCRIPTION_UPGRADED: "subscription_upgraded",
-  SUBSCRIPTION_DOWNGRADED: "subscription_downgraded",
-  SUBSCRIPTION_CANCELLED: "subscription_cancelled",
-  PAYMENT_FAILED: "payment_failed",
-
-  // Feature usage
-  PASSAGE_CREATED: "passage_created",
-  PASSAGE_COMPLETED: "passage_completed",
-  WEATHER_CHECKED: "weather_checked",
-  TIDE_CALCULATED: "tide_calculated",
-  PORT_SEARCHED: "port_searched",
-  ROUTE_OPTIMIZED: "route_optimized",
-
-  // Engagement
-  DASHBOARD_VIEWED: "dashboard_viewed",
-  SETTINGS_UPDATED: "settings_updated",
-  SUPPORT_CONTACTED: "support_contacted",
-  DOCS_VIEWED: "docs_viewed",
-
-  // Onboarding
-  ONBOARDING_STARTED: "onboarding_started",
-  ONBOARDING_COMPLETED: "onboarding_completed",
-  ONBOARDING_SKIPPED: "onboarding_skipped",
-  BOAT_PROFILE_CREATED: "boat_profile_created",
-};

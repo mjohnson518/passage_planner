@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Input } from "../ui/input";
 import { MapPin, Globe } from "lucide-react";
 import { config } from "../../config";
@@ -181,103 +182,92 @@ export default function PortSelector({
   id,
   "data-testid": dataTestId,
 }: PortSelectorProps) {
-  const [searchTerm, setSearchTerm] = useState(value);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [filteredPorts, setFilteredPorts] = useState<Port[]>([]);
-  const [geocodeLoading, setGeocodeLoading] = useState(false);
+  // `searchTerm` is fully controlled by the parent via `value`/`onChange`
+  // (typing and selection both call onChange, so value always mirrors what's
+  // displayed). Read the prop directly rather than mirroring it into state.
+  const searchTerm = value;
+
+  // `manuallyClosed` tracks dropdown dismissal (outside-click / selection).
+  // Visibility is otherwise derived during render from the query + results.
+  const [manuallyClosed, setManuallyClosed] = useState(false);
+  // Debounced query term that drives the geocode lookup. Updated from the
+  // input handler (event-driven), so the geocoder only fires 300ms after the
+  // user pauses typing — matching the previous debounce behavior. This is a
+  // deliberately decoupled debounced copy seeded once from `value`, NOT a
+  // mirror — re-syncing it to the prop on every change would defeat debouncing.
+  // oxlint-disable-next-line react-doctor/no-derived-useState
+  const [debouncedQuery, setDebouncedQuery] = useState(value);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const geocodeAbort = useRef<AbortController | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keep internal searchTerm in sync if the parent updates `value`
-  useEffect(() => {
-    setSearchTerm(value);
-  }, [value]);
+  // Local fast-path matches — computed during render so they show instantly.
+  const local: Port[] =
+    searchTerm.length === 0
+      ? []
+      : (() => {
+          const q = searchTerm.toLowerCase();
+          return COMMON_PORTS.filter(
+            (p) =>
+              p.name.toLowerCase().includes(q) ||
+              (p.country && p.country.toLowerCase().includes(q)),
+          )
+            .slice(0, 5)
+            .map((p) => ({ ...p, source: "local" as const }));
+        })();
 
-  // Filter local list + (debounced) hit the global geocode endpoint.
-  // The local list shows instantly. Geocode results stream in 300ms after
-  // the user pauses typing and are merged with local results.
-  useEffect(() => {
-    if (searchTerm.length === 0) {
-      setFilteredPorts([]);
-      setShowDropdown(false);
-      return;
-    }
+  // Debounced global geocode lookup via react-query. Only fires for queries
+  // of 3+ chars; react-query handles request dedup/cancellation via `signal`.
+  const trimmedQuery = debouncedQuery.trim();
+  const { data: geocoded = [], isFetching: geocodeLoading } = useQuery<Port[]>({
+    queryKey: ["geocode", trimmedQuery],
+    enabled: trimmedQuery.length >= 3,
+    queryFn: async ({ signal }) => {
+      const res = await fetch(
+        `${config.api.url}/api/geocode?q=${encodeURIComponent(trimmedQuery)}&limit=6`,
+        { signal, credentials: "include" },
+      );
+      if (!res.ok) return [];
+      const data: {
+        results: Array<{
+          name: string;
+          latitude: number;
+          longitude: number;
+          country?: string;
+        }>;
+      } = await res.json();
 
-    const q = searchTerm.toLowerCase();
-    const local = COMMON_PORTS.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.country && p.country.toLowerCase().includes(q)),
-    )
-      .slice(0, 5)
-      .map((p) => ({ ...p, source: "local" as const }));
+      return (data.results || []).map((r) => ({
+        name: r.name,
+        lat: r.latitude,
+        lng: r.longitude,
+        country: r.country,
+        source: "geocode" as const,
+      }));
+    },
+  });
 
-    setFilteredPorts(local);
-    setShowDropdown(true);
-
-    // Cancel any pending geocode call before starting a new one.
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    if (geocodeAbort.current) geocodeAbort.current.abort();
-
-    // Don't bother the geocoder for trivially-short queries.
-    if (searchTerm.length < 3) return;
-
-    debounceTimer.current = setTimeout(async () => {
-      const abort = new AbortController();
-      geocodeAbort.current = abort;
-      setGeocodeLoading(true);
-      try {
-        const res = await fetch(
-          `${config.api.url}/api/geocode?q=${encodeURIComponent(searchTerm)}&limit=6`,
-          { signal: abort.signal, credentials: "include" },
+  // Merge local + geocoded during render. De-dupe by ~10km coordinate
+  // proximity, prefer local matches first, cap at 10 entries.
+  const filteredPorts: Port[] = (() => {
+    if (searchTerm.length === 0) return [];
+    const combined: Port[] = [...local];
+    // Only merge geocode results that correspond to the current query.
+    if (trimmedQuery === searchTerm.trim()) {
+      for (const g of geocoded) {
+        const dup = combined.some(
+          (c) => Math.abs(c.lat - g.lat) < 0.1 && Math.abs(c.lng - g.lng) < 0.1,
         );
-        if (!res.ok) return;
-        const data: {
-          results: Array<{
-            name: string;
-            latitude: number;
-            longitude: number;
-            country?: string;
-          }>;
-        } = await res.json();
-
-        const geocoded: Port[] = (data.results || []).map((r) => ({
-          name: r.name,
-          lat: r.latitude,
-          lng: r.longitude,
-          country: r.country,
-          source: "geocode",
-        }));
-
-        // De-dupe by ~10km coordinate proximity, prefer local matches first.
-        const combined: Port[] = [...local];
-        for (const g of geocoded) {
-          const dup = combined.some(
-            (c) =>
-              Math.abs(c.lat - g.lat) < 0.1 && Math.abs(c.lng - g.lng) < 0.1,
-          );
-          if (!dup) combined.push(g);
-          if (combined.length >= 10) break;
-        }
-
-        setFilteredPorts(combined);
-        setShowDropdown(combined.length > 0);
-      } catch (err) {
-        // AbortError on rapid typing is expected; swallow silently.
-        if ((err as { name?: string }).name !== "AbortError") {
-          // eslint-disable-next-line no-console
-          console.warn("Geocode lookup failed", err);
-        }
-      } finally {
-        setGeocodeLoading(false);
+        if (!dup) combined.push(g);
+        if (combined.length >= 10) break;
       }
-    }, 300);
+    }
+    return combined;
+  })();
 
-    return () => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    };
-  }, [searchTerm]);
+  // Visibility derived during render: open when there's a query and results
+  // and the user hasn't explicitly dismissed it.
+  const showDropdown =
+    !manuallyClosed && searchTerm.length > 0 && filteredPorts.length > 0;
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -286,18 +276,41 @@ export default function PortSelector({
         wrapperRef.current &&
         !wrapperRef.current.contains(event.target as Node)
       ) {
-        setShowDropdown(false);
+        setManuallyClosed(true);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Clean up any pending debounce timer on unmount. Reading the live ref in
+  // cleanup is intentional here: we must clear whichever timer is pending at
+  // unmount, not a stale mount-time value.
+  // react-doctor-disable-next-line react-doctor/exhaustive-deps
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, []);
+
+  // Debounce the geocode query: re-arm a 300ms timer on each keystroke.
+  const scheduleGeocode = (next: string) => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedQuery(next);
+    }, 300);
+  };
+
+  const handleInputChange = (next: string) => {
+    onChange(next);
+    setManuallyClosed(false);
+    scheduleGeocode(next);
+  };
+
   const handleSelectPort = (port: Port) => {
-    setSearchTerm(port.name);
     onChange(port.name);
     onPortSelected(port);
-    setShowDropdown(false);
+    setManuallyClosed(true);
   };
 
   return (
@@ -310,11 +323,10 @@ export default function PortSelector({
         type="text"
         data-testid={id ? `port-selector-${id}-input` : "port-selector-input"}
         value={searchTerm}
-        onChange={(e) => {
-          setSearchTerm(e.target.value);
-          onChange(e.target.value);
+        onChange={(e) => handleInputChange(e.target.value)}
+        onFocus={() => {
+          if (searchTerm.length > 0) setManuallyClosed(false);
         }}
-        onFocus={() => searchTerm.length > 0 && setShowDropdown(true)}
         placeholder={placeholder}
         className={className}
         id={id}
@@ -327,9 +339,10 @@ export default function PortSelector({
           className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-maritime max-h-72 overflow-auto"
         >
           {filteredPorts.map((port, index) => (
-            <div
+            <button
+              type="button"
               key={`${port.name}-${index}`}
-              className="px-3 py-2 hover:bg-accent cursor-pointer flex items-center justify-between"
+              className="w-full text-left px-3 py-2 hover:bg-accent cursor-pointer flex items-center justify-between"
               onClick={() => handleSelectPort(port)}
             >
               <div>
@@ -347,7 +360,7 @@ export default function PortSelector({
               ) : (
                 <MapPin className="h-4 w-4 text-muted-foreground" />
               )}
-            </div>
+            </button>
           ))}
           {geocodeLoading && (
             <div className="px-3 py-2 text-xs text-muted-foreground italic">
