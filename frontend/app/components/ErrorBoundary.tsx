@@ -176,6 +176,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
             <div className="mt-6 flex gap-3">
               <button
+                type="button"
                 onClick={this.handleReset}
                 className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-border rounded-md shadow-sm text-sm font-medium text-foreground bg-card hover:bg-muted focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring"
               >
@@ -184,6 +185,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </button>
 
               <button
+                type="button"
                 onClick={this.handleGoHome}
                 className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring"
               >
@@ -193,6 +195,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
 
             <button
+              type="button"
               onClick={this.handleRefresh}
               className="mt-3 w-full inline-flex items-center justify-center px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
             >
@@ -205,57 +208,4 @@ export class ErrorBoundary extends Component<Props, State> {
 
     return this.props.children;
   }
-}
-
-/**
- * Feature-specific Error Boundary with custom fallback
- */
-interface FeatureErrorBoundaryProps {
-  children: ReactNode;
-  featureName: string;
-  onError?: (error: Error) => void;
-}
-
-export function FeatureErrorBoundary({
-  children,
-  featureName,
-  onError,
-}: FeatureErrorBoundaryProps) {
-  const fallback = (
-    <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
-      <div className="flex items-start">
-        <AlertCircle className="w-5 h-5 text-destructive mt-0.5 mr-3 flex-shrink-0" />
-        <div>
-          <h3 className="text-sm font-semibold text-destructive">
-            Error loading {featureName}
-          </h3>
-          <p className="mt-1 text-sm text-destructive/80">
-            This feature is temporarily unavailable. Please try refreshing the
-            page.
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-2 text-sm text-destructive hover:text-destructive/80 underline"
-          >
-            Refresh Page
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <ErrorBoundary
-      fallback={fallback}
-      onError={(error, errorInfo) => {
-        logger.error(`Error in ${featureName}`, {
-          error: String(error),
-          componentStack: errorInfo.componentStack,
-        });
-        onError?.(error);
-      }}
-    >
-      {children}
-    </ErrorBoundary>
-  );
 }

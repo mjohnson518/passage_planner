@@ -15,7 +15,7 @@ export interface CoverageRegion {
   lonRange: [number, number];
 }
 
-export const COVERAGE_REGIONS: CoverageRegion[] = [
+const COVERAGE_REGIONS: CoverageRegion[] = [
   {
     name: "US East Coast & Gulf of Mexico",
     latRange: [24, 47],
@@ -45,21 +45,4 @@ export function isInCoverage(lat: number, lon: number): boolean {
     }
   }
   return false;
-}
-
-export function getCoverageRegion(
-  lat: number,
-  lon: number,
-): CoverageRegion | null {
-  for (const region of COVERAGE_REGIONS) {
-    if (
-      lat >= region.latRange[0] &&
-      lat <= region.latRange[1] &&
-      lon >= region.lonRange[0] &&
-      lon <= region.lonRange[1]
-    ) {
-      return region;
-    }
-  }
-  return null;
 }

@@ -208,19 +208,3 @@ class Analytics {
 
 // Export singleton instance
 export const analytics = new Analytics();
-
-// Convenience hook for React components
-export function useAnalytics() {
-  return {
-    track: analytics.track.bind(analytics),
-    trackPassageCreated: analytics.trackPassageCreated.bind(analytics),
-    trackRouteExported: analytics.trackRouteExported.bind(analytics),
-    trackSafetyWarning: analytics.trackSafetyWarning.bind(analytics),
-    trackWeatherWindow: analytics.trackWeatherWindow.bind(analytics),
-    trackVesselCreated: analytics.trackVesselCreated.bind(analytics),
-    trackChecklistCompleted: analytics.trackChecklistCompleted.bind(analytics),
-    trackFeatureUsed: analytics.trackFeatureUsed.bind(analytics),
-    trackPageView: analytics.trackPageView.bind(analytics),
-    trackSubscription: analytics.trackSubscription.bind(analytics),
-  };
-}

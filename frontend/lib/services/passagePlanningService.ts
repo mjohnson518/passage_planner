@@ -473,38 +473,3 @@ export async function comparePassages(
     throw new Error(error.message || "Failed to compare departure times");
   }
 }
-
-/**
- * Check backend health
- */
-export async function checkBackendHealth(): Promise<{
-  status: string;
-  timestamp: string;
-  version: string;
-  message: string;
-}> {
-  try {
-    const response = await fetch(`${API_URL}/health`);
-
-    if (!response.ok) {
-      throw new Error("Health check failed");
-    }
-
-    return response.json();
-  } catch (error) {
-    throw new Error("Backend is unavailable");
-  }
-}
-
-/**
- * Check if backend is ready
- */
-export async function checkBackendReady(): Promise<boolean> {
-  try {
-    const response = await fetch(`${API_URL}/ready`);
-    const data = await response.json();
-    return data.status === "ready";
-  } catch (error) {
-    return false;
-  }
-}
