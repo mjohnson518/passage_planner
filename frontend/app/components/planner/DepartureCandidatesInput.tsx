@@ -1,5 +1,7 @@
 "use client";
 
+import { useRef } from "react";
+import Link from "next/link";
 import { Clock, Plus, Sparkles, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
@@ -35,6 +37,21 @@ export function DepartureCandidatesInput({
   onCandidatesChange,
   tierLocked,
 }: DepartureCandidatesInputProps) {
+  // Stable per-row identities. `candidates` is a plain `string[]` shared with
+  // the parent and the compare API, and values can be empty/duplicate while
+  // editing, so the array index isn't a safe React key. We keep a parallel list
+  // of monotonic ids aligned positionally with `candidates` (the only mutations
+  // are append and remove-by-index), giving each row a persistent identity.
+  const nextIdRef = useRef(0);
+  const idsRef = useRef<number[]>([]);
+  while (idsRef.current.length < candidates.length) {
+    idsRef.current.push(nextIdRef.current++);
+  }
+  if (idsRef.current.length > candidates.length) {
+    idsRef.current = idsRef.current.slice(0, candidates.length);
+  }
+  const rowIds = idsRef.current;
+
   const handleToggle = (next: boolean) => {
     onEnabledChange(next);
     if (next && candidates.length === 0) {
@@ -55,6 +72,8 @@ export function DepartureCandidatesInput({
   };
 
   const handleRemove = (idx: number) => {
+    // Drop the matching row id so remaining rows keep their identity.
+    idsRef.current = idsRef.current.filter((_, i) => i !== idx);
     onCandidatesChange(candidates.filter((_, i) => i !== idx));
   };
 
@@ -98,22 +117,23 @@ export function DepartureCandidatesInput({
           <p className="text-sm text-muted-foreground flex-1">
             Multi-window comparison is a Premium feature.
           </p>
-          <a
+          <Link
             href="/pricing"
             className="text-sm text-primary hover:underline font-medium"
           >
             Upgrade
-          </a>
+          </Link>
         </div>
       )}
 
       {enabled && !tierLocked && (
         <div className="mt-3 space-y-2 rounded-md border border-border bg-card p-3">
           {candidates.map((value, idx) => (
-            <div key={idx} className="flex items-center gap-2">
+            <div key={rowIds[idx]} className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <input
                 type="datetime-local"
+                aria-label={`Departure time option ${idx + 1}`}
                 value={value}
                 onChange={(e) => handleChange(idx, e.target.value)}
                 className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"

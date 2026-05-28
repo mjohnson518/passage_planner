@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ChevronDown, Download, Sparkles } from "lucide-react";
 import { Button } from "../ui/button";
@@ -74,31 +75,24 @@ export function ChartplotterExportMenu({
   vesselName,
 }: ChartplotterExportMenuProps) {
   const [open, setOpen] = useState(false);
-  const [isPremium, setIsPremium] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+  // `null` while loading; `true`/`false` once the tier is known.
+  const { data: isPremium = null } = useQuery<boolean>({
+    queryKey: ["profile", "export-premium"],
+    queryFn: async () => {
       try {
         const res = await fetch("/api/profile", { credentials: "include" });
-        if (!res.ok) {
-          if (!cancelled) setIsPremium(false);
-          return;
-        }
+        if (!res.ok) return false;
         const data = (await res.json()) as { subscription_tier?: string };
-        if (cancelled) return;
         const tier = data.subscription_tier ?? "free";
-        setIsPremium(tier !== "free");
+        return tier !== "free";
       } catch {
-        if (!cancelled) setIsPremium(false);
+        return false;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    },
+  });
 
   useEffect(() => {
     if (!open) return;

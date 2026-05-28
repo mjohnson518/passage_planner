@@ -137,8 +137,8 @@ export function RiskScoreCard({ riskScore }: RiskScoreCardProps) {
               Hard limits violated
             </p>
             <ul className="space-y-1 text-sm text-destructive/90">
-              {riskScore.hardFails.map((m, i) => (
-                <li key={i}>• {m}</li>
+              {riskScore.hardFails.map((m) => (
+                <li key={m}>• {m}</li>
               ))}
             </ul>
           </div>
@@ -175,12 +175,12 @@ export function RiskScoreCard({ riskScore }: RiskScoreCardProps) {
                 </div>
                 {b.contributors.length > 0 && (
                   <ul className="mt-1.5 space-y-0.5">
-                    {b.contributors.slice(0, 3).map((c, i) => (
+                    {b.contributors.slice(0, 3).map((c) => (
                       <li
-                        key={i}
+                        key={c}
                         className="text-xs text-muted-foreground pl-1"
                       >
-                        — {c}
+                        - {c}
                       </li>
                     ))}
                   </ul>
@@ -210,7 +210,7 @@ export function RiskScoreCard({ riskScore }: RiskScoreCardProps) {
         {riskScore.multiModelApplied && (
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
             <Shield className="h-3 w-3" />
-            Premium multi-model widening applied — score reflects forecast
+            Premium multi-model widening applied: score reflects forecast
             disagreement.
           </p>
         )}
@@ -221,8 +221,8 @@ export function RiskScoreCard({ riskScore }: RiskScoreCardProps) {
             Decision contract
           </p>
           <ul className="space-y-1">
-            {riskScore.disclaimers.map((d, i) => (
-              <li key={i} className="text-xs text-muted-foreground">
+            {riskScore.disclaimers.map((d) => (
+              <li key={d} className="text-xs text-muted-foreground">
                 • {d}
               </li>
             ))}

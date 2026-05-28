@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useReducer } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   Copy,
@@ -36,51 +37,78 @@ interface SharePlanButtonProps {
 
 type TierState = "loading" | "free" | "premium";
 
+interface ShareStatus {
+  share: ShareMetadata | null;
+  shareUrl: string | null;
+}
+
+interface DialogState {
+  open: boolean;
+  working: boolean;
+  /** Local override of the fetched share status, applied after create/revoke
+   *  mutations so we don't have to refetch. Null means "use the fetched data". */
+  override: ShareStatus | null;
+}
+
+type DialogAction =
+  | { type: "openChanged"; open: boolean }
+  | { type: "workingChanged"; working: boolean }
+  | { type: "statusOverridden"; status: ShareStatus };
+
+const initialDialogState: DialogState = {
+  open: false,
+  working: false,
+  override: null,
+};
+
+function dialogReducer(state: DialogState, action: DialogAction): DialogState {
+  switch (action.type) {
+    case "openChanged":
+      return { ...state, open: action.open };
+    case "workingChanged":
+      return { ...state, working: action.working };
+    case "statusOverridden":
+      return { ...state, override: action.status };
+    default:
+      return state;
+  }
+}
+
 export function SharePlanButton({ passageId }: SharePlanButtonProps) {
-  const [open, setOpen] = useState(false);
-  const [tier, setTier] = useState<TierState>("loading");
-  const [share, setShare] = useState<ShareMetadata | null>(null);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [working, setWorking] = useState(false);
+  const [state, dispatch] = useReducer(dialogReducer, initialDialogState);
+  const { open, working, override } = state;
+  const queryClient = useQueryClient();
 
   // Load tier once — cached for the session.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/profile", { credentials: "include" });
-        if (!res.ok) {
-          // 401 → user not signed in. The Save button already enforces auth
-          // before passageId is set, so this branch is rare.
-          if (!cancelled) setTier("free");
-          return;
-        }
-        const data = (await res.json()) as { subscription_tier?: string };
-        if (cancelled) return;
-        const t = data.subscription_tier ?? "free";
-        setTier(t === "free" ? "free" : "premium");
-      } catch {
-        if (!cancelled) setTier("free");
+  const { data: tier = "loading" } = useQuery<TierState>({
+    queryKey: ["profile", "share-tier"],
+    queryFn: async () => {
+      const res = await fetch("/api/profile", { credentials: "include" });
+      if (!res.ok) {
+        // 401 → user not signed in. The Save button already enforces auth
+        // before passageId is set, so this branch is rare.
+        return "free";
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      const data = (await res.json()) as { subscription_tier?: string };
+      const t = data.subscription_tier ?? "free";
+      return t === "free" ? "free" : "premium";
+    },
+  });
 
-  const loadStatus = useCallback(async () => {
-    if (!passageId) return;
-    setLoading(true);
-    try {
+  const {
+    data: fetchedStatus,
+    isLoading: statusLoading,
+    error: statusError,
+  } = useQuery<ShareStatus>({
+    queryKey: ["passage-share", passageId],
+    enabled: open && !!passageId && tier === "premium",
+    queryFn: async () => {
       const res = await fetch(`/api/passages/${passageId}/share`, {
         credentials: "include",
       });
       if (!res.ok) {
         if (res.status === 404) {
-          setShare(null);
-          setShareUrl(null);
-          return;
+          return { share: null, shareUrl: null };
         }
         throw new Error(`Status load failed (${res.status})`);
       }
@@ -88,22 +116,36 @@ export function SharePlanButton({ passageId }: SharePlanButtonProps) {
         share: ShareMetadata | null;
         url?: string;
       };
-      setShare(data.share);
-      setShareUrl(data.url ?? null);
-    } catch (error) {
-      logger.error("Failed to load share status", { error: String(error) });
-    } finally {
-      setLoading(false);
-    }
-  }, [passageId]);
+      return { share: data.share, shareUrl: data.url ?? null };
+    },
+  });
 
-  useEffect(() => {
-    if (open && passageId && tier === "premium") loadStatus();
-  }, [open, passageId, tier, loadStatus]);
+  // Surface query errors the same way the old try/catch did.
+  if (statusError) {
+    logger.error("Failed to load share status", {
+      error: String(statusError),
+    });
+  }
+
+  const status: ShareStatus = override ??
+    fetchedStatus ?? { share: null, shareUrl: null };
+  const { share, shareUrl } = status;
+  // While the status query is in-flight (and no local override applied), show
+  // the loading state — only relevant when premium + open.
+  const loading = statusLoading && override === null;
+
+  const handleOpenChange = (next: boolean) => {
+    dispatch({ type: "openChanged", open: next });
+  };
+
+  const setStatus = (next: ShareStatus) => {
+    dispatch({ type: "statusOverridden", status: next });
+    queryClient.setQueryData(["passage-share", passageId], next);
+  };
 
   const handleCreate = async () => {
     if (!passageId) return;
-    setWorking(true);
+    dispatch({ type: "workingChanged", working: true });
     try {
       const res = await fetch(`/api/passages/${passageId}/share`, {
         method: "POST",
@@ -116,22 +158,23 @@ export function SharePlanButton({ passageId }: SharePlanButtonProps) {
           error?: string;
           upgradeRequired?: boolean;
         };
-        if (body.upgradeRequired) setTier("free");
+        if (body.upgradeRequired) {
+          queryClient.setQueryData(["profile", "share-tier"], "free");
+        }
         throw new Error(body.error ?? `Create failed (${res.status})`);
       }
       const data = (await res.json()) as {
         share: ShareMetadata;
         url: string;
       };
-      setShare(data.share);
-      setShareUrl(data.url);
+      setStatus({ share: data.share, shareUrl: data.url });
       toast.success(share ? "New share link generated" : "Share link created");
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to create link",
       );
     } finally {
-      setWorking(false);
+      dispatch({ type: "workingChanged", working: false });
     }
   };
 
@@ -140,22 +183,21 @@ export function SharePlanButton({ passageId }: SharePlanButtonProps) {
     if (!window.confirm("Revoke this share link? The URL will stop working.")) {
       return;
     }
-    setWorking(true);
+    dispatch({ type: "workingChanged", working: true });
     try {
       const res = await fetch(`/api/passages/${passageId}/share`, {
         method: "DELETE",
         credentials: "include",
       });
       if (!res.ok) throw new Error(`Revoke failed (${res.status})`);
-      setShare(null);
-      setShareUrl(null);
+      setStatus({ share: null, shareUrl: null });
       toast.success("Share link revoked");
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to revoke link",
       );
     } finally {
-      setWorking(false);
+      dispatch({ type: "workingChanged", working: false });
     }
   };
 
@@ -176,7 +218,7 @@ export function SharePlanButton({ passageId }: SharePlanButtonProps) {
       <Button
         size="sm"
         variant="outline"
-        onClick={() => setOpen(true)}
+        onClick={() => handleOpenChange(true)}
         disabled={disabled}
         title={
           disabled
@@ -188,7 +230,7 @@ export function SharePlanButton({ passageId }: SharePlanButtonProps) {
         Share link
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Share passage</DialogTitle>
@@ -217,7 +259,10 @@ export function SharePlanButton({ passageId }: SharePlanButtonProps) {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => handleOpenChange(false)}
+                >
                   Close
                 </Button>
                 <Link href="/pricing">
@@ -271,7 +316,7 @@ export function SharePlanButton({ passageId }: SharePlanButtonProps) {
                   <RotateCw className="h-4 w-4 mr-2" />
                   Regenerate
                 </Button>
-                <Button onClick={() => setOpen(false)}>Done</Button>
+                <Button onClick={() => handleOpenChange(false)}>Close</Button>
               </DialogFooter>
             </div>
           ) : (
@@ -281,7 +326,10 @@ export function SharePlanButton({ passageId }: SharePlanButtonProps) {
                 default expiry; you can revoke or regenerate at any time.
               </p>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => handleOpenChange(false)}
+                >
                   Cancel
                 </Button>
                 <Button onClick={handleCreate} disabled={working}>

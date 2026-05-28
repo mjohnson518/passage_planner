@@ -99,9 +99,9 @@ export function DepartureComparisonCards({
 
         {summary.length > 0 && (
           <ul className="space-y-1">
-            {summary.map((line, i) => (
-              <li key={i} className="text-sm text-muted-foreground">
-                — {line}
+            {summary.map((line) => (
+              <li key={line} className="text-sm text-muted-foreground">
+                - {line}
               </li>
             ))}
           </ul>
@@ -122,7 +122,7 @@ export function DepartureComparisonCards({
             if (c.status === "error") {
               return (
                 <div
-                  key={idx}
+                  key={c.departureTime}
                   className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm"
                 >
                   <p className="font-medium flex items-center gap-2 text-destructive">
@@ -144,7 +144,7 @@ export function DepartureComparisonCards({
 
             return (
               <div
-                key={idx}
+                key={c.departureTime}
                 className={cn(
                   "rounded-md border-2 p-4 flex flex-col gap-3 transition-all",
                   meta.classes,
@@ -191,8 +191,8 @@ export function DepartureComparisonCards({
 
                 {warnings.length > 0 && (
                   <ul className="text-xs space-y-0.5 text-foreground/80">
-                    {warnings.map((w, i) => (
-                      <li key={i} className="truncate">
+                    {warnings.map((w) => (
+                      <li key={w} className="truncate">
                         • {w}
                       </li>
                     ))}

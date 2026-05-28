@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useReducer } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { LifeBuoy, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "../ui/button";
@@ -37,64 +38,105 @@ interface SendFloatPlanButtonProps {
   destinationLabel?: string;
 }
 
+interface SendResult {
+  delivery: DeliveryStatus;
+  sentAt: string | null;
+}
+
+interface DialogState {
+  open: boolean;
+  /** Contact ids the user has checked. */
+  selected: Set<string>;
+  sending: boolean;
+  result: SendResult | null;
+}
+
+type DialogAction =
+  | { type: "opened" }
+  | { type: "closed" }
+  | { type: "selectionInitialized"; ids: string[] }
+  | { type: "toggled"; id: string; checked: boolean }
+  | { type: "sendStarted" }
+  | { type: "sendSettled"; result: SendResult | null };
+
+const initialDialogState: DialogState = {
+  open: false,
+  selected: new Set(),
+  sending: false,
+  result: null,
+};
+
+function dialogReducer(state: DialogState, action: DialogAction): DialogState {
+  switch (action.type) {
+    case "opened":
+      return { ...state, open: true };
+    case "closed":
+      // Reset on close so re-opening shows fresh state, not the last result.
+      return { ...state, open: false, result: null };
+    case "selectionInitialized":
+      return { ...state, selected: new Set(action.ids) };
+    case "toggled": {
+      const copy = new Set(state.selected);
+      if (action.checked) copy.add(action.id);
+      else copy.delete(action.id);
+      return { ...state, selected: copy };
+    }
+    case "sendStarted":
+      return { ...state, sending: true, result: null };
+    case "sendSettled":
+      return {
+        ...state,
+        sending: false,
+        result: action.result ?? state.result,
+      };
+    default:
+      return state;
+  }
+}
+
 export function SendFloatPlanButton({
   passageId,
   departureLabel,
   destinationLabel,
 }: SendFloatPlanButtonProps) {
-  const [open, setOpen] = useState(false);
-  const [contacts, setContacts] = useState<Contact[] | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [loadingContacts, setLoadingContacts] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{
-    delivery: DeliveryStatus;
-    sentAt: string | null;
-  } | null>(null);
+  const [state, dispatch] = useReducer(dialogReducer, initialDialogState);
+  const { open, selected, sending, result } = state;
 
-  const loadContacts = useCallback(async () => {
-    setLoadingContacts(true);
-    try {
-      const res = await fetch("/api/float-plan-contacts", {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`Load failed (${res.status})`);
-      const data: { contacts: Contact[] } = await res.json();
-      setContacts(data.contacts);
-      setSelected(new Set(data.contacts.map((c) => c.id)));
-    } catch (error) {
-      logger.error("Failed to load contacts", { error: String(error) });
-      setContacts([]);
-    } finally {
-      setLoadingContacts(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (open && contacts === null) loadContacts();
-  }, [open, contacts, loadContacts]);
+  const { data: contacts = null, isLoading: loadingContacts } = useQuery<
+    Contact[]
+  >({
+    queryKey: ["float-plan-contacts"],
+    enabled: open,
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/float-plan-contacts", {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error(`Load failed (${res.status})`);
+        const data: { contacts: Contact[] } = await res.json();
+        dispatch({
+          type: "selectionInitialized",
+          ids: data.contacts.map((c) => c.id),
+        });
+        return data.contacts;
+      } catch (error) {
+        logger.error("Failed to load contacts", { error: String(error) });
+        return [];
+      }
+    },
+  });
 
   const handleOpenChange = (next: boolean) => {
-    setOpen(next);
-    if (!next) {
-      // Reset on close so re-opening shows fresh state, not the last result.
-      setResult(null);
-    }
+    dispatch(next ? { type: "opened" } : { type: "closed" });
   };
 
   const toggle = (id: string, checked: boolean) => {
-    setSelected((prev) => {
-      const copy = new Set(prev);
-      if (checked) copy.add(id);
-      else copy.delete(id);
-      return copy;
-    });
+    dispatch({ type: "toggled", id, checked });
   };
 
   const handleSend = async () => {
     if (!passageId || selected.size === 0) return;
-    setSending(true);
-    setResult(null);
+    dispatch({ type: "sendStarted" });
     try {
       const res = await fetch(`/api/passages/${passageId}/float-plan`, {
         method: "POST",
@@ -110,9 +152,12 @@ export function SendFloatPlanButton({
       if (!res.ok) {
         throw new Error(data.error ?? `Send failed (${res.status})`);
       }
-      setResult({
-        delivery: data.deliveryStatus ?? {},
-        sentAt: data.sentAt ?? null,
+      dispatch({
+        type: "sendSettled",
+        result: {
+          delivery: data.deliveryStatus ?? {},
+          sentAt: data.sentAt ?? null,
+        },
       });
       const okCount = Object.values(data.deliveryStatus ?? {}).filter(
         (s) => s.ok,
@@ -132,11 +177,10 @@ export function SendFloatPlanButton({
         );
       }
     } catch (error) {
+      dispatch({ type: "sendSettled", result: null });
       toast.error(
         error instanceof Error ? error.message : "Failed to send float plan",
       );
-    } finally {
-      setSending(false);
     }
   };
 
@@ -147,7 +191,7 @@ export function SendFloatPlanButton({
       <Button
         size="sm"
         variant="outline"
-        onClick={() => setOpen(true)}
+        onClick={() => handleOpenChange(true)}
         disabled={disabled}
         title={
           disabled
@@ -247,13 +291,15 @@ export function SendFloatPlanButton({
             <p className="text-xs text-muted-foreground border-t border-border pt-3">
               The PDF includes vessel, route, ETA, and instructions for the
               recipient to follow if you are overdue. Helmwise will NOT alert
-              authorities automatically — your contact is.
+              authorities automatically; your contact is.
             </p>
           )}
 
           <DialogFooter>
             {result ? (
-              <Button onClick={() => handleOpenChange(false)}>Done</Button>
+              <Button type="button" onClick={() => handleOpenChange(false)}>
+                Close
+              </Button>
             ) : (
               <>
                 <Button
