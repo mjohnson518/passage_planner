@@ -1,24 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useReducer } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Badge } from "../components/ui/badge";
-import { EmptyState } from "../components/ui/empty-state";
 import {
   Banner,
   BannerTitle,
   BannerDescription,
 } from "../components/ui/banner";
-import { formatPassageDate } from "../lib/format";
 import dynamic from "next/dynamic";
 import { Skeleton } from "../components/ui/skeleton";
 
@@ -29,30 +19,55 @@ const DemoPassage = dynamic(
     })),
   { loading: () => <Skeleton className="h-[300px] w-full" /> },
 );
-import {
-  Plus,
-  History,
-  Compass,
-  Ship,
-  TrendingUp,
-  Clock,
-  MapPin,
-  Waves,
-  Navigation,
-  ArrowRight,
-  Anchor,
-  AlertCircle,
-} from "lucide-react";
+import { Plus, Anchor, AlertCircle } from "lucide-react";
 import Link from "next/link";
-import { cn } from "../lib/utils";
+import { QuickActions } from "./_components/QuickActions";
+import { StatsOverview } from "./_components/StatsOverview";
+import {
+  RecentPassagesCard,
+  type RecentPassage,
+} from "./_components/RecentPassagesCard";
 
-interface RecentPassage {
-  id: string;
-  departure: string;
-  destination: string;
-  date: string;
-  status: "completed" | "planned" | "in-progress";
-  distance: number;
+interface DashboardStats {
+  totalPassages: number;
+  totalDistance: number;
+  avgDuration: number;
+}
+
+// All dashboard view state consolidated. The single mount effect resolves
+// demo-vs-real once and dispatches one update — no cascading setState.
+interface DashboardState {
+  recentPassages: RecentPassage[];
+  stats: DashboardStats;
+  isDemoMode: boolean;
+  displayName: string;
+  isLoading: boolean;
+}
+
+type DashboardAction = { type: "loaded"; value: Partial<DashboardState> };
+
+const initialDashboardState: DashboardState = {
+  recentPassages: [],
+  stats: {
+    totalPassages: 0,
+    totalDistance: 0,
+    avgDuration: 0,
+  },
+  isDemoMode: false,
+  displayName: "Captain",
+  isLoading: true,
+};
+
+function dashboardReducer(
+  state: DashboardState,
+  action: DashboardAction,
+): DashboardState {
+  switch (action.type) {
+    case "loaded":
+      return { ...state, ...action.value };
+    default:
+      return state;
+  }
 }
 
 // Demo data for when user is in demo mode
@@ -83,7 +98,7 @@ const DEMO_PASSAGES: RecentPassage[] = [
   },
 ];
 
-const DEMO_STATS = {
+const DEMO_STATS: DashboardStats = {
   totalPassages: 24,
   totalDistance: 2847,
   avgDuration: 16.5,
@@ -91,69 +106,74 @@ const DEMO_STATS = {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const router = useRouter();
-  const [recentPassages, setRecentPassages] = useState<RecentPassage[]>([]);
-  const [stats, setStats] = useState({
-    totalPassages: 0,
-    totalDistance: 0,
-    avgDuration: 0,
-  });
-  const [isDemoMode, setIsDemoMode] = useState(false);
-  const [displayName, setDisplayName] = useState("Captain");
-  const [isLoading, setIsLoading] = useState(true);
+  const { push } = useRouter();
+  const [state, dispatch] = useReducer(dashboardReducer, initialDashboardState);
+  const { recentPassages, stats, isDemoMode, displayName, isLoading } = state;
 
   useEffect(() => {
     // Check for demo mode
     const demoMode =
       typeof window !== "undefined" &&
       localStorage.getItem("helmwise_demo_mode") === "true";
-    setIsDemoMode(demoMode);
 
     if (!user && !demoMode) {
-      router.push("/login");
+      dispatch({ type: "loaded", value: { isDemoMode: demoMode } });
+      push("/login");
       return;
     }
 
     if (demoMode) {
       // Load demo data
-      setRecentPassages(DEMO_PASSAGES);
-      setStats(DEMO_STATS);
-      setDisplayName("Demo Captain");
-      setIsLoading(false);
+      dispatch({
+        type: "loaded",
+        value: {
+          isDemoMode: demoMode,
+          recentPassages: DEMO_PASSAGES,
+          stats: DEMO_STATS,
+          displayName: "Demo Captain",
+          isLoading: false,
+        },
+      });
     } else if (user) {
       // Load real user data
-      setDisplayName(user.email?.split("@")[0] || "Captain");
-      setRecentPassages([
-        {
-          id: "1",
-          departure: "Boston, MA",
-          destination: "Portland, ME",
-          date: "2024-01-15",
-          status: "completed",
-          distance: 98,
+      dispatch({
+        type: "loaded",
+        value: {
+          isDemoMode: demoMode,
+          displayName: user.email?.split("@")[0] || "Captain",
+          recentPassages: [
+            {
+              id: "1",
+              departure: "Boston, MA",
+              destination: "Portland, ME",
+              date: "2024-01-15",
+              status: "completed",
+              distance: 98,
+            },
+            {
+              id: "2",
+              departure: "Newport, RI",
+              destination: "Block Island",
+              date: "2024-01-20",
+              status: "planned",
+              distance: 45,
+            },
+          ],
+          stats: {
+            totalPassages: 12,
+            totalDistance: 1234,
+            avgDuration: 18.5,
+          },
+          isLoading: false,
         },
-        {
-          id: "2",
-          departure: "Newport, RI",
-          destination: "Block Island",
-          date: "2024-01-20",
-          status: "planned",
-          distance: 45,
-        },
-      ]);
-      setStats({
-        totalPassages: 12,
-        totalDistance: 1234,
-        avgDuration: 18.5,
       });
-      setIsLoading(false);
     }
-  }, [user, router]);
+  }, [user, push]);
 
   const handleExitDemo = () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("helmwise_demo_mode");
-      router.push("/login");
+      push("/login");
     }
   };
 
@@ -163,7 +183,7 @@ export default function DashboardPage() {
       <div className="relative min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading dashboard...</p>
+          <p className="text-muted-foreground">Loading dashboard…</p>
         </div>
       </div>
     );
@@ -224,203 +244,14 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-          {[
-            {
-              href: "/planner",
-              icon: Plus,
-              title: "New Passage",
-              description: "Plan a new route",
-              accent: "primary",
-            },
-            {
-              href: "/passages",
-              icon: History,
-              title: "My Passages",
-              description: "View history",
-              accent: "ocean",
-            },
-            {
-              href: "/weather",
-              icon: Waves,
-              title: "Weather",
-              description: "Check conditions",
-              accent: "brass",
-            },
-            {
-              href: "/fleet",
-              icon: Ship,
-              title: "My Boats",
-              description: "Manage vessels",
-              accent: "muted",
-            },
-          ].map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="group"
-              {...(item.href === "/planner"
-                ? { "data-testid": "dashboard-new-passage" }
-                : {})}
-            >
-              <Card className="h-full card-hover">
-                <CardContent className="p-5 lg:p-6 text-center">
-                  <div
-                    className={cn(
-                      "w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-4 transition-all duration-300 group-hover:scale-110",
-                      item.accent === "primary" &&
-                        "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground",
-                      item.accent === "ocean" &&
-                        "bg-ocean-100 dark:bg-ocean-900/20 text-ocean-600 dark:text-ocean-400",
-                      item.accent === "brass" &&
-                        "bg-brass-100 dark:bg-brass-900/20 text-brass-600 dark:text-brass-400",
-                      item.accent === "muted" &&
-                        "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    <item.icon className="h-7 w-7" />
-                  </div>
-                  <h3 className="font-display font-semibold text-base lg:text-lg">
-                    {item.title}
-                  </h3>
-                  <p className="text-xs lg:text-sm text-muted-foreground mt-1">
-                    {item.description}
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <QuickActions />
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-          <Card className="card-nautical">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Navigation className="h-4 w-4" />
-                Total Passages
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-display font-bold text-gradient">
-                {stats.totalPassages}
-              </div>
-              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                <TrendingUp className="h-3 w-3 text-success" />
-                <span className="text-success">+3</span> this month
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="card-nautical">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Compass className="h-4 w-4" />
-                Distance Sailed
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-display font-bold">
-                {stats.totalDistance.toLocaleString()}{" "}
-                <span className="text-lg text-muted-foreground">nm</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Across all passages
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="card-nautical">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Avg Duration
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-display font-bold">
-                {stats.avgDuration}
-                <span className="text-lg text-muted-foreground">h</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">Per passage</p>
-            </CardContent>
-          </Card>
-        </div>
+        <StatsOverview stats={stats} />
 
         {/* Recent Passages & Demo */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="font-display text-xl">
-                  Recent Passages
-                </CardTitle>
-                <CardDescription>Your latest sailing plans</CardDescription>
-              </div>
-              <Link href="/passages">
-                <Button variant="ghost" size="sm" className="text-primary">
-                  View All
-                  <ArrowRight className="ml-1 h-4 w-4" />
-                </Button>
-              </Link>
-            </CardHeader>
-            <CardContent>
-              {recentPassages.length > 0 ? (
-                <div className="space-y-3">
-                  {recentPassages.map((passage) => (
-                    <Link
-                      key={passage.id}
-                      href={`/passages/${passage.id}`}
-                      className="flex items-center justify-between p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-all duration-200 group"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <MapPin className="h-4 w-4 text-primary" />
-                          </div>
-                          <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
-                            {passage.departure} → {passage.destination}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground ml-10">
-                          <span>{formatPassageDate(passage.date)}</span>
-                          <span className="w-1 h-1 rounded-full bg-muted-foreground/50" />
-                          <span>{passage.distance} nm</span>
-                        </div>
-                      </div>
-                      <Badge
-                        variant={
-                          passage.status === "completed"
-                            ? "secondary"
-                            : passage.status === "planned"
-                              ? "outline"
-                              : "default"
-                        }
-                        className={cn(
-                          "ml-3 flex-shrink-0",
-                          passage.status === "completed" && "badge-success",
-                          passage.status === "planned" && "badge-primary",
-                        )}
-                      >
-                        {passage.status}
-                      </Badge>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={<Compass className="h-8 w-8" />}
-                  title="No passages yet"
-                  description="Plan your first passage to see it here — weather, tides, and a full safety analysis in under a minute."
-                  action={
-                    <Button asChild>
-                      <Link href="/planner">Plan Your First Passage</Link>
-                    </Button>
-                  }
-                />
-              )}
-            </CardContent>
-          </Card>
+          <RecentPassagesCard recentPassages={recentPassages} />
 
           {/* Demo Passage */}
           <div className="hidden sm:block">
