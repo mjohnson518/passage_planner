@@ -1,7 +1,8 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { Header } from "../components/layout/Header";
-import { Anchor } from "lucide-react";
+import { DataRetentionSection } from "./_components/DataRetentionSection";
+import { YourRightsSection } from "./_components/YourRightsSection";
+import { PrivacyFooter } from "./_components/PrivacyFooter";
 
 export const metadata: Metadata = {
   title: "Privacy Policy - Helmwise",
@@ -191,182 +192,10 @@ export default function PrivacyPage() {
             </section>
 
             {/* 4. Data Retention */}
-            <section>
-              <h2 className="font-display text-2xl mb-4">4. Data Retention</h2>
-              <p className="text-muted-foreground mb-4">
-                We retain personal data only as long as necessary to provide the
-                Service or to meet legal, regulatory, and safety obligations.
-                The table below summarizes the retention window for each
-                category of data.
-              </p>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border border-border rounded-md">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="text-left p-3 font-semibold">
-                        Data category
-                      </th>
-                      <th className="text-left p-3 font-semibold">
-                        Retention window
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-muted-foreground">
-                    <tr className="border-t border-border">
-                      <td className="p-3">
-                        Account, vessel profiles, passages, checklists
-                      </td>
-                      <td className="p-3">
-                        For the life of your account. Deleted immediately when
-                        you delete your account via{" "}
-                        <Link
-                          href="/account/privacy"
-                          className="text-primary hover:underline"
-                        >
-                          /account/privacy
-                        </Link>
-                        .
-                      </td>
-                    </tr>
-                    <tr className="border-t border-border">
-                      <td className="p-3">
-                        Safety audit logs (navigation decisions, hazard
-                        warnings, overrides)
-                      </td>
-                      <td className="p-3">
-                        7 years after creation, retained in anonymized form
-                        following account deletion, for maritime safety and
-                        regulatory review.
-                      </td>
-                    </tr>
-                    <tr className="border-t border-border">
-                      <td className="p-3">Subscription and billing records</td>
-                      <td className="p-3">
-                        7 years after the last transaction, to meet tax and
-                        accounting retention requirements.
-                      </td>
-                    </tr>
-                    <tr className="border-t border-border">
-                      <td className="p-3">
-                        Analytics and usage events (page views, feature usage)
-                      </td>
-                      <td className="p-3">
-                        25 months in identifiable form; anonymized thereafter
-                        (your user ID is removed, the event record may persist
-                        for aggregate analysis).
-                      </td>
-                    </tr>
-                    <tr className="border-t border-border">
-                      <td className="p-3">
-                        Server logs (IP, request path, status code)
-                      </td>
-                      <td className="p-3">
-                        30 days for operational debugging and abuse detection.
-                      </td>
-                    </tr>
-                    <tr className="border-t border-border">
-                      <td className="p-3">Backups</td>
-                      <td className="p-3">
-                        Rolling 35 days. Data you have deleted may persist in
-                        backups until the rolling window rotates; it will not be
-                        restored into production except during disaster
-                        recovery.
-                      </td>
-                    </tr>
-                    <tr className="border-t border-border">
-                      <td className="p-3">Inactive accounts</td>
-                      <td className="p-3">
-                        After 3 years with no sign-in, we will email you a
-                        notice and delete your account if we receive no response
-                        within 30 days.
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <p className="text-muted-foreground mt-4">
-                <strong>Immediate deletion:</strong> When you delete your
-                account, your personal data, vessel profiles, passages, and
-                checklists are removed synchronously from our production
-                database. Safety audit logs are retained as described above but
-                are anonymized (your user ID is severed). A compliance log of
-                the deletion request itself is kept for regulatory purposes and
-                contains no personally identifying information after the
-                deletion completes.
-              </p>
-            </section>
+            <DataRetentionSection />
 
             {/* 5. Your Rights */}
-            <section>
-              <h2 className="font-display text-2xl mb-4">5. Your Rights</h2>
-              <p className="text-muted-foreground mb-4">
-                You have the following rights regarding your personal data:
-              </p>
-              <ul className="list-disc list-inside text-muted-foreground space-y-2 ml-4">
-                <li>
-                  <strong>Access:</strong> You can request a copy of all
-                  personal data we hold about you.
-                </li>
-                <li>
-                  <strong>Correction:</strong> You can update or correct
-                  inaccurate information through your account settings or by
-                  contacting us.
-                </li>
-                <li>
-                  <strong>Deletion:</strong> You can delete your account and
-                  associated personal data immediately via{" "}
-                  <Link
-                    href="/account/privacy"
-                    className="text-primary hover:underline"
-                  >
-                    /account/privacy
-                  </Link>
-                  . The deletion runs synchronously; see §4 for the categories
-                  that are removed versus retained in anonymized form.
-                </li>
-                <li>
-                  <strong>Export:</strong> You can download a JSON bundle of all
-                  your personal data — account record, vessel profiles,
-                  passages, checklists, usage, and safety audit logs — at{" "}
-                  <Link
-                    href="/account/privacy"
-                    className="text-primary hover:underline"
-                  >
-                    /account/privacy
-                  </Link>
-                  . Passage plans can also be exported in GPX and PDF formats
-                  from the planner.
-                </li>
-                <li>
-                  <strong>Restriction:</strong> You can request that we restrict
-                  the processing of your data in certain circumstances.
-                </li>
-                <li>
-                  <strong>Objection:</strong> You can object to the processing
-                  of your data for specific purposes, including direct
-                  marketing.
-                </li>
-              </ul>
-              <p className="text-muted-foreground mt-4">
-                Signed-in users can download or delete their data directly at{" "}
-                <Link
-                  href="/account/privacy"
-                  className="text-primary hover:underline"
-                >
-                  /account/privacy
-                </Link>
-                . For any other request, contact us at{" "}
-                <a
-                  href="mailto:privacy@helmwise.co"
-                  className="text-primary hover:underline"
-                >
-                  privacy@helmwise.co
-                </a>
-                .
-              </p>
-            </section>
+            <YourRightsSection />
 
             {/* 6. GDPR Compliance */}
             <section>
@@ -470,33 +299,7 @@ export default function PrivacyPage() {
       </div>
 
       {/* Footer */}
-      <footer className="px-4 py-12 sm:px-6 lg:px-8 border-t border-border">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Anchor className="h-5 w-5 text-primary" />
-              <span className="font-display font-bold">Helmwise</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              &copy; {new Date().getFullYear()} Helmwise. All rights reserved.
-            </p>
-            <div className="flex gap-6 text-sm text-muted-foreground">
-              <Link
-                href="/terms"
-                className="hover:text-primary transition-colors"
-              >
-                Terms
-              </Link>
-              <Link
-                href="/cookies"
-                className="hover:text-primary transition-colors"
-              >
-                Cookies
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <PrivacyFooter />
     </>
   );
 }
