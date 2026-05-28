@@ -1,0 +1,11 @@
+{
+  "ignore": {
+    "rules": ["deslop/unused-dev-dependency"],
+    "overrides": [
+      {
+        "files": ["package.json"],
+        "rules": ["deslop/unused-dev-dependency"]
+      }
+    ]
+  }
+}
