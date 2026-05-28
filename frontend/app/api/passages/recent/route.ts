@@ -20,6 +20,7 @@ export async function GET(request: Request) {
     const response = await fetch(
       `${process.env.ORCHESTRATOR_URL || "http://localhost:8080"}/api/passages/recent?limit=${limit}`,
       {
+        cache: "no-store",
         headers: {
           Authorization: authorization,
         },

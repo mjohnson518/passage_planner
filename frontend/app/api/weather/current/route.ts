@@ -21,6 +21,7 @@ export async function POST(request: Request) {
       `${process.env.ORCHESTRATOR_URL || "http://localhost:8080"}/api/weather/current`,
       {
         method: "POST",
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           Authorization: authorization,

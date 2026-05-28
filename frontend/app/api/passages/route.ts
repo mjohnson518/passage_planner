@@ -17,6 +17,7 @@ export async function GET(request: Request) {
     const response = await fetch(
       `${process.env.ORCHESTRATOR_URL || "http://localhost:8080"}/api/passages`,
       {
+        cache: "no-store",
         headers: {
           Authorization: authorization,
         },
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
       `${process.env.ORCHESTRATOR_URL || "http://localhost:8080"}/api/passages`,
       {
         method: "POST",
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           Authorization: authorization,

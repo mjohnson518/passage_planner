@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       `${orchestratorUrl}/api/subscription/create-checkout-session`,
       {
         method: "POST",
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           Authorization: authorization,

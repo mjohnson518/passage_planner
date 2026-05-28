@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       `${process.env.ORCHESTRATOR_URL || "http://localhost:8080"}/api/boats`,
       {
         method: "POST",
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           Authorization: authorization,
@@ -58,6 +59,7 @@ export async function GET(request: Request) {
     const response = await fetch(
       `${process.env.ORCHESTRATOR_URL || "http://localhost:8080"}/api/boats`,
       {
+        cache: "no-store",
         headers: {
           Authorization: authorization,
         },

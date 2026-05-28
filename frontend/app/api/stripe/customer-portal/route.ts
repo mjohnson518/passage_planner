@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
       `${orchestratorUrl}/api/subscription/customer-portal`,
       {
         method: "POST",
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           Authorization: authorization,
@@ -46,8 +47,6 @@ export async function POST(request: NextRequest) {
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-
       if (response.status === 404) {
         return NextResponse.json(
           {
@@ -58,6 +57,8 @@ export async function POST(request: NextRequest) {
           { status: 404 },
         );
       }
+
+      const errorData = await response.json().catch(() => ({}));
 
       return NextResponse.json(
         {

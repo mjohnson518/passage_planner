@@ -17,6 +17,7 @@ export async function POST(request: Request) {
       `${process.env.ORCHESTRATOR_URL || "http://localhost:8080"}/api/analytics/track`,
       {
         method: "POST",
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           ...(authorization && { Authorization: authorization }),
