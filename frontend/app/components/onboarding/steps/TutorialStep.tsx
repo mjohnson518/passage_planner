@@ -78,10 +78,13 @@ export function TutorialStep({ onNext, onPrevious }: TutorialStepProps) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {features.map((feature, index) => {
+        {features.map((feature) => {
           const Icon = feature.icon;
           return (
-            <Card key={index} className="hover:shadow-lg transition-shadow">
+            <Card
+              key={feature.title}
+              className="hover:shadow-lg transition-shadow"
+            >
               <CardHeader>
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-primary/10 rounded-lg">
@@ -121,7 +124,7 @@ export function TutorialStep({ onNext, onPrevious }: TutorialStepProps) {
             Back
           </Button>
           <Button className="btn-brass" onClick={onNext} disabled={!onNext}>
-            Continue
+            Get started
           </Button>
         </div>
       )}

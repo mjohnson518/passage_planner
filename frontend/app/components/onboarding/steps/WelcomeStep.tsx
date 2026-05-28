@@ -49,8 +49,8 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
       </div>
 
       <div className="grid gap-4 mb-8">
-        {features.map((feature, index) => (
-          <div key={index} className="flex gap-4">
+        {features.map((feature) => (
+          <div key={feature.title} className="flex gap-4">
             <div className="flex-shrink-0">
               <feature.icon className="h-5 w-5 text-primary mt-0.5" />
             </div>

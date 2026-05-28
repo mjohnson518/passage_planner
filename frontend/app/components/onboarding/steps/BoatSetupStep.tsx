@@ -159,7 +159,7 @@ export function BoatSetupStep({
             max="40"
           />
           <p className="text-xs text-muted-foreground">
-            Critical for safety — used for under-keel clearance calculations
+            Critical for safety: used for under-keel clearance calculations
           </p>
         </div>
 
@@ -271,7 +271,7 @@ export function BoatSetupStep({
             Back
           </Button>
           <Button className="btn-brass" onClick={onNext} disabled={!onNext}>
-            Continue
+            Save boat details
           </Button>
         </div>
       )}

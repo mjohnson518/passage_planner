@@ -78,7 +78,7 @@ export function PreferencesStep({
         <CardContent className="space-y-6">
           {/* Night Sailing */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-x-2">
               <Moon className="h-5 w-5 text-muted-foreground" />
               <Label htmlFor="night-sailing" className="font-normal">
                 Avoid night sailing when possible
@@ -96,7 +96,7 @@ export function PreferencesStep({
           {/* Max Wind Speed */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-x-2">
                 <Wind className="h-5 w-5 text-muted-foreground" />
                 <Label>Maximum wind speed</Label>
               </div>
@@ -124,7 +124,7 @@ export function PreferencesStep({
           {/* Max Wave Height */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-x-2">
                 <Waves className="h-5 w-5 text-muted-foreground" />
                 <Label>Maximum wave height</Label>
               </div>
@@ -161,7 +161,7 @@ export function PreferencesStep({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-x-2">
               <AlertTriangle className="h-5 w-5 text-warning" />
               <div>
                 <Label htmlFor="weather-alerts" className="font-normal">
@@ -182,7 +182,7 @@ export function PreferencesStep({
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-x-2">
               <Bell className="h-5 w-5 text-muted-foreground" />
               <div>
                 <Label htmlFor="passage-reminders" className="font-normal">
@@ -205,7 +205,7 @@ export function PreferencesStep({
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-x-2">
               <Shield className="h-5 w-5 text-muted-foreground" />
               <div>
                 <Label htmlFor="safety-updates" className="font-normal">
@@ -226,7 +226,7 @@ export function PreferencesStep({
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-x-2">
               <Mail className="h-5 w-5 text-muted-foreground" />
               <div>
                 <Label htmlFor="marketing" className="font-normal">
@@ -254,7 +254,7 @@ export function PreferencesStep({
             Back
           </Button>
           <Button className="btn-brass" onClick={onNext} disabled={!onNext}>
-            Continue
+            Save preferences
           </Button>
         </div>
       )}
