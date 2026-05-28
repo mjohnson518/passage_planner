@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer } from "react";
 import { AlertTriangle, Bell, BellOff, Lock } from "lucide-react";
 import RequireAuth from "../../components/auth/RequireAuth";
 import { Header } from "../../components/layout/Header";
@@ -77,6 +77,50 @@ interface Preferences {
   subscriptions: Subscription[];
 }
 
+interface State {
+  permission: PermissionState;
+  prefs: Preferences | null;
+  selectedTopics: Set<Topic>;
+  loading: boolean;
+  saving: boolean;
+}
+
+type Action =
+  | { type: "setPermission"; permission: PermissionState }
+  | { type: "setPrefs"; prefs: Preferences | null }
+  | { type: "setSelectedTopics"; topics: Set<Topic> }
+  | { type: "setLoading"; loading: boolean }
+  | { type: "setSaving"; saving: boolean };
+
+const INITIAL_STATE: State = {
+  permission: "default",
+  prefs: null,
+  selectedTopics: new Set<Topic>([
+    "safety_alerts",
+    "weather_updates",
+    "passage_reminders",
+  ]),
+  loading: true,
+  saving: false,
+};
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "setPermission":
+      return { ...state, permission: action.permission };
+    case "setPrefs":
+      return { ...state, prefs: action.prefs };
+    case "setSelectedTopics":
+      return { ...state, selectedTopics: action.topics };
+    case "setLoading":
+      return { ...state, loading: action.loading };
+    case "setSaving":
+      return { ...state, saving: action.saving };
+    default:
+      return state;
+  }
+}
+
 function NotificationsContent() {
   const {
     isSupported,
@@ -85,22 +129,19 @@ function NotificationsContent() {
     updatePushTopics,
   } = useServiceWorker();
 
-  const [permission, setPermission] = useState<PermissionState>("default");
-  const [prefs, setPrefs] = useState<Preferences | null>(null);
-  const [selectedTopics, setSelectedTopics] = useState<Set<Topic>>(
-    () =>
-      new Set<Topic>(["safety_alerts", "weather_updates", "passage_reminders"]),
-  );
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
+  const { permission, prefs, selectedTopics, loading, saving } = state;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!isSupported || !("Notification" in window)) {
-      setPermission("unsupported");
+      dispatch({ type: "setPermission", permission: "unsupported" });
       return;
     }
-    setPermission(Notification.permission as PermissionState);
+    dispatch({
+      type: "setPermission",
+      permission: Notification.permission as PermissionState,
+    });
   }, [isSupported]);
 
   const refresh = useCallback(async () => {
@@ -110,24 +151,30 @@ function NotificationsContent() {
       });
       if (!res.ok) {
         if (res.status === 503) {
-          setPrefs({ enabled: false, availableTopics: [], subscriptions: [] });
+          dispatch({
+            type: "setPrefs",
+            prefs: { enabled: false, availableTopics: [], subscriptions: [] },
+          });
           return;
         }
         throw new Error(`Load failed (${res.status})`);
       }
       const data: Preferences = await res.json();
-      setPrefs(data);
+      dispatch({ type: "setPrefs", prefs: data });
       if (data.subscriptions.length > 0) {
         // All subs share the same topics (updateUserTopics writes uniformly);
         // initial selection mirrors whichever row we got back first.
-        setSelectedTopics(new Set<Topic>(data.subscriptions[0].topics));
+        dispatch({
+          type: "setSelectedTopics",
+          topics: new Set<Topic>(data.subscriptions[0].topics),
+        });
       }
     } catch (error) {
       logger.error("Failed to load push preferences", {
         error: String(error),
       });
     } finally {
-      setLoading(false);
+      dispatch({ type: "setLoading", loading: false });
     }
   }, []);
 
@@ -140,37 +187,35 @@ function NotificationsContent() {
   const toggleTopic = (topic: Topic, next: boolean) => {
     const meta = TOPIC_META.find((t) => t.id === topic);
     if (meta?.alwaysOn) return;
-    setSelectedTopics((prev) => {
-      const copy = new Set(prev);
-      if (next) copy.add(topic);
-      else copy.delete(topic);
-      copy.add("safety_alerts");
-      return copy;
-    });
+    const copy = new Set(selectedTopics);
+    if (next) copy.add(topic);
+    else copy.delete(topic);
+    copy.add("safety_alerts");
+    dispatch({ type: "setSelectedTopics", topics: copy });
   };
 
   const handleEnable = async () => {
-    setSaving(true);
+    dispatch({ type: "setSaving", saving: true });
     const ok = await subscribeToPush(Array.from(selectedTopics));
     if (ok) {
-      setPermission("granted");
+      dispatch({ type: "setPermission", permission: "granted" });
       await refresh();
     }
-    setSaving(false);
+    dispatch({ type: "setSaving", saving: false });
   };
 
   const handleDisable = async () => {
-    setSaving(true);
+    dispatch({ type: "setSaving", saving: true });
     await unsubscribeFromPush();
     await refresh();
-    setSaving(false);
+    dispatch({ type: "setSaving", saving: false });
   };
 
   const handleSavePreferences = async () => {
-    setSaving(true);
+    dispatch({ type: "setSaving", saving: true });
     const ok = await updatePushTopics(Array.from(selectedTopics));
     if (ok) await refresh();
-    setSaving(false);
+    dispatch({ type: "setSaving", saving: false });
   };
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import RequireAuth from "../../components/auth/RequireAuth";
 import { Header } from "../../components/layout/Header";
@@ -13,7 +14,7 @@ type DeleteStage = "idle" | "confirm" | "deleting";
 
 function AccountPrivacyContent() {
   const { user, session, signOut } = useAuth();
-  const router = useRouter();
+  const { replace } = useRouter();
   const [exporting, setExporting] = useState(false);
   const [deleteStage, setDeleteStage] = useState<DeleteStage>("idle");
   const [confirmEmail, setConfirmEmail] = useState("");
@@ -82,7 +83,7 @@ function AccountPrivacyContent() {
         );
       }
       await signOut();
-      router.replace("/?deleted=1");
+      replace("/?deleted=1");
     } catch (err) {
       logger.error("account deletion failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -129,9 +130,9 @@ function AccountPrivacyContent() {
                 This permanently deletes your account, vessel profiles,
                 passages, and personal data. Anonymized safety audit logs may be
                 retained for regulatory compliance, as described in our{" "}
-                <a href="/privacy" className="text-primary hover:underline">
+                <Link href="/privacy" className="text-primary hover:underline">
                   Privacy Policy
-                </a>
+                </Link>
                 . This action cannot be undone.
               </p>
 

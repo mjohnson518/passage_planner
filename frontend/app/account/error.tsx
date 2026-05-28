@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { Button } from "../components/ui/button";
 import { logger } from "../lib/logger";
 
@@ -27,9 +28,9 @@ export default function AccountError({
       </p>
       <p className="text-sm text-muted-foreground mb-6">
         If this keeps happening, please{" "}
-        <a href="/contact" className="underline">
+        <Link href="/contact" className="underline">
           contact support
-        </a>
+        </Link>
         .
       </p>
       <div className="flex gap-3 justify-center">
