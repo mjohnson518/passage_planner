@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { Button } from "../components/ui/button";
 import { logger } from "../lib/logger";
 
@@ -23,13 +24,13 @@ export default function FleetError({
       <h1 className="text-2xl font-bold mb-2">Fleet unavailable</h1>
       <p className="text-muted-foreground mb-4">
         We couldn&apos;t load your fleet. Your vessels, crew, and invitations
-        are unchanged — this is a display issue, not a data loss.
+        are unchanged; this is a display issue, not a data loss.
       </p>
       <p className="text-sm text-muted-foreground mb-6">
         If this keeps happening, please{" "}
-        <a href="/contact" className="underline">
+        <Link href="/contact" className="underline">
           contact support
-        </a>
+        </Link>
         .
       </p>
       <div className="flex gap-3 justify-center">

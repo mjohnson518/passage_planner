@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,50 +8,54 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../ui/dialog'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Label } from '../ui/label'
-import { Textarea } from '../ui/textarea'
-import { Switch } from '../ui/switch'
-import { Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
-import type { Fleet } from '@/types/shared'
+} from "../ui/dialog";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Textarea } from "../ui/textarea";
+import { Switch } from "../ui/switch";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import type { Fleet } from "@/types/shared";
 
 interface CreateFleetDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onSuccess: (fleet: Fleet) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: (fleet: Fleet) => void;
 }
 
-export function CreateFleetDialog({ open, onOpenChange, onSuccess }: CreateFleetDialogProps) {
-  const [loading, setLoading] = useState(false)
+export function CreateFleetDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: CreateFleetDialogProps) {
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
+    name: "",
+    description: "",
     settings: {
       defaultPassageSharing: true,
       requireApprovalForPassages: false,
       allowCrewToInvite: false,
       vesselTrackingEnabled: true,
-      maintenanceReminders: true
-    }
-  })
+      maintenanceReminders: true,
+    },
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!formData.name.trim()) {
-      toast.error('Fleet name is required')
-      return
+      toast.error("Fleet name is required");
+      return;
     }
 
-    setLoading(true)
+    setLoading(true);
     try {
       // TODO: Call API to create fleet
       const mockFleet: Fleet = {
         id: Date.now().toString(),
-        ownerId: 'user-id',
+        ownerId: "user-id",
         name: formData.name,
         description: formData.description,
         vessels: [],
@@ -59,30 +63,30 @@ export function CreateFleetDialog({ open, onOpenChange, onSuccess }: CreateFleet
         sharedPassages: [],
         settings: formData.settings,
         createdAt: new Date(),
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      };
 
-      toast.success('Fleet created successfully!')
-      onSuccess(mockFleet)
-      
+      toast.success("Fleet created successfully!");
+      onSuccess(mockFleet);
+
       // Reset form
       setFormData({
-        name: '',
-        description: '',
+        name: "",
+        description: "",
         settings: {
           defaultPassageSharing: true,
           requireApprovalForPassages: false,
           allowCrewToInvite: false,
           vesselTrackingEnabled: true,
-          maintenanceReminders: true
-        }
-      })
+          maintenanceReminders: true,
+        },
+      });
     } catch (error) {
-      toast.error('Failed to create fleet')
+      toast.error("Failed to create fleet");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -91,7 +95,8 @@ export function CreateFleetDialog({ open, onOpenChange, onSuccess }: CreateFleet
           <DialogHeader>
             <DialogTitle>Create New Fleet</DialogTitle>
             <DialogDescription>
-              Set up your fleet to manage multiple vessels and coordinate with crew
+              Set up your fleet to manage multiple vessels and coordinate with
+              crew
             </DialogDescription>
           </DialogHeader>
 
@@ -102,7 +107,9 @@ export function CreateFleetDialog({ open, onOpenChange, onSuccess }: CreateFleet
                 id="fleet-name"
                 placeholder="e.g., Pacific Sailing Fleet"
                 value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, name: e.target.value }))
+                }
                 disabled={loading}
               />
             </div>
@@ -113,7 +120,12 @@ export function CreateFleetDialog({ open, onOpenChange, onSuccess }: CreateFleet
                 id="fleet-description"
                 placeholder="Describe your fleet..."
                 value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
                 disabled={loading}
                 rows={3}
               />
@@ -121,11 +133,13 @@ export function CreateFleetDialog({ open, onOpenChange, onSuccess }: CreateFleet
 
             <div className="space-y-4">
               <h3 className="font-medium">Fleet Settings</h3>
-              
+
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="passage-sharing">Default Passage Sharing</Label>
+                    <Label htmlFor="passage-sharing">
+                      Default Passage Sharing
+                    </Label>
                     <p className="text-sm text-muted-foreground">
                       Automatically share passages with fleet members
                     </p>
@@ -133,10 +147,13 @@ export function CreateFleetDialog({ open, onOpenChange, onSuccess }: CreateFleet
                   <Switch
                     id="passage-sharing"
                     checked={formData.settings.defaultPassageSharing}
-                    onCheckedChange={(checked) => 
-                      setFormData(prev => ({
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({
                         ...prev,
-                        settings: { ...prev.settings, defaultPassageSharing: checked }
+                        settings: {
+                          ...prev.settings,
+                          defaultPassageSharing: checked,
+                        },
                       }))
                     }
                     disabled={loading}
@@ -153,10 +170,13 @@ export function CreateFleetDialog({ open, onOpenChange, onSuccess }: CreateFleet
                   <Switch
                     id="vessel-tracking"
                     checked={formData.settings.vesselTrackingEnabled}
-                    onCheckedChange={(checked) => 
-                      setFormData(prev => ({
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({
                         ...prev,
-                        settings: { ...prev.settings, vesselTrackingEnabled: checked }
+                        settings: {
+                          ...prev.settings,
+                          vesselTrackingEnabled: checked,
+                        },
                       }))
                     }
                     disabled={loading}
@@ -165,7 +185,9 @@ export function CreateFleetDialog({ open, onOpenChange, onSuccess }: CreateFleet
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="maintenance-reminders">Maintenance Reminders</Label>
+                    <Label htmlFor="maintenance-reminders">
+                      Maintenance Reminders
+                    </Label>
                     <p className="text-sm text-muted-foreground">
                       Get notified about scheduled maintenance
                     </p>
@@ -173,10 +195,13 @@ export function CreateFleetDialog({ open, onOpenChange, onSuccess }: CreateFleet
                   <Switch
                     id="maintenance-reminders"
                     checked={formData.settings.maintenanceReminders}
-                    onCheckedChange={(checked) => 
-                      setFormData(prev => ({
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({
                         ...prev,
-                        settings: { ...prev.settings, maintenanceReminders: checked }
+                        settings: {
+                          ...prev.settings,
+                          maintenanceReminders: checked,
+                        },
                       }))
                     }
                     disabled={loading}
@@ -199,15 +224,15 @@ export function CreateFleetDialog({ open, onOpenChange, onSuccess }: CreateFleet
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
+                  Creating…
                 </>
               ) : (
-                'Create Fleet'
+                "Create Fleet"
               )}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
-} 
+  );
+}

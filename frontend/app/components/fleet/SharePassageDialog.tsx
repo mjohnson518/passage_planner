@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useReducer, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,57 @@ interface UserPassage {
   createdAt: string;
 }
 
+interface ShareFormState {
+  selectedPassage: string;
+  selectedVessels: string[];
+  selectedMembers: string[];
+  shareWithAll: boolean;
+}
+
+type ShareFormAction =
+  | { type: "setPassage"; passage: string }
+  | { type: "setShareWithAll"; value: boolean }
+  | { type: "toggleVessel"; id: string; checked: boolean }
+  | { type: "toggleMember"; id: string; checked: boolean }
+  | { type: "reset" };
+
+const initialShareForm: ShareFormState = {
+  selectedPassage: "",
+  selectedVessels: [],
+  selectedMembers: [],
+  shareWithAll: true,
+};
+
+function shareFormReducer(
+  state: ShareFormState,
+  action: ShareFormAction,
+): ShareFormState {
+  switch (action.type) {
+    case "setPassage":
+      return { ...state, selectedPassage: action.passage };
+    case "setShareWithAll":
+      return { ...state, shareWithAll: action.value };
+    case "toggleVessel":
+      return {
+        ...state,
+        selectedVessels: action.checked
+          ? [...state.selectedVessels, action.id]
+          : state.selectedVessels.filter((id) => id !== action.id),
+      };
+    case "toggleMember":
+      return {
+        ...state,
+        selectedMembers: action.checked
+          ? [...state.selectedMembers, action.id]
+          : state.selectedMembers.filter((id) => id !== action.id),
+      };
+    case "reset":
+      return initialShareForm;
+    default:
+      return state;
+  }
+}
+
 export function SharePassageDialog({
   open,
   onOpenChange,
@@ -50,36 +102,34 @@ export function SharePassageDialog({
   members,
 }: SharePassageDialogProps) {
   const [loading, setLoading] = useState(false);
-  const [passages, setPassages] = useState<UserPassage[]>([]);
-  const [selectedPassage, setSelectedPassage] = useState<string>("");
-  const [selectedVessels, setSelectedVessels] = useState<string[]>([]);
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  const [shareWithAll, setShareWithAll] = useState(true);
+  const [form, dispatch] = useReducer(shareFormReducer, initialShareForm);
+  const { selectedPassage, selectedVessels, selectedMembers, shareWithAll } =
+    form;
 
-  useEffect(() => {
-    if (open) {
-      fetchUserPassages();
-    }
-  }, [open]);
+  const { data: passages = [] } = useQuery<UserPassage[]>({
+    queryKey: ["fleet-share-passages"],
+    enabled: open,
+    queryFn: async () => {
+      try {
+        const response = await fetch("/api/passages", {
+          credentials: "include",
+        });
 
-  const fetchUserPassages = async () => {
-    try {
-      const response = await fetch("/api/passages", {
-        credentials: "include",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPassages(data.passages || []);
+        if (response.ok) {
+          const data = await response.json();
+          return data.passages || [];
+        }
+        return [];
+      } catch (error) {
+        logger.error("Failed to fetch passages for share dialog", {
+          error: String(error),
+          fleetId,
+        });
+        toast.error("Failed to load passages");
+        return [];
       }
-    } catch (error) {
-      logger.error("Failed to fetch passages for share dialog", {
-        error: String(error),
-        fleetId,
-      });
-      toast.error("Failed to load passages");
-    }
-  };
+    },
+  });
 
   const handleSubmit = async () => {
     if (!selectedPassage) {
@@ -110,10 +160,7 @@ export function SharePassageDialog({
       onOpenChange(false);
 
       // Reset form
-      setSelectedPassage("");
-      setSelectedVessels([]);
-      setSelectedMembers([]);
-      setShareWithAll(true);
+      dispatch({ type: "reset" });
     } catch (error) {
       toast.error("Failed to share passage");
     } finally {
@@ -147,7 +194,12 @@ export function SharePassageDialog({
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Select Passage</Label>
-            <Select value={selectedPassage} onValueChange={setSelectedPassage}>
+            <Select
+              value={selectedPassage}
+              onValueChange={(value) =>
+                dispatch({ type: "setPassage", passage: value })
+              }
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Choose a passage to share" />
               </SelectTrigger>
@@ -170,12 +222,15 @@ export function SharePassageDialog({
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-x-2">
               <Checkbox
                 id="shareWithAll"
                 checked={shareWithAll}
                 onCheckedChange={(checked) =>
-                  setShareWithAll(checked as boolean)
+                  dispatch({
+                    type: "setShareWithAll",
+                    value: checked as boolean,
+                  })
                 }
               />
               <Label htmlFor="shareWithAll">Share with entire fleet</Label>
@@ -193,20 +248,18 @@ export function SharePassageDialog({
                   {vessels.map((vessel) => (
                     <div
                       key={vessel.id}
-                      className="flex items-center space-x-2 py-1"
+                      className="flex items-center gap-x-2 py-1"
                     >
                       <Checkbox
                         id={`vessel-${vessel.id}`}
                         checked={selectedVessels.includes(vessel.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedVessels([...selectedVessels, vessel.id]);
-                          } else {
-                            setSelectedVessels(
-                              selectedVessels.filter((id) => id !== vessel.id),
-                            );
-                          }
-                        }}
+                        onCheckedChange={(checked) =>
+                          dispatch({
+                            type: "toggleVessel",
+                            id: vessel.id,
+                            checked: !!checked,
+                          })
+                        }
                       />
                       <Label
                         htmlFor={`vessel-${vessel.id}`}
@@ -229,20 +282,18 @@ export function SharePassageDialog({
                   {members.map((member) => (
                     <div
                       key={member.id}
-                      className="flex items-center space-x-2 py-1"
+                      className="flex items-center gap-x-2 py-1"
                     >
                       <Checkbox
                         id={`member-${member.id}`}
                         checked={selectedMembers.includes(member.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedMembers([...selectedMembers, member.id]);
-                          } else {
-                            setSelectedMembers(
-                              selectedMembers.filter((id) => id !== member.id),
-                            );
-                          }
-                        }}
+                        onCheckedChange={(checked) =>
+                          dispatch({
+                            type: "toggleMember",
+                            id: member.id,
+                            checked: !!checked,
+                          })
+                        }
                       />
                       <Label
                         htmlFor={`member-${member.id}`}

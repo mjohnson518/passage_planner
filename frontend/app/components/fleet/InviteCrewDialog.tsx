@@ -45,6 +45,7 @@ export function InviteCrewDialog({
   const [loading, setLoading] = useState(false);
   const [invites, setInvites] = useState([
     {
+      id: crypto.randomUUID(),
       email: "",
       name: "",
       role: "crew" as CrewMember["role"],
@@ -64,6 +65,7 @@ export function InviteCrewDialog({
     setInvites([
       ...invites,
       {
+        id: crypto.randomUUID(),
         email: "",
         name: "",
         role: "crew" as CrewMember["role"],
@@ -160,6 +162,7 @@ export function InviteCrewDialog({
       // Reset form
       setInvites([
         {
+          id: crypto.randomUUID(),
           email: "",
           name: "",
           role: "crew" as CrewMember["role"],
@@ -194,7 +197,7 @@ export function InviteCrewDialog({
 
         <div className="space-y-4 py-4">
           {invites.map((invite, index) => (
-            <div key={index} className="space-y-4 p-4 border rounded-lg">
+            <div key={invite.id} className="space-y-4 p-4 border rounded-lg">
               <div className="flex justify-between items-start">
                 <h4 className="font-medium">Crew Member {index + 1}</h4>
                 {invites.length > 1 && (
@@ -264,7 +267,7 @@ export function InviteCrewDialog({
                     {vessels.map((vessel) => (
                       <div
                         key={vessel.id}
-                        className="flex items-center space-x-2"
+                        className="flex items-center gap-x-2"
                       >
                         <Checkbox
                           id={`vessel-${vessel.id}-${index}`}
@@ -316,7 +319,7 @@ export function InviteCrewDialog({
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Sending...
+                Sending…
               </>
             ) : (
               "Send Invitations"
