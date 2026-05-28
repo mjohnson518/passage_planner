@@ -82,8 +82,8 @@ export default function ChangelogPage() {
                   description:
                     "Faster planning, better caching, reduced latency.",
                 },
-              ].map((cat, i) => (
-                <div key={i}>
+              ].map((cat) => (
+                <div key={cat.title}>
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-brass/10 text-brass mb-3">
                     <cat.icon className="h-5 w-5" />
                   </div>
@@ -126,7 +126,10 @@ export default function ChangelogPage() {
               <Anchor className="h-5 w-5 text-primary" />
               <span className="font-display font-bold">Helmwise</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p
+              className="text-sm text-muted-foreground"
+              suppressHydrationWarning
+            >
               &copy; {new Date().getFullYear()} Helmwise. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-muted-foreground">

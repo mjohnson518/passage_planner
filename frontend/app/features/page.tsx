@@ -134,9 +134,9 @@ export default function FeaturesPage() {
           </div>
 
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {agents.map((agent, i) => (
+            {agents.map((agent) => (
               <div
-                key={i}
+                key={agent.name}
                 className="card-nautical p-6 transition-all hover:shadow-card-hover hover:-translate-y-1"
               >
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary mb-4">
@@ -170,8 +170,8 @@ export default function FeaturesPage() {
           </div>
 
           <div className="grid gap-12 lg:grid-cols-2">
-            {capabilities.map((cap, i) => (
-              <div key={i} className="flex gap-5">
+            {capabilities.map((cap) => (
+              <div key={cap.title} className="flex gap-5">
                 <div className="flex-shrink-0">
                   <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary">
                     <cap.icon className="h-6 w-6" />
@@ -225,7 +225,10 @@ export default function FeaturesPage() {
               <Anchor className="h-5 w-5 text-primary" />
               <span className="font-display font-bold">Helmwise</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p
+              className="text-sm text-muted-foreground"
+              suppressHydrationWarning
+            >
               &copy; {new Date().getFullYear()} Helmwise. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-muted-foreground">

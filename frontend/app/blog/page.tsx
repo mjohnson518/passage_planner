@@ -82,8 +82,8 @@ export default function BlogPage() {
                   description:
                     "GO / CAUTION / NO-GO thinking and conservative margins.",
                 },
-              ].map((topic, i) => (
-                <div key={i}>
+              ].map((topic) => (
+                <div key={topic.title}>
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-brass/10 text-brass mb-3">
                     <topic.icon className="h-5 w-5" />
                   </div>
@@ -126,7 +126,10 @@ export default function BlogPage() {
               <Anchor className="h-5 w-5 text-primary" />
               <span className="font-display font-bold">Helmwise</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p
+              className="text-sm text-muted-foreground"
+              suppressHydrationWarning
+            >
               &copy; {new Date().getFullYear()} Helmwise. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-muted-foreground">

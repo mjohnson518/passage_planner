@@ -81,8 +81,8 @@ export default function DocsPage() {
                   description:
                     "GPX, PDF, chartplotter handoff, webhooks, PWA install.",
                 },
-              ].map((section, i) => (
-                <div key={i}>
+              ].map((section) => (
+                <div key={section.title}>
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-brass/10 text-brass mb-3">
                     <section.icon className="h-5 w-5" />
                   </div>
@@ -127,7 +127,10 @@ export default function DocsPage() {
               <Anchor className="h-5 w-5 text-primary" />
               <span className="font-display font-bold">Helmwise</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p
+              className="text-sm text-muted-foreground"
+              suppressHydrationWarning
+            >
               &copy; {new Date().getFullYear()} Helmwise. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-muted-foreground">

@@ -62,9 +62,9 @@ export default function ContactPage() {
                 email: "hello@helmwise.co",
                 description: "Feedback, press, and everything else.",
               },
-            ].map((contact, i) => (
+            ].map((contact) => (
               <div
-                key={i}
+                key={contact.email}
                 className="card-nautical p-6 text-center transition-all hover:shadow-card-hover hover:-translate-y-1"
               >
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary mb-4">
@@ -109,9 +109,9 @@ export default function ContactPage() {
                 icon: Linkedin,
                 href: "https://linkedin.com/company/helmwise",
               },
-            ].map((social, i) => (
+            ].map((social) => (
               <a
-                key={i}
+                key={social.label}
                 href={social.href}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -162,7 +162,10 @@ export default function ContactPage() {
               <Anchor className="h-5 w-5 text-primary" />
               <span className="font-display font-bold">Helmwise</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p
+              className="text-sm text-muted-foreground"
+              suppressHydrationWarning
+            >
               &copy; {new Date().getFullYear()} Helmwise. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-muted-foreground">

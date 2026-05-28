@@ -185,7 +185,7 @@ export default async function SharedPassagePage({
             <ol className="space-y-2 text-sm">
               {route.waypoints.map((wp, i) => (
                 <li
-                  key={i}
+                  key={`${wp.name ?? ""}:${wp.lat ?? ""},${wp.lon ?? ""}`}
                   className="flex items-start justify-between gap-4 border-t border-border pt-2 first:border-t-0 first:pt-0"
                 >
                   <div className="min-w-0">

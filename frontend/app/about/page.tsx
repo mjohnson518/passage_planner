@@ -1,6 +1,6 @@
-import Link from 'next/link'
-import type { Metadata } from 'next'
-import { Header } from '../components/layout/Header'
+import Link from "next/link";
+import type { Metadata } from "next";
+import { Header } from "../components/layout/Header";
 import {
   Anchor,
   Cloud,
@@ -13,13 +13,14 @@ import {
   Heart,
   Target,
   Eye,
-} from 'lucide-react'
-import { Button } from '../components/ui/button'
+} from "lucide-react";
+import { Button } from "../components/ui/button";
 
 export const metadata: Metadata = {
-  title: 'About Helmwise - AI-Powered Passage Planning',
-  description: 'Learn about Helmwise, our mission to make passage planning safer for sailors, and the technology behind our AI-powered platform.',
-}
+  title: "About Helmwise - AI-Powered Passage Planning",
+  description:
+    "Learn about Helmwise, our mission to make passage planning safer for sailors, and the technology behind our AI-powered platform.",
+};
 
 export default function AboutPage() {
   return (
@@ -36,7 +37,10 @@ export default function AboutPage() {
             <span className="text-gradient">Smarter Planning</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            Helmwise is an AI-powered passage planning platform built for sailors who take safety seriously. We combine real-time data from multiple sources with specialized AI agents to deliver comprehensive passage plans in seconds.
+            Helmwise is an AI-powered passage planning platform built for
+            sailors who take safety seriously. We combine real-time data from
+            multiple sources with specialized AI agents to deliver comprehensive
+            passage plans in seconds.
           </p>
         </div>
       </section>
@@ -48,21 +52,24 @@ export default function AboutPage() {
             {[
               {
                 icon: Target,
-                title: 'Our Mission',
-                description: 'To make comprehensive passage planning accessible to every sailor, reducing risk through better information and analysis.',
+                title: "Our Mission",
+                description:
+                  "To make comprehensive passage planning accessible to every sailor, reducing risk through better information and analysis.",
               },
               {
                 icon: Heart,
-                title: 'Safety First',
-                description: 'Every feature we build prioritizes mariner safety. We apply conservative margins, present worst-case scenarios, and never suppress warnings.',
+                title: "Safety First",
+                description:
+                  "Every feature we build prioritizes mariner safety. We apply conservative margins, present worst-case scenarios, and never suppress warnings.",
               },
               {
                 icon: Eye,
-                title: 'Transparency',
-                description: 'We show our data sources, explain our recommendations, and make it clear when data is uncertain or stale. You always know why we recommend what we do.',
+                title: "Transparency",
+                description:
+                  "We show our data sources, explain our recommendations, and make it clear when data is uncertain or stale. You always know why we recommend what we do.",
               },
-            ].map((value, i) => (
-              <div key={i} className="text-center">
+            ].map((value) => (
+              <div key={value.title} className="text-center">
                 <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-primary/10 text-primary mb-6">
                   <value.icon className="h-7 w-7" />
                 </div>
@@ -81,11 +88,11 @@ export default function AboutPage() {
         <div className="relative mx-auto max-w-7xl">
           <div className="text-center mb-16">
             <span className="badge-brass mb-4">Technology</span>
-            <h2 className="font-display mt-4">
-              How Helmwise Works
-            </h2>
+            <h2 className="font-display mt-4">How Helmwise Works</h2>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
-              Helmwise uses the Model Context Protocol to coordinate specialized AI agents. Each agent is an expert in its domain, working in parallel to deliver comprehensive analysis in seconds.
+              Helmwise uses the Model Context Protocol to coordinate specialized
+              AI agents. Each agent is an expert in its domain, working in
+              parallel to deliver comprehensive analysis in seconds.
             </p>
           </div>
 
@@ -93,18 +100,41 @@ export default function AboutPage() {
             <div>
               <div className="space-y-4">
                 {[
-                  { name: 'Route Agent', desc: 'Calculates optimal waypoints and bearings using great-circle navigation' },
-                  { name: 'Weather Agent', desc: 'Aggregates NOAA, OpenWeather, and buoy data for multi-model forecasts' },
-                  { name: 'Tidal Agent', desc: 'Predicts tides and currents from official NOAA harmonic stations' },
-                  { name: 'Safety Agent', desc: 'Assesses risks, identifies restricted areas, and finds emergency harbors' },
-                  { name: 'Port Agent', desc: 'Provides marina facilities, entry requirements, and local knowledge for 70+ ports' },
-                  { name: 'Warning Agent', desc: 'Monitors NAVTEX, coast guard alerts, and notices to mariners' },
-                ].map((agent, i) => (
-                  <div key={i} className="flex items-center gap-4 p-4 rounded-lg bg-card border border-border/50 hover:border-primary/30 transition-colors">
+                  {
+                    name: "Route Agent",
+                    desc: "Calculates optimal waypoints and bearings using great-circle navigation",
+                  },
+                  {
+                    name: "Weather Agent",
+                    desc: "Aggregates NOAA, OpenWeather, and buoy data for multi-model forecasts",
+                  },
+                  {
+                    name: "Tidal Agent",
+                    desc: "Predicts tides and currents from official NOAA harmonic stations",
+                  },
+                  {
+                    name: "Safety Agent",
+                    desc: "Assesses risks, identifies restricted areas, and finds emergency harbors",
+                  },
+                  {
+                    name: "Port Agent",
+                    desc: "Provides marina facilities, entry requirements, and local knowledge for 70+ ports",
+                  },
+                  {
+                    name: "Warning Agent",
+                    desc: "Monitors NAVTEX, coast guard alerts, and notices to mariners",
+                  },
+                ].map((agent) => (
+                  <div
+                    key={agent.name}
+                    className="flex items-center gap-4 p-4 rounded-lg bg-card border border-border/50 hover:border-primary/30 transition-colors"
+                  >
                     <div className="w-2 h-2 rounded-full bg-success animate-pulse flex-shrink-0" />
                     <div>
                       <p className="font-medium">{agent.name}</p>
-                      <p className="text-sm text-muted-foreground">{agent.desc}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {agent.desc}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -120,14 +150,14 @@ export default function AboutPage() {
 
                 {/* Orbiting agents */}
                 {[Cloud, Waves, Map, Shield, Anchor, Compass].map((Icon, i) => {
-                  const angle = (i * 60) * (Math.PI / 180)
-                  const radius = 140
-                  const x = Math.cos(angle) * radius
-                  const y = Math.sin(angle) * radius
+                  const angle = i * 60 * (Math.PI / 180);
+                  const radius = 140;
+                  const x = Math.cos(angle) * radius;
+                  const y = Math.sin(angle) * radius;
 
                   return (
                     <div
-                      key={i}
+                      key={`orbit-${Icon.displayName ?? Icon.name}`}
                       className="absolute w-14 h-14 rounded-full bg-card border-2 border-primary/20 flex items-center justify-center shadow-maritime animate-float"
                       style={{
                         top: `calc(50% + ${y}px - 28px)`,
@@ -137,15 +167,18 @@ export default function AboutPage() {
                     >
                       <Icon className="h-6 w-6 text-primary" />
                     </div>
-                  )
+                  );
                 })}
 
                 {/* Connection lines */}
-                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 400">
+                <svg
+                  className="absolute inset-0 w-full h-full"
+                  viewBox="0 0 400 400"
+                >
                   {[0, 1, 2, 3, 4, 5].map((i) => {
-                    const angle = (i * 60) * (Math.PI / 180)
-                    const x = 200 + Math.cos(angle) * 140
-                    const y = 200 + Math.sin(angle) * 140
+                    const angle = i * 60 * (Math.PI / 180);
+                    const x = 200 + Math.cos(angle) * 140;
+                    const y = 200 + Math.sin(angle) * 140;
                     return (
                       <line
                         key={i}
@@ -158,7 +191,7 @@ export default function AboutPage() {
                         className="text-primary/20"
                         strokeDasharray="4 4"
                       />
-                    )
+                    );
                   })}
                 </svg>
               </div>
@@ -177,16 +210,19 @@ export default function AboutPage() {
 
           <div className="card p-8 space-y-6">
             <p className="text-muted-foreground">
-              Helmwise is designed as a <strong>supplementary tool</strong> to assist with passage planning. It is not a replacement for proper seamanship, navigation skills, or professional judgment. All data and recommendations should be verified against official sources.
+              Helmwise is designed as a <strong>supplementary tool</strong> to
+              assist with passage planning. It is not a replacement for proper
+              seamanship, navigation skills, or professional judgment. All data
+              and recommendations should be verified against official sources.
             </p>
             <div className="grid sm:grid-cols-2 gap-4">
               {[
-                '20% clearance under keel minimum',
-                '20% weather delay buffer applied',
-                '30% fuel and water reserves recommended',
-                'Worst-case scenario always presented',
-                'Stale weather data automatically rejected',
-                'Complete audit trail for all decisions',
+                "20% clearance under keel minimum",
+                "20% weather delay buffer applied",
+                "30% fuel and water reserves recommended",
+                "Worst-case scenario always presented",
+                "Stale weather data automatically rejected",
+                "Complete audit trail for all decisions",
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <Shield className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
@@ -205,7 +241,9 @@ export default function AboutPage() {
             Ready to Plan Safer Passages?
           </h2>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-primary-foreground/80">
-            Try Helmwise free and experience AI-powered passage planning with real-time weather, tidal analysis, and comprehensive safety briefings.
+            Try Helmwise free and experience AI-powered passage planning with
+            real-time weather, tidal analysis, and comprehensive safety
+            briefings.
           </p>
           <div className="mt-10">
             <Link href="/signup">
@@ -226,16 +264,29 @@ export default function AboutPage() {
               <Anchor className="h-5 w-5 text-primary" />
               <span className="font-display font-bold">Helmwise</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p
+              className="text-sm text-muted-foreground"
+              suppressHydrationWarning
+            >
               &copy; {new Date().getFullYear()} Helmwise. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-muted-foreground">
-              <Link href="/terms" className="hover:text-primary transition-colors">Terms</Link>
-              <Link href="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
+              <Link
+                href="/terms"
+                className="hover:text-primary transition-colors"
+              >
+                Terms
+              </Link>
+              <Link
+                href="/privacy"
+                className="hover:text-primary transition-colors"
+              >
+                Privacy
+              </Link>
             </div>
           </div>
         </div>
       </footer>
     </>
-  )
+  );
 }

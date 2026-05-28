@@ -37,7 +37,7 @@ export default function CareersPage() {
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
             We&apos;re a small team building AI-powered passage planning for
             mariners who take safety seriously. No open positions listed right
-            now — but we&apos;re always interested in talented people.
+            now, but we&apos;re always interested in talented people.
           </p>
         </div>
       </section>
@@ -63,7 +63,7 @@ export default function CareersPage() {
               >
                 hello@helmwise.co
               </a>{" "}
-              — tell us what you&apos;d be excited to work on and why it
+              to tell us what you&apos;d be excited to work on and why it
               matters.
             </p>
 
@@ -92,8 +92,8 @@ export default function CareersPage() {
                   description:
                     "Maritime aesthetics, rigorous engineering, and a long memory for edge cases.",
                 },
-              ].map((item, i) => (
-                <div key={i}>
+              ].map((item) => (
+                <div key={item.label}>
                   <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-brass/10 text-brass mb-3">
                     <item.icon className="h-5 w-5" />
                   </div>
@@ -136,7 +136,10 @@ export default function CareersPage() {
               <Anchor className="h-5 w-5 text-primary" />
               <span className="font-display font-bold">Helmwise</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p
+              className="text-sm text-muted-foreground"
+              suppressHydrationWarning
+            >
               &copy; {new Date().getFullYear()} Helmwise. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-muted-foreground">

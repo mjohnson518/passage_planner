@@ -23,7 +23,7 @@ export default function AdminError({
       <h1 className="text-2xl font-bold mb-2">Admin console unavailable</h1>
       <p className="text-muted-foreground mb-4">
         The admin console encountered an error. User data and orchestrator state
-        are unaffected — this is a display issue only.
+        are unaffected; this is a display issue only.
       </p>
       <p className="text-sm text-muted-foreground mb-6">
         Check the orchestrator <code>/health</code> endpoint and Sentry before

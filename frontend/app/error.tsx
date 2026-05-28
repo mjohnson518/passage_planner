@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { Compass } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { logger } from "./lib/logger";
@@ -33,9 +34,9 @@ export default function GlobalError({
         </h1>
         <p className="text-muted-foreground mb-2">
           The error has been logged. If this keeps happening, please{" "}
-          <a href="/contact" className="underline hover:text-foreground">
+          <Link href="/contact" className="underline hover:text-foreground">
             contact support
-          </a>
+          </Link>
           .
         </p>
         {error.digest && (
