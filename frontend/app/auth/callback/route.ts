@@ -13,6 +13,10 @@ import { serverLogger } from "../../lib/server-logger";
 // CRITICAL: Cloudflare Pages requires Edge Runtime for dynamic routes
 export const runtime = "edge";
 
+// OAuth providers redirect here via GET with a one-time PKCE `code`; the PKCE
+// code_verifier cookie mitigates CSRF. A GET handler is mandatory for the
+// Supabase SSR auth flow — POST is not an option.
+// oxlint-disable-next-line react-doctor/nextjs-no-side-effect-in-get-handler
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");

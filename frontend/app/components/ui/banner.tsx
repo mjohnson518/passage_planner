@@ -112,4 +112,4 @@ const BannerAction = React.forwardRef<
 ));
 BannerAction.displayName = "BannerAction";
 
-export { Banner, BannerTitle, BannerDescription, BannerAction, bannerVariants };
+export { Banner, BannerTitle, BannerDescription, BannerAction };

@@ -7,6 +7,8 @@ import {
   useState,
   ReactNode,
   useRef,
+  useCallback,
+  useMemo,
 } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./AuthContext";
@@ -133,31 +135,43 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     socket.on("progress", handlePlanningUpdate);
 
     return () => {
+      socket.off("connect");
+      socket.off("disconnect");
+      socket.off("connect_error");
+      socket.off("authenticated");
+      socket.off("authentication_error");
+      socket.off("planning_update", handlePlanningUpdate);
+      socket.off("agent_status", handlePlanningUpdate);
+      socket.off("progress", handlePlanningUpdate);
       socket.disconnect();
       socketRef.current = null;
     };
   }, []);
 
-  const subscribe = (handler: (update: PlanningUpdate) => void) => {
+  const subscribe = useCallback((handler: (update: PlanningUpdate) => void) => {
     handlersRef.current.add(handler);
-  };
+  }, []);
 
-  const unsubscribe = (handler: (update: PlanningUpdate) => void) => {
-    handlersRef.current.delete(handler);
-  };
+  const unsubscribe = useCallback(
+    (handler: (update: PlanningUpdate) => void) => {
+      handlersRef.current.delete(handler);
+    },
+    [],
+  );
+
+  const value = useMemo(
+    () => ({
+      connected,
+      agentStatuses,
+      currentPlanningId,
+      subscribe,
+      unsubscribe,
+    }),
+    [connected, agentStatuses, currentPlanningId, subscribe, unsubscribe],
+  );
 
   return (
-    <SocketContext.Provider
-      value={{
-        connected,
-        agentStatuses,
-        currentPlanningId,
-        subscribe,
-        unsubscribe,
-      }}
-    >
-      {children}
-    </SocketContext.Provider>
+    <SocketContext.Provider value={value}>{children}</SocketContext.Provider>
   );
 }
 

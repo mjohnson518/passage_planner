@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { logger } from "../lib/logger";
 
@@ -19,39 +19,89 @@ export function useServiceWorker() {
 
   const [syncRegistered, setSyncRegistered] = useState(false);
 
+  // Mirror of state.registration in a ref so the memoized callbacks below can
+  // read the latest registration without changing identity (keeps effects that
+  // depend on them stable, avoiding re-registration loops).
+  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
+  registrationRef.current = state.registration;
+
+  // Update service worker
+  const updateServiceWorker = useCallback(() => {
+    const registration = registrationRef.current;
+    if (!registration?.waiting) return;
+
+    // Send skip waiting message
+    registration.waiting.postMessage({ type: "SKIP_WAITING" });
+
+    // Reload once activated
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      window.location.reload();
+    });
+  }, []);
+
+  // Request background sync
+  const requestSync = useCallback(async (tag: string) => {
+    const registration = registrationRef.current;
+    if (!registration || !("sync" in registration)) {
+      return false;
+    }
+
+    try {
+      await (registration as any).sync?.register(tag);
+      setSyncRegistered(true);
+      return true;
+    } catch (error) {
+      logger.error("Failed to register sync", { error: String(error), tag });
+      return false;
+    }
+  }, []);
+
   // Register service worker
   useEffect(() => {
     if (!state.isSupported) return;
+
+    let activeRegistration: ServiceWorkerRegistration | null = null;
+    const stateChangeListeners: Array<{
+      worker: ServiceWorker;
+      handler: () => void;
+    }> = [];
+    const handleUpdateFound = () => {
+      const newWorker = activeRegistration?.installing;
+      if (!newWorker) return;
+
+      const handleStateChange = () => {
+        if (
+          newWorker.state === "installed" &&
+          navigator.serviceWorker.controller
+        ) {
+          setState((prev) => ({ ...prev, isUpdateAvailable: true }));
+          toast.info("New version available! Click to update.", {
+            action: {
+              label: "Update",
+              onClick: () => updateServiceWorker(),
+            },
+            duration: Infinity,
+          });
+        }
+      };
+      newWorker.addEventListener("statechange", handleStateChange);
+      stateChangeListeners.push({
+        worker: newWorker,
+        handler: handleStateChange,
+      });
+    };
 
     const registerSW = async () => {
       try {
         const registration = await navigator.serviceWorker.register("/sw.js", {
           scope: "/",
         });
+        activeRegistration = registration;
 
         setState((prev) => ({ ...prev, registration }));
 
         // Check for updates
-        registration.addEventListener("updatefound", () => {
-          const newWorker = registration.installing;
-          if (!newWorker) return;
-
-          newWorker.addEventListener("statechange", () => {
-            if (
-              newWorker.state === "installed" &&
-              navigator.serviceWorker.controller
-            ) {
-              setState((prev) => ({ ...prev, isUpdateAvailable: true }));
-              toast.info("New version available! Click to update.", {
-                action: {
-                  label: "Update",
-                  onClick: () => updateServiceWorker(),
-                },
-                duration: Infinity,
-              });
-            }
-          });
-        });
+        registration.addEventListener("updatefound", handleUpdateFound);
 
         // Register periodic sync for background updates
         if ("periodicSync" in registration) {
@@ -71,7 +121,14 @@ export function useServiceWorker() {
     };
 
     registerSW();
-  }, [state.isSupported]);
+
+    return () => {
+      activeRegistration?.removeEventListener("updatefound", handleUpdateFound);
+      stateChangeListeners.forEach(({ worker, handler }) => {
+        worker.removeEventListener("statechange", handler);
+      });
+    };
+  }, [state.isSupported, updateServiceWorker]);
 
   // Handle online/offline events
   useEffect(() => {
@@ -95,39 +152,7 @@ export function useServiceWorker() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, []);
-
-  // Update service worker
-  const updateServiceWorker = useCallback(() => {
-    if (!state.registration?.waiting) return;
-
-    // Send skip waiting message
-    state.registration.waiting.postMessage({ type: "SKIP_WAITING" });
-
-    // Reload once activated
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      window.location.reload();
-    });
-  }, [state.registration]);
-
-  // Request background sync
-  const requestSync = useCallback(
-    async (tag: string) => {
-      if (!state.registration || !("sync" in state.registration)) {
-        return false;
-      }
-
-      try {
-        await (state.registration as any).sync?.register(tag);
-        setSyncRegistered(true);
-        return true;
-      } catch (error) {
-        logger.error("Failed to register sync", { error: String(error), tag });
-        return false;
-      }
-    },
-    [state.registration],
-  );
+  }, [requestSync]);
 
   // Store data for offline sync
   const storeOfflineData = useCallback(
