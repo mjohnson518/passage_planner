@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -18,49 +19,31 @@ import {
 } from "../ui/select";
 import { DatePickerWithRange } from "../ui/date-picker";
 import { DateRange } from "react-day-picker";
-import { Badge } from "../ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../ui/table";
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-} from "recharts";
-import {
-  Download,
-  FileText,
-  TrendingUp,
-  TrendingDown,
-  MapPin,
-  Anchor,
-  Wind,
-  Calendar,
-} from "lucide-react";
-import { useChartColors } from "@/lib/chart-colors";
+import dynamic from "next/dynamic";
+import { Download, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays } from "date-fns";
 import { logger } from "../../lib/logger";
+import { AnalyticsKpiCards } from "./_components/AnalyticsKpiCards";
+import { PopularRoutesTable } from "./_components/PopularRoutesTable";
+import { UserEngagementCard } from "./_components/UserEngagementCard";
+
+const UserActivityChart = dynamic(
+  () => import("./_components/UserActivityChart"),
+  { ssr: false },
+);
+const WeatherConditionsChart = dynamic(
+  () => import("./_components/WeatherConditionsChart"),
+  { ssr: false },
+);
+const FeatureUsageChart = dynamic(
+  () => import("./_components/FeatureUsageChart"),
+  { ssr: false },
+);
+const PerformanceRadarChart = dynamic(
+  () => import("./_components/PerformanceRadarChart"),
+  { ssr: false },
+);
 
 interface AnalyticsData {
   passageStats: {
@@ -108,38 +91,36 @@ interface AnalyticsData {
 }
 
 export function AnalyticsReports() {
-  const chartColors = useChartColors();
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<AnalyticsData | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -30),
     to: new Date(),
   });
   const [reportType, setReportType] = useState("overview");
 
-  useEffect(() => {
-    fetchAnalyticsData();
-  }, [dateRange, reportType]);
-
-  const fetchAnalyticsData = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `/api/admin/analytics?from=${dateRange?.from?.toISOString()}&to=${dateRange?.to?.toISOString()}&type=${reportType}`,
-      );
-      if (!response.ok) throw new Error("Failed to fetch analytics data");
-      const data = await response.json();
-      setData(data);
-    } catch (error) {
-      logger.error("Failed to load analytics", {
-        error: String(error),
-        reportType,
-      });
-      toast.error("Failed to load analytics data");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data, isLoading } = useQuery<AnalyticsData>({
+    queryKey: [
+      "admin-analytics",
+      dateRange?.from?.toISOString(),
+      dateRange?.to?.toISOString(),
+      reportType,
+    ],
+    queryFn: async () => {
+      try {
+        const response = await fetch(
+          `/api/admin/analytics?from=${dateRange?.from?.toISOString()}&to=${dateRange?.to?.toISOString()}&type=${reportType}`,
+        );
+        if (!response.ok) throw new Error("Failed to fetch analytics data");
+        return await response.json();
+      } catch (error) {
+        logger.error("Failed to load analytics", {
+          error: String(error),
+          reportType,
+        });
+        toast.error("Failed to load analytics data");
+        throw error;
+      }
+    },
+  });
 
   const exportReport = async (exportFormat: "csv" | "pdf") => {
     try {
@@ -161,16 +142,7 @@ export function AnalyticsReports() {
     }
   };
 
-  const COLORS = [
-    chartColors.primary,
-    chartColors.secondary,
-    chartColors.tertiary,
-    chartColors.danger,
-    chartColors.quaternary,
-    chartColors.success,
-  ];
-
-  if (loading || !data) {
+  if (isLoading || !data) {
     return (
       <div className="space-y-4">
         {[...Array(4)].map((_, i) => (
@@ -208,70 +180,10 @@ export function AnalyticsReports() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Passages
-            </CardTitle>
-            <Anchor className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {data.passageStats.total.toLocaleString()}
-            </div>
-            <div className="mt-2 flex gap-2">
-              <Badge variant="secondary">
-                {data.passageStats.completed} completed
-              </Badge>
-              <Badge variant="outline">
-                {data.passageStats.inProgress} active
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Distance</CardTitle>
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {data.passageStats.averageDistance.toFixed(1)} nm
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Per passage</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Duration</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {(data.passageStats.averageDuration / 24).toFixed(1)} days
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Per passage</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {data.performanceMetrics.successRate}%
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Planning success
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <AnalyticsKpiCards
+        passageStats={data.passageStats}
+        successRate={data.performanceMetrics.successRate}
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -280,21 +192,7 @@ export function AnalyticsReports() {
             <CardDescription>Daily active users over time</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.userActivity.dailyActiveUsers}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Line
-                  type="monotone"
-                  dataKey="count"
-                  stroke={chartColors.primary}
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <UserActivityChart data={data.userActivity.dailyActiveUsers} />
           </CardContent>
         </Card>
 
@@ -304,78 +202,12 @@ export function AnalyticsReports() {
             <CardDescription>Passages by weather conditions</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={data.weatherConditions}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ condition, percentage }) =>
-                    `${condition}: ${percentage}%`
-                  }
-                  outerRadius={80}
-                  fill={chartColors.primary}
-                  dataKey="count"
-                >
-                  {data.weatherConditions.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            <WeatherConditionsChart data={data.weatherConditions} />
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Popular Routes</CardTitle>
-          <CardDescription>Most frequently planned passages</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Route</TableHead>
-                <TableHead>Count</TableHead>
-                <TableHead>Avg Distance</TableHead>
-                <TableHead>Avg Duration</TableHead>
-                <TableHead>Trend</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.popularRoutes.slice(0, 10).map((route, idx) => (
-                <TableRow key={idx}>
-                  <TableCell>
-                    <div className="font-medium">
-                      {route.from} → {route.to}
-                    </div>
-                  </TableCell>
-                  <TableCell>{route.count}</TableCell>
-                  <TableCell>{route.avgDistance.toFixed(1)} nm</TableCell>
-                  <TableCell>
-                    {(route.avgDuration / 24).toFixed(1)} days
-                  </TableCell>
-                  <TableCell>
-                    {idx < 3 ? (
-                      <TrendingUp className="h-4 w-4 text-success" />
-                    ) : idx > 6 ? (
-                      <TrendingDown className="h-4 w-4 text-destructive" />
-                    ) : (
-                      <Wind className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <PopularRoutesTable routes={data.popularRoutes} />
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -386,79 +218,16 @@ export function AnalyticsReports() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.featureUsage}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="feature"
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
-                />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="usage" fill={chartColors.primary}>
-                  {data.featureUsage.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={
-                        entry.tier === "enterprise"
-                          ? chartColors.danger
-                          : entry.tier === "pro"
-                            ? chartColors.secondary
-                            : chartColors.primary
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <FeatureUsageChart data={data.featureUsage} />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>User Engagement</CardTitle>
-            <CardDescription>Key engagement metrics</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">
-                  Avg Session Duration
-                </span>
-                <span className="text-sm font-bold">
-                  {Math.floor(data.userEngagement.avgSessionDuration / 60)}m{" "}
-                  {data.userEngagement.avgSessionDuration % 60}s
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Bounce Rate</span>
-                <Badge
-                  variant={
-                    data.userEngagement.bounceRate > 50
-                      ? "destructive"
-                      : "default"
-                  }
-                >
-                  {data.userEngagement.bounceRate}%
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Pages per Session</span>
-                <span className="text-sm font-bold">
-                  {data.userEngagement.pagesPerSession.toFixed(1)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Conversion Rate</span>
-                <Badge variant="default">
-                  {data.userEngagement.conversionRate}%
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <UserEngagementCard
+          avgSessionDuration={data.userEngagement.avgSessionDuration}
+          bounceRate={data.userEngagement.bounceRate}
+          pagesPerSession={data.userEngagement.pagesPerSession}
+          conversionRate={data.userEngagement.conversionRate}
+        />
       </div>
 
       <Card>
@@ -467,40 +236,27 @@ export function AnalyticsReports() {
           <CardDescription>System performance overview</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <RadarChart
-              data={[
-                {
-                  metric: "Planning Speed",
-                  value: 100 - data.performanceMetrics.avgPlanningTime,
-                },
-                {
-                  metric: "Response Time",
-                  value: 100 - data.performanceMetrics.avgResponseTime / 10,
-                },
-                {
-                  metric: "Success Rate",
-                  value: data.performanceMetrics.successRate,
-                },
-                {
-                  metric: "Reliability",
-                  value: 100 - data.performanceMetrics.errorRate,
-                },
-                { metric: "User Satisfaction", value: 85 }, // Placeholder
-              ]}
-            >
-              <PolarGrid />
-              <PolarAngleAxis dataKey="metric" />
-              <PolarRadiusAxis angle={90} domain={[0, 100]} />
-              <Radar
-                name="Performance"
-                dataKey="value"
-                stroke={chartColors.primary}
-                fill={chartColors.primary}
-                fillOpacity={0.4}
-              />
-            </RadarChart>
-          </ResponsiveContainer>
+          <PerformanceRadarChart
+            data={[
+              {
+                metric: "Planning Speed",
+                value: 100 - data.performanceMetrics.avgPlanningTime,
+              },
+              {
+                metric: "Response Time",
+                value: 100 - data.performanceMetrics.avgResponseTime / 10,
+              },
+              {
+                metric: "Success Rate",
+                value: data.performanceMetrics.successRate,
+              },
+              {
+                metric: "Reliability",
+                value: 100 - data.performanceMetrics.errorRate,
+              },
+              { metric: "User Satisfaction", value: 85 }, // Placeholder
+            ]}
+          />
         </CardContent>
       </Card>
     </div>

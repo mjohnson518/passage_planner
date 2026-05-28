@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -22,19 +22,24 @@ import {
   ArrowUpRight,
   ArrowDownRight,
 } from "lucide-react";
-import { Line, Bar } from "recharts";
-import { useChartColors } from "@/lib/chart-colors";
-import {
-  LineChart,
-  BarChart,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { logger } from "../../lib/logger";
+
+const AdminRevenueChart = dynamic(
+  () => import("./_components/AdminRevenueChart"),
+  { ssr: false },
+);
+const AdminUserGrowthChart = dynamic(
+  () => import("./_components/AdminUserGrowthChart"),
+  { ssr: false },
+);
+
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
 
 interface MetricCard {
   title: string;
@@ -73,39 +78,36 @@ interface OverviewMetrics {
   };
 }
 
+interface OverviewResponse {
+  metrics: OverviewMetrics;
+  revenueChart: any[];
+  userChart: any[];
+}
+
 export function AdminOverview() {
-  const chartColors = useChartColors();
-  const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
-  const [revenueChart, setRevenueChart] = useState<any[]>([]);
-  const [userChart, setUserChart] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchMetrics();
-    const interval = setInterval(fetchMetrics, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchMetrics = async () => {
-    try {
-      const response = await fetch("/api/admin/metrics/overview", {
-        credentials: "include",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setMetrics(data.metrics);
-        setRevenueChart(data.revenueChart);
-        setUserChart(data.userChart);
+  const { data, isLoading } = useQuery<OverviewResponse>({
+    queryKey: ["admin-overview-metrics"],
+    queryFn: async () => {
+      let response: Response;
+      try {
+        response = await fetch("/api/admin/metrics/overview", {
+          credentials: "include",
+        });
+      } catch (error) {
+        logger.error("Failed to fetch admin metrics", { error: String(error) });
+        throw error;
       }
-    } catch (error) {
-      logger.error("Failed to fetch admin metrics", { error: String(error) });
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (!response.ok) throw new Error("Failed to fetch admin metrics");
+      return await response.json();
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
 
-  if (loading || !metrics) {
+  const metrics = data?.metrics;
+  const revenueChart = data?.revenueChart ?? [];
+  const userChart = data?.userChart ?? [];
+
+  if (isLoading || !metrics) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[...Array(8)].map((_, i) => (
@@ -162,23 +164,18 @@ export function AdminOverview() {
   ];
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
+    return currencyFormatter.format(value);
   };
 
   return (
     <div className="space-y-6">
       {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {metricCards.map((metric, index) => {
+        {metricCards.map((metric) => {
           const Icon = metric.icon;
           return (
-            <Card key={index}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <Card key={metric.title}>
+              <CardHeader className="flex flex-row items-center justify-between gap-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
                   {metric.title}
                 </CardTitle>
@@ -222,29 +219,10 @@ export function AdminOverview() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueChart}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis tickFormatter={(value) => `$${value / 1000}k`} />
-                <Tooltip formatter={(value: any) => formatCurrency(value)} />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="mrr"
-                  stroke={chartColors.primary}
-                  name="MRR"
-                  strokeWidth={2}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="arr"
-                  stroke={chartColors.secondary}
-                  name="ARR"
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <AdminRevenueChart
+              data={revenueChart}
+              formatCurrency={formatCurrency}
+            />
           </CardContent>
         </Card>
 
@@ -255,25 +233,7 @@ export function AdminOverview() {
             <CardDescription>New vs churned users by month</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={userChart}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar
-                  dataKey="new"
-                  fill={chartColors.success}
-                  name="New Users"
-                />
-                <Bar
-                  dataKey="churned"
-                  fill={chartColors.danger}
-                  name="Churned"
-                />
-              </BarChart>
-            </ResponsiveContainer>
+            <AdminUserGrowthChart data={userChart} />
           </CardContent>
         </Card>
       </div>
@@ -333,16 +293,28 @@ export function AdminOverview() {
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <button className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm">
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm"
+            >
               View Error Logs
             </button>
-            <button className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm">
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm"
+            >
               Export User Data
             </button>
-            <button className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm">
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm"
+            >
               Send Newsletter
             </button>
-            <button className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm">
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2 rounded hover:bg-muted text-sm"
+            >
               System Maintenance
             </button>
           </CardContent>

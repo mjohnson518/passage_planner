@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { MetricCard } from "./MetricCard";
 import {
   Card,
@@ -10,23 +11,6 @@ import {
   CardTitle,
 } from "../ui/card";
 import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -35,8 +19,26 @@ import {
 } from "../ui/select";
 import { Skeleton } from "../ui/skeleton";
 import { useSocket } from "../../contexts/SocketContext";
-import { useChartColors } from "@/lib/chart-colors";
 import { logger } from "../../lib/logger";
+
+const MrrGrowthChart = dynamic(() => import("./_components/MrrGrowthChart"), {
+  ssr: false,
+});
+const UserGrowthChart = dynamic(() => import("./_components/UserGrowthChart"), {
+  ssr: false,
+});
+const FeatureUsageChart = dynamic(
+  () => import("./_components/FeatureUsageChart"),
+  { ssr: false },
+);
+const SubscriptionDistributionChart = dynamic(
+  () => import("./_components/SubscriptionDistributionChart"),
+  { ssr: false },
+);
+const CohortRetentionChart = dynamic(
+  () => import("./_components/CohortRetentionChart"),
+  { ssr: false },
+);
 
 interface BusinessMetrics {
   mrr: number;
@@ -66,30 +68,13 @@ interface ChartData {
 }
 
 export function AnalyticsDashboard() {
-  const chartColors = useChartColors();
-  const COLORS = [
-    chartColors.primary,
-    chartColors.quaternary,
-    chartColors.success,
-    chartColors.tertiary,
-    chartColors.danger,
-  ];
   const [metrics, setMetrics] = useState<BusinessMetrics | null>(null);
   const [chartData, setChartData] = useState<ChartData | null>(null);
   const [timeRange, setTimeRange] = useState("30d");
   const [loading, setLoading] = useState(true);
   const { connected } = useSocket();
 
-  useEffect(() => {
-    fetchAnalytics();
-
-    // Refresh every 5 minutes
-    const interval = setInterval(fetchAnalytics, 5 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [timeRange]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       const response = await fetch(`/api/analytics/metrics?range=${timeRange}`);
       const data = await response.json();
@@ -104,7 +89,16 @@ export function AnalyticsDashboard() {
       });
       setLoading(false);
     }
-  };
+  }, [timeRange]);
+
+  useEffect(() => {
+    fetchAnalytics();
+
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchAnalytics, 5 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [fetchAnalytics]);
 
   if (loading) {
     return (
@@ -196,21 +190,7 @@ export function AnalyticsDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={chartData?.mrrHistory || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip formatter={(value: number) => `$${value}`} />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke={chartColors.primary}
-                  fill={chartColors.primary}
-                  fillOpacity={0.3}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <MrrGrowthChart data={chartData?.mrrHistory || []} />
           </CardContent>
         </Card>
 
@@ -221,33 +201,7 @@ export function AnalyticsDashboard() {
             <CardDescription>User acquisition and conversion</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData?.userGrowth || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="total"
-                  stroke={chartColors.primary}
-                  name="Total Users"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="paid"
-                  stroke={chartColors.success}
-                  name="Paid Users"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="trial"
-                  stroke={chartColors.tertiary}
-                  name="Trial Users"
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <UserGrowthChart data={chartData?.userGrowth || []} />
           </CardContent>
         </Card>
 
@@ -260,15 +214,7 @@ export function AnalyticsDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData?.featureUsage || []} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis dataKey="feature" type="category" width={100} />
-                <Tooltip />
-                <Bar dataKey="count" fill={chartColors.primary} />
-              </BarChart>
-            </ResponsiveContainer>
+            <FeatureUsageChart data={chartData?.featureUsage || []} />
           </CardContent>
         </Card>
 
@@ -279,30 +225,9 @@ export function AnalyticsDashboard() {
             <CardDescription>Breakdown by plan type</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={chartData?.subscriptionDistribution || []}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }: any) =>
-                    `${name} ${(percent * 100).toFixed(0)}%`
-                  }
-                  outerRadius={80}
-                  fill={chartColors.primary}
-                  dataKey="value"
-                >
-                  {chartData?.subscriptionDistribution.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            <SubscriptionDistributionChart
+              data={chartData?.subscriptionDistribution || []}
+            />
           </CardContent>
         </Card>
 
@@ -315,34 +240,7 @@ export function AnalyticsDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={chartData?.cohortRetention || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="week"
-                  label={{
-                    value: "Weeks after signup",
-                    position: "insideBottom",
-                    offset: -5,
-                  }}
-                />
-                <YAxis
-                  label={{
-                    value: "Retention %",
-                    angle: -90,
-                    position: "insideLeft",
-                  }}
-                />
-                <Tooltip formatter={(value: number) => `${value}%`} />
-                <Area
-                  type="monotone"
-                  dataKey="retention"
-                  stroke={chartColors.quaternary}
-                  fill={chartColors.quaternary}
-                  fillOpacity={0.3}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <CohortRetentionChart data={chartData?.cohortRetention || []} />
           </CardContent>
         </Card>
       </div>

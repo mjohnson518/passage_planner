@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -15,33 +16,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { Badge } from "../ui/badge";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
-import {
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Users,
-  CreditCard,
-  AlertCircle,
-} from "lucide-react";
-import { format } from "date-fns";
-import { useChartColors } from "@/lib/chart-colors";
+import dynamic from "next/dynamic";
+import { CreditCard, AlertCircle } from "lucide-react";
 import { logger } from "../../lib/logger";
+import { RevenueKpiCards } from "./_components/RevenueKpiCards";
+import { SubscriptionDistribution } from "./_components/SubscriptionDistribution";
+
+const RevenueGrowthChart = dynamic(
+  () => import("./_components/RevenueGrowthChart"),
+  { ssr: false },
+);
+const RevenueByTierChart = dynamic(
+  () => import("./_components/RevenueByTierChart"),
+  { ssr: false },
+);
+const ChurnAnalysisChart = dynamic(
+  () => import("./_components/ChurnAnalysisChart"),
+  { ssr: false },
+);
 
 interface RevenueData {
   mrr: number;
@@ -75,53 +67,40 @@ interface RevenueData {
   }>;
 }
 
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
+const formatCurrency = (value: number) => currencyFormatter.format(value);
+
 export function RevenueMetrics() {
-  const chartColors = useChartColors();
-  const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState("30d");
-  const [data, setData] = useState<RevenueData | null>(null);
 
-  useEffect(() => {
-    fetchRevenueData();
-  }, [timeRange]);
-
-  const fetchRevenueData = async () => {
-    try {
-      const response = await fetch(`/api/admin/revenue?range=${timeRange}`);
-      if (!response.ok) throw new Error("Failed to fetch revenue data");
-      const data = await response.json();
-      setData(data);
-    } catch (error) {
-      logger.error("Failed to load revenue data", {
-        error: String(error),
-        timeRange,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  const { data, isLoading } = useQuery<RevenueData>({
+    queryKey: ["admin-revenue", timeRange],
+    queryFn: async () => {
+      try {
+        const response = await fetch(`/api/admin/revenue?range=${timeRange}`);
+        if (!response.ok) throw new Error("Failed to fetch revenue data");
+        return await response.json();
+      } catch (error) {
+        logger.error("Failed to load revenue data", {
+          error: String(error),
+          timeRange,
+        });
+        throw error;
+      }
+    },
+  });
 
   const formatPercentage = (value: number) => {
     return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
   };
 
-  const COLORS = [
-    chartColors.primary,
-    chartColors.secondary,
-    chartColors.tertiary,
-    chartColors.danger,
-  ];
-
-  if (loading || !data) {
+  if (isLoading || !data) {
     return (
       <div className="space-y-4">
         {[...Array(4)].map((_, i) => (
@@ -148,66 +127,15 @@ export function RevenueMetrics() {
         </Select>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Monthly Recurring Revenue
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(data.mrr)}</div>
-            <p className="text-xs text-muted-foreground">
-              <span
-                className={
-                  data.growth >= 0 ? "text-success" : "text-destructive"
-                }
-              >
-                {formatPercentage(data.growth)}
-              </span>{" "}
-              from last month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Annual Recurring Revenue
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(data.arr)}</div>
-            <p className="text-xs text-muted-foreground">Projected from MRR</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Churn Rate</CardTitle>
-            <TrendingDown className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.churn.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">Monthly average</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Customer LTV</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(data.ltv)}</div>
-            <p className="text-xs text-muted-foreground">
-              Average lifetime value
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <RevenueKpiCards
+        mrr={data.mrr}
+        arr={data.arr}
+        growth={data.growth}
+        churn={data.churn}
+        ltv={data.ltv}
+        formatCurrency={formatCurrency}
+        formatPercentage={formatPercentage}
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -216,23 +144,10 @@ export function RevenueMetrics() {
             <CardDescription>Monthly revenue over time</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.revenueByMonth}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value: any) => formatCurrency(value)} />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke={chartColors.primary}
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <RevenueGrowthChart
+              data={data.revenueByMonth}
+              formatCurrency={formatCurrency}
+            />
           </CardContent>
         </Card>
 
@@ -244,125 +159,20 @@ export function RevenueMetrics() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={data.revenueByTier}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ tier, percent }: any) =>
-                    `${tier}: ${(percent * 100).toFixed(0)}%`
-                  }
-                  outerRadius={80}
-                  fill={chartColors.primary}
-                  dataKey="revenue"
-                >
-                  {data.revenueByTier.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value: any) => formatCurrency(value)} />
-              </PieChart>
-            </ResponsiveContainer>
+            <RevenueByTierChart
+              data={data.revenueByTier}
+              formatCurrency={formatCurrency}
+            />
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Subscription Distribution</CardTitle>
-          <CardDescription>Active subscriptions by tier</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {(() => {
-            const total =
-              data.subscriptions.free +
-              data.subscriptions.premium +
-              data.subscriptions.pro +
-              data.subscriptions.enterprise;
-            const tiers = [
-              {
-                key: "free",
-                label: "Free",
-                count: data.subscriptions.free,
-                color: "bg-muted-foreground",
-                variant: "secondary" as const,
-              },
-              {
-                key: "premium",
-                label: "Premium",
-                count: data.subscriptions.premium,
-                color: "bg-warning",
-                variant: "default" as const,
-              },
-              {
-                key: "pro",
-                label: "Pro",
-                count: data.subscriptions.pro,
-                color: "bg-primary",
-                variant: "default" as const,
-              },
-              {
-                key: "enterprise",
-                label: "Enterprise",
-                count: data.subscriptions.enterprise,
-                color: "bg-destructive",
-                variant: "destructive" as const,
-              },
-            ];
-            return (
-              <div className="space-y-4">
-                {tiers.map((t) => (
-                  <div key={t.key}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={t.variant}>{t.label}</Badge>
-                        <span className="text-sm font-medium">
-                          {t.count} users
-                        </span>
-                        {t.key === "premium" &&
-                          data.foundingMembers !== undefined &&
-                          data.foundingMembers > 0 && (
-                            <span className="text-xs text-warning">
-                              ({data.foundingMembers} founding)
-                            </span>
-                          )}
-                      </div>
-                      <span className="text-sm text-muted-foreground">
-                        {total > 0
-                          ? ((t.count / total) * 100).toFixed(1)
-                          : "0.0"}
-                        %
-                      </span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div
-                        className={`${t.color} h-2 rounded-full`}
-                        style={{
-                          width:
-                            total > 0 ? `${(t.count / total) * 100}%` : "0%",
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-                {data.topUpRevenue !== undefined && data.topUpRevenue > 0 && (
-                  <div className="pt-2 border-t">
-                    <span className="text-sm text-muted-foreground">
-                      Top-up pack revenue (one-time):{" "}
-                      <strong>{formatCurrency(data.topUpRevenue)}</strong>
-                    </span>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </CardContent>
-      </Card>
+      <SubscriptionDistribution
+        subscriptions={data.subscriptions}
+        foundingMembers={data.foundingMembers}
+        topUpRevenue={data.topUpRevenue}
+        formatCurrency={formatCurrency}
+      />
 
       <Card>
         <CardHeader>
@@ -372,42 +182,13 @@ export function RevenueMetrics() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={data.churnByMonth}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis
-                yAxisId="left"
-                orientation="left"
-                stroke={chartColors.primary}
-              />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                stroke={chartColors.secondary}
-              />
-              <Tooltip />
-              <Legend />
-              <Bar
-                yAxisId="left"
-                dataKey="rate"
-                fill={chartColors.primary}
-                name="Churn Rate (%)"
-              />
-              <Bar
-                yAxisId="right"
-                dataKey="count"
-                fill={chartColors.secondary}
-                name="Customers Lost"
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          <ChurnAnalysisChart data={data.churnByMonth} />
         </CardContent>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardHeader className="flex flex-row items-center justify-between gap-y-0">
             <CardTitle className="text-sm font-medium">
               Average Revenue Per User
             </CardTitle>
@@ -424,7 +205,7 @@ export function RevenueMetrics() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardHeader className="flex flex-row items-center justify-between gap-y-0">
             <CardTitle className="text-sm font-medium">
               Payment Failures
             </CardTitle>

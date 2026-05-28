@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
+import dynamic from "next/dynamic";
 import {
   Card,
   CardContent,
@@ -8,25 +9,23 @@ import {
   CardHeader,
   CardTitle,
 } from "../ui/card";
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-import { Skeleton } from "../ui/skeleton";
 import type { FleetAnalytics } from "@/types/shared";
-import { useChartColors } from "../../lib/chart-colors";
-import { logger } from "../../lib/logger";
+
+const VesselUtilizationChart = dynamic(
+  () => import("./_components/VesselUtilizationChart"),
+  { ssr: false },
+);
+const PopularRoutesChart = dynamic(
+  () => import("./_components/PopularRoutesChart"),
+  { ssr: false },
+);
+const FleetDistributionChart = dynamic(
+  () => import("./_components/FleetDistributionChart"),
+  { ssr: false },
+);
+const UsageTrendChart = dynamic(() => import("./_components/UsageTrendChart"), {
+  ssr: false,
+});
 
 interface FleetAnalyticsDashboardProps {
   fleetId: string;
@@ -37,98 +36,62 @@ interface FleetAnalyticsDashboardProps {
 export default function FleetAnalyticsDashboard({
   fleetId,
 }: FleetAnalyticsDashboardProps) {
-  const chartColors = useChartColors();
-  const [analytics, setAnalytics] = useState<FleetAnalytics | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchAnalytics();
-  }, [fleetId]);
-
-  const fetchAnalytics = async () => {
-    try {
-      // Mock data for now
-      setAnalytics({
-        fleetId,
-        totalVessels: 5,
-        activeVessels: 4,
-        totalCrew: 12,
-        totalPassages: 156,
-        totalDistance: 12450,
-        averagePassageDistance: 79.8,
-        vesselUtilization: [
-          {
-            vesselId: "1",
-            name: "Serenity",
-            passagesCount: 45,
-            totalDistance: 3200,
-            lastUsed: new Date(),
-          },
-          {
-            vesselId: "2",
-            name: "Wind Dancer",
-            passagesCount: 38,
-            totalDistance: 2890,
-            lastUsed: new Date(),
-          },
-          {
-            vesselId: "3",
-            name: "Blue Horizon",
-            passagesCount: 32,
-            totalDistance: 2410,
-            lastUsed: new Date(),
-          },
-          {
-            vesselId: "4",
-            name: "Ocean Spirit",
-            passagesCount: 28,
-            totalDistance: 2150,
-            lastUsed: new Date(),
-          },
-          {
-            vesselId: "5",
-            name: "Wave Runner",
-            passagesCount: 13,
-            totalDistance: 1800,
-            lastUsed: new Date(),
-          },
-        ],
-        popularRoutes: [
-          { departure: "Boston", destination: "Portland", count: 23 },
-          { departure: "Newport", destination: "Block Island", count: 18 },
-          { departure: "Annapolis", destination: "Norfolk", count: 15 },
-          { departure: "Miami", destination: "Key West", count: 12 },
-        ],
-      });
-      setLoading(false);
-    } catch (error) {
-      logger.error("Failed to fetch fleet analytics", {
-        error: String(error),
-        fleetId,
-      });
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="grid gap-4 md:grid-cols-2">
-        {[...Array(4)].map((_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <Skeleton className="h-4 w-32 mb-2" />
-              <Skeleton className="h-3 w-48" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-64 w-full" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
-  if (!analytics) return null;
+  // Mock data for now — derived from fleetId during render
+  const analytics = useMemo<FleetAnalytics>(
+    () => ({
+      fleetId,
+      totalVessels: 5,
+      activeVessels: 4,
+      totalCrew: 12,
+      totalPassages: 156,
+      totalDistance: 12450,
+      averagePassageDistance: 79.8,
+      vesselUtilization: [
+        {
+          vesselId: "1",
+          name: "Serenity",
+          passagesCount: 45,
+          totalDistance: 3200,
+          lastUsed: new Date(),
+        },
+        {
+          vesselId: "2",
+          name: "Wind Dancer",
+          passagesCount: 38,
+          totalDistance: 2890,
+          lastUsed: new Date(),
+        },
+        {
+          vesselId: "3",
+          name: "Blue Horizon",
+          passagesCount: 32,
+          totalDistance: 2410,
+          lastUsed: new Date(),
+        },
+        {
+          vesselId: "4",
+          name: "Ocean Spirit",
+          passagesCount: 28,
+          totalDistance: 2150,
+          lastUsed: new Date(),
+        },
+        {
+          vesselId: "5",
+          name: "Wave Runner",
+          passagesCount: 13,
+          totalDistance: 1800,
+          lastUsed: new Date(),
+        },
+      ],
+      popularRoutes: [
+        { departure: "Boston", destination: "Portland", count: 23 },
+        { departure: "Newport", destination: "Block Island", count: 18 },
+        { departure: "Annapolis", destination: "Norfolk", count: 15 },
+        { departure: "Miami", destination: "Key West", count: 12 },
+      ],
+    }),
+    [fleetId],
+  );
 
   // Prepare chart data
   const utilizationData = analytics.vesselUtilization.map((v: any) => ({
@@ -166,15 +129,7 @@ export default function FleetAnalyticsDashboard({
           <CardDescription>Passages per vessel</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={utilizationData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="passages" fill={chartColors.primary} />
-            </BarChart>
-          </ResponsiveContainer>
+          <VesselUtilizationChart data={utilizationData} />
         </CardContent>
       </Card>
 
@@ -185,15 +140,7 @@ export default function FleetAnalyticsDashboard({
           <CardDescription>Most frequently sailed passages</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={routeData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis dataKey="route" type="category" width={120} />
-              <Tooltip />
-              <Bar dataKey="count" fill={chartColors.quaternary} />
-            </BarChart>
-          </ResponsiveContainer>
+          <PopularRoutesChart data={routeData} />
         </CardContent>
       </Card>
 
@@ -204,30 +151,7 @@ export default function FleetAnalyticsDashboard({
           <CardDescription>Passage distribution across vessels</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }: any) =>
-                  `${name} ${(percent * 100).toFixed(0)}%`
-                }
-                outerRadius={80}
-                fill={chartColors.primary}
-                dataKey="value"
-              >
-                {pieData.map((entry: any, index: number) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={Object.values(chartColors)[index % 5] as string}
-                  />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          <FleetDistributionChart data={pieData} />
         </CardContent>
       </Card>
 
@@ -238,21 +162,7 @@ export default function FleetAnalyticsDashboard({
           <CardDescription>Monthly passage count</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Area
-                type="monotone"
-                dataKey="passages"
-                stroke={chartColors.success}
-                fill={chartColors.success}
-                fillOpacity={0.3}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <UsageTrendChart data={trendData} />
         </CardContent>
       </Card>
 
